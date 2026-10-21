@@ -1,5 +1,5 @@
 /* 背单词网页 — 离线缓存（应用壳 + 考研/四级/六级/综合词库） */
-const CACHE = "kaoyan-vocab-v5";
+const CACHE = "kaoyan-vocab-v6";
 const ASSETS = [
   "./",
   "./index.html",

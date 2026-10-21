@@ -52,6 +52,10 @@
         <span class="chip-label">正确率</span>
         <span class="chip-val"><b id="s-acc">—</b></span>
       </div>
+      <div class="chip survey-chip" id="surveyChip" hidden title="乱序模式下随机抽样估计当前词书掌握率">
+        <span class="chip-label">掌握率估计</span>
+        <span class="chip-val"><b id="s-survey">—</b><i id="s-survey-ci"></i></span>
+      </div>
       <div class="chip ring-chip" title="今日新词相对每日新词上限">
         <svg class="ring" viewBox="0 0 36 36" aria-hidden="true">
           <circle class="ring-bg" cx="18" cy="18" r="15"></circle>
@@ -128,6 +132,11 @@
       <p class="review-plan" id="reviewPlan" role="status" aria-live="polite"></p>
       <button type="button" class="btn ghost sm" id="btnDueList">查看到期词</button>
     </div>
+    <div class="panel" id="surveyPanel">
+      <h3>随机抽样 · 掌握率估计 <span class="panel-note">乱序模式</span></h3>
+      <div class="grid" id="surveyKpis"></div>
+      <p class="chart-hint" id="surveyHint" role="status" aria-live="polite"></p>
+    </div>
     <div class="panel">
       <h3>掌握阶段分布 <span class="panel-note">艾宾浩斯 10 档</span></h3>
       <div class="stages" id="stages"></div>
@@ -168,7 +177,7 @@
         <input type="number" id="dailyNew" min="1" max="500" step="1">
       </div>
       <div class="set">
-        <label for="order">背诵顺序<span class="desc">乱序模式下每次开始新一组都会重新打乱</span></label>
+        <label for="order">背诵顺序<span class="desc">乱序模式下每次开始新一组都会重新打乱，并实时显示随机抽样的掌握率估计</span></label>
         <select id="order">
           <option value="freq">按词频顺序</option>
           <option value="shuffle">乱序（每次重新打乱）</option>

@@ -241,6 +241,7 @@ main.wide .view { max-width: 1080px; }
 }
 .chip-val b { font-weight: 600; font-size: 17px; }
 .chip-val i { font-style: normal; color: var(--ink-3); font-size: 12px; }
+.survey-chip[hidden] { display: none; }
 
 .ring-chip {
   flex-direction: row;
@@ -916,6 +917,7 @@ main.wide .view { max-width: 1080px; }
   color: var(--ink-3);
   letter-spacing: .3px;
 }
+#surveyKpis .kpi b { font-size: 21px; }
 
 .stages {
   display: flex;

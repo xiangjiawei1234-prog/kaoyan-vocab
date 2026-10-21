@@ -19,15 +19,19 @@
   const BOOK_DEFS = [
     { id: "kaoyan", name: "考研英语", mark: "研", dataKey: "WORDS_RAW",
       KEY: "kaoyan_vocab_v1", PROF_KEY: "kaoyan_vocab_proficient_v1",
+      SURVEY_KEY: "kaoyan_vocab_survey_v1",
       paperUnit: "套考研真题", tagLabel: "考研大纲", kyOnlyLabel: "只保留考研大纲词", defaultPmin: 2 },
     { id: "cet4", name: "英语四级", mark: "四", dataKey: "WORDS_CET4",
       KEY: "cet4_vocab_v1", PROF_KEY: "cet4_vocab_proficient_v1",
+      SURVEY_KEY: "cet4_vocab_survey_v1",
       paperUnit: "套四级真题", tagLabel: "四级大纲", kyOnlyLabel: "只保留四级大纲词", defaultPmin: 2 },
     { id: "cet6", name: "英语六级", mark: "六", dataKey: "WORDS_CET6",
       KEY: "cet6_vocab_v1", PROF_KEY: "cet6_vocab_proficient_v1",
+      SURVEY_KEY: "cet6_vocab_survey_v1",
       paperUnit: "套六级真题", tagLabel: "六级大纲", kyOnlyLabel: "只保留六级大纲词", defaultPmin: 2 },
     { id: "combined", name: "综合词书", mark: "综", dataKey: "WORDS_COMBINED",
       KEY: "combined_vocab_v1", PROF_KEY: "combined_vocab_proficient_v1",
+      SURVEY_KEY: "combined_vocab_survey_v1",
       paperUnit: "套真题（考研/四级/六级合计）", tagLabel: "考试大纲", kyOnlyLabel: "只保留任一考试大纲词", defaultPmin: 2,
       requires: ["WORDS_RAW", "WORDS_CET4", "WORDS_CET6"] }
   ];
@@ -136,6 +140,9 @@
   /** 当前词书的存储键（切换词书时更新；考研键名与历史版本完全一致） */
   let KEY = BOOKS[currentBookId].KEY;
   let PROF_KEY = BOOKS[currentBookId].PROF_KEY;
+  let SURVEY_KEY = BOOKS[currentBookId].SURVEY_KEY;
+  /** 乱序模式随机抽样：单词 → 0/1（1 = 首次作答「会」）。按词文本存，跨数据版本天然对齐。 */
+  let SURVEY = {};
 
   /* ================= 艾宾浩斯调度 ================= */
   const STAGES = [
@@ -489,6 +496,7 @@
     // Permanent exclusions can still be recovered if the main backup is damaged.
     try { syncProficientFromStorage(); }
     catch (e) { storageOK = false; blockedBooks.add(book.id); }
+    loadSurvey();
   }
   function save(proficiencyChanged = false, replaceAll = false){
     if (blockedBooks.has(currentBookId)) return false;   // 该书记录损坏/不可写时保护原文件
@@ -610,9 +618,11 @@
     currentBookId = id;
     KEY = book.KEY;
     PROF_KEY = book.PROF_KEY;
+    SURVEY_KEY = book.SURVEY_KEY;
     W = book.words;
     wordIndex = book.wordIndex;
     S = target;
+    loadSurvey();
     lastMainRaw = targetRaw;
     if (targetBlocked) blockedBooks.add(id); else blockedBooks.delete(id);
     if (opts.persist !== false) {
@@ -767,6 +777,111 @@
   function isMastered(i){ const p = st(i); return p && p[0] >= MASTER; }
   function isProficient(i){ return !!(W[i] && Object.prototype.hasOwnProperty.call(S.proficient, W[i].w)); }
   function proficientCount(){ return Object.keys(S.proficient).length; }
+
+  /* ================= 乱序随机抽样 · 掌握率估计 ================= */
+  /**
+   * 乱序模式下新词按随机顺序出现，每张首次作答的新词卡相当于一次随机抽查：
+   * 答「会」记为已掌握、答「不会」记为未掌握，用样本比例估计当前背诵范围的掌握率。
+   * 样本按单词文本存储（不随词库数组顺序/数据版本迁移），每本书独立。
+   */
+  function wilsonInterval(k, n, z){
+    z = z || 1.96;
+    if (!(n > 0)) return {rate: 0, lo: 0, hi: 0};
+    const p = k / n, z2 = z * z;
+    const denom = 1 + z2 / n;
+    const center = (p + z2 / (2 * n)) / denom;
+    const half = z * Math.sqrt(p * (1 - p) / n + z2 / (4 * n * n)) / denom;
+    return {rate: p, lo: Math.max(0, center - half), hi: Math.min(1, center + half)};
+  }
+  /** 读取某本书的抽样记录；词库已清理的旧词直接忽略，损坏记录按空样本处理。 */
+  function readSurvey(book){
+    const out = {};
+    try {
+      const raw = localStorage.getItem(book.SURVEY_KEY);
+      if (!raw) return out;
+      const o = JSON.parse(raw);
+      if (!isRecord(o)) return out;
+      for (const [w, v] of Object.entries(o)) {
+        if (typeof w !== "string" || !book.wordIndex.has(w)) continue;
+        if (v === 1 || v === true) out[w] = 1;
+        else if (v === 0 || v === false) out[w] = 0;
+      }
+    } catch (e) { /* 抽样记录损坏不影响主进度 */ }
+    return out;
+  }
+  function loadSurvey(){ SURVEY = readSurvey(currentBook()); }
+  function saveSurvey(){
+    try { localStorage.setItem(SURVEY_KEY, JSON.stringify(SURVEY)); return true; }
+    catch (e) { return false; }
+  }
+  function surveyStats(){
+    let n = 0, k = 0;
+    for (const [w, v] of Object.entries(SURVEY)) {
+      if (!wordIndex.has(w)) continue;
+      n++;
+      if (v) k++;
+    }
+    const ci = wilsonInterval(k, n);
+    return {n: n, k: k, missed: n - k, rate: ci.rate, lo: ci.lo, hi: ci.hi,
+      margin: (ci.hi - ci.lo) / 2};
+  }
+  function surveyPct(x){ return Math.round(x * 100) + "%"; }
+  /** 只统计乱序模式下第一次出现的词；复习/特训/其它顺序都不计入，避免抽样偏差。 */
+  function recordSurvey(i, known){
+    if (drillMode || S.settings.order !== "shuffle") return false;
+    const w = W[i] && W[i].w;
+    if (!w || !wordIndex.has(w)) return false;
+    const next = known ? 1 : 0;
+    if (SURVEY[w] === next) return false;
+    SURVEY[w] = next;
+    saveSurvey();
+    return true;
+  }
+  function resetSurvey(){
+    SURVEY = {};
+    try { localStorage.removeItem(SURVEY_KEY); } catch (e) { /* ignore */ }
+    renderSurvey();
+  }
+  /** 统计条 chip（仅乱序模式显示）与统计页面板共用同一份实时估计。 */
+  function renderSurvey(){
+    const stats = surveyStats();
+    const chip = $("#surveyChip");
+    if (chip) {
+      const show = S.settings.order === "shuffle";
+      chip.hidden = !show;
+      if (show) {
+        const val = $("#s-survey"), ci = $("#s-survey-ci");
+        if (val) val.textContent = stats.n ? surveyPct(stats.rate) : "—";
+        if (ci) ci.textContent = stats.n ? "±" + Math.round(stats.margin * 100) + "%" : "";
+        chip.title = stats.n
+          ? "随机抽样估计：已抽 " + stats.n + " 词（首次会 " + stats.k + " / 不会 " + stats.missed +
+            "）；95% 置信区间 " + surveyPct(stats.lo) + "–" + surveyPct(stats.hi) +
+            "。只统计乱序模式下首次作答的新词。"
+          : "乱序模式下每张首次作答的新词都相当于一次随机抽查，背几词后这里显示词书掌握率估计。";
+      }
+    }
+    const kpis = $("#surveyKpis");
+    if (kpis) {
+      kpis.innerHTML = stats.n
+        ? [[surveyPct(stats.rate), "掌握率估计"],
+           [surveyPct(stats.lo) + "–" + surveyPct(stats.hi), "95% 置信区间"],
+           [stats.n + " 词", "已抽样本"]]
+            .map(([a, b]) => '<div class="kpi"><b>' + a + "</b><span>" + b + "</span></div>").join("")
+        : '<div class="kpi"><b>—</b><span>还没有抽样</span></div>';
+    }
+    const hint = $("#surveyHint");
+    if (hint) {
+      const mode = S.settings.order === "shuffle";
+      hint.textContent = !stats.n
+        ? (mode
+            ? "乱序模式下，随机顺序抽到的新词就是一次随机抽查：首次答「会」记为已掌握。背几词后这里会给出掌握率估计。"
+            : "当前不是乱序模式。切到「乱序」后，首次作答的新词会自动计入随机抽样。")
+        : (!mode
+            ? "已抽 " + stats.n + " 词，其中 " + stats.k + " 词首次就会。当前不是乱序模式，样本不再增加；切回「乱序」可继续累计。"
+            : "已抽 " + stats.n + " 词，其中 " + stats.k + " 词首次就会、" + stats.missed +
+              " 词不会。样本越多，区间越窄；复习与错词特训不计入。");
+    }
+  }
 
   /** A manual, permanent exclusion, independent of the spaced-repetition stage. */
   function setProficient(i, value){
@@ -1438,6 +1553,7 @@
     if (extraDate && extraDate !== date) dates.push(extraDate);
     return {
       prog: st(i) ? st(i).slice() : null,
+      survey: (W[i] && Object.prototype.hasOwnProperty.call(SURVEY, W[i].w)) ? SURVEY[W[i].w] : null,
       date,
       days: Object.fromEntries(dates.map(k => [k, S.days[k] ? Object.assign({}, S.days[k]) : null])),
       day: { n: d.n, r: d.r, ok: d.ok, no: d.no }
@@ -1454,6 +1570,11 @@
     } else delete S.progress[i];
     for (const [k, d] of Object.entries(s.days)) {
       if (d) S.days[k] = Object.assign({}, d); else delete S.days[k];
+    }
+    if (W[i] && W[i].w) {
+      const w = W[i].w;
+      if (s.survey === null || s.survey === undefined) { if (w in SURVEY) { delete SURVEY[w]; saveSurvey(); } }
+      else if (SURVEY[w] !== s.survey) { SURVEY[w] = s.survey; saveSurvey(); }
     }
   }
   function snapshotWrong(s){
@@ -1484,11 +1605,13 @@
     if (verdict === null) {
       undoStack.push({ type: "judge", i, snap: snapshot(i), answeredBefore: answered, rightBefore: rightN });
       snap = snapshot(i);
+      const firstSample = !snap.prog;   // 未学过的词才是随机样本；复习词有进度，不计入
       stageBefore = snap.prog ? snap.prog[0] : 0;
       verdict = known;
       answered++;
       if (known) rightN++;
       apply(i, known);
+      if (firstSample) recordSurvey(i, known);
       phase = "revealed";
     } else if (verdict !== known) {
       undoStack.push({ type: "rejudge", i, snap: snapshot(i, snap.date), originalSnap: snap, prevVerdict: verdict, answeredBefore: answered, rightBefore: rightN });
@@ -1496,6 +1619,7 @@
       apply(i, known, snapshotWrong(snap), !!snap.prog);
       rightN += known ? 1 : -1;
       verdict = known;
+      if (!snap.prog) recordSurvey(i, known);   // 改判同步修正样本
       phase = "revealed";
     } else {
       return;
@@ -1638,6 +1762,7 @@
   }
 
   function renderCard(){
+    renderSurvey();
     hideExPop();
     const c = $("#card"), a = $("#acts");
     const d = day();
@@ -2060,6 +2185,7 @@
     renderHeatmap();
     renderDrillEntry();
     renderReviewPlan();
+    renderSurvey();
   }
 
   /* ================= 打印生词本（界面） ================= */
@@ -2784,8 +2910,9 @@
   };
   $("#rst").onclick = () => {
     const name = currentBook().name;
-    if (confirm("确定清空「" + name + "」的全部学习进度、熟练标记、收藏与设置？此操作只影响当前词书，且不可撤销。请先导出备份。")) {
+    if (confirm("确定清空「" + name + "」的全部学习进度、熟练标记、收藏、抽样统计与设置？此操作只影响当前词书，且不可撤销。请先导出备份。")) {
       S = freshState(currentBook());
+      resetSurvey();
       blockedBooks.delete(currentBookId);
       const saved = save(true, true);
       bindSet(); applyFilter(); renderStats(); startSession(); updateBar(); renderBookList();
@@ -2871,6 +2998,12 @@
 
   window.addEventListener?.("storage", (e) => {
     if (e.key === ACTIVE_KEY) { followActiveBook(); return; }
+    for (const id of Object.keys(BOOKS)) {
+      if (e.key === BOOKS[id].SURVEY_KEY) {
+        if (id === currentBookId) { loadSurvey(); renderSurvey(); }
+        return;
+      }
+    }
     // 找到变化键所属的词书
     let owner = null;
     for (const id of Object.keys(BOOKS)) {
@@ -2925,6 +3058,8 @@
     getTxtSplitFiles: () => txtSplitContext ? txtSplitContext.files : [],
     renderPrintBook, openPrintBook, copyPrintMarkdown,
     heatLevel, heatmapData,
+    wilsonInterval, surveyStats, getSurveyStats: () => surveyStats(),
+    resetSurvey, getSurvey: () => JSON.parse(JSON.stringify(SURVEY)),
     exTokens, exHtml, lookupExWord, showExPop, hideExPop,
     getStorageOK: () => storageOK && !blockedBooks.has(currentBookId),
     getS: () => S, getW: () => W,
@@ -2941,7 +3076,7 @@
     getBookState: (id) => getBookState(id),
     getStorageKeys: () => {
       const books = {};
-      for (const def of BOOK_DEFS) books[def.id] = { state: BOOKS[def.id].KEY, prof: BOOKS[def.id].PROF_KEY };
+      for (const def of BOOK_DEFS) books[def.id] = { state: BOOKS[def.id].KEY, prof: BOOKS[def.id].PROF_KEY, survey: BOOKS[def.id].SURVEY_KEY };
       return { active: ACTIVE_KEY, books: books };
     },
     setPhase(p) { phase = p; },
