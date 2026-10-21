@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>考研英语作文模板与高分句型</title>
+<meta name="description" content="考研英语小作文模板、大作文框架、高分句型库与随机抽句练习。离线可用，进度存本机。">
+<style>
+:root {
+  --paper: #F7F2E9;
+  --paper-deep: #EFE7D8;
+  --card: #FFFCF5;
+  --ink: #2B2118;
+  --ink-2: #6B5E52;
+  --ink-3: #8A7B6C;
+  --rule: #E4D8C4;
+  --rule-soft: #EDE4D3;
+  --accent: #A9432A;
+  --accent-soft: #F3E2D8;
+  --ok: #3F6B4F;
+  --ok-soft: #E4EDE4;
+  --gold: #88611F;
+  --gold-soft: #F5EBD6;
+  --shadow: 0 1px 2px rgba(64, 42, 18, .05), 0 10px 28px rgba(64, 42, 18, .07);
+  --radius: 18px;
+  --radius-sm: 12px;
+  --serif: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", Georgia, "Times New Roman", serif;
+  --sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, sans-serif;
+  --en: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--sans);
+  color: var(--ink);
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(181, 74, 46, .05), transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, rgba(184, 137, 45, .06), transparent 50%),
+    var(--paper);
+  min-height: 100vh;
+  line-height: 1.6;
+}
+.wrap { max-width: 780px; margin: 0 auto; padding: 22px 16px 56px; }
+
+header { text-align: center; margin-bottom: 16px; }
+header h1 {
+  font-family: var(--serif);
+  font-size: clamp(1.45rem, 4.5vw, 1.95rem);
+  font-weight: 700;
+  margin: 0 0 6px;
+  letter-spacing: .04em;
+}
+header .sub {
+  color: var(--ink-2);
+  font-size: .88rem;
+  margin: 0;
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin: 12px 0 16px;
+}
+.stat {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: .82rem;
+  color: var(--ink-2);
+  box-shadow: var(--shadow);
+}
+.stat b {
+  color: var(--ink);
+  font-family: var(--mono);
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+/* tabs */
+.tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 2px 10px;
+  margin-bottom: 8px;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  flex: 0 0 auto;
+  border: 1px solid var(--rule);
+  background: var(--card);
+  color: var(--ink-2);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: .92rem;
+  cursor: pointer;
+  transition: .18s;
+}
+.tab:hover { border-color: var(--accent); color: var(--accent); }
+.tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* filter chips */
+.filters {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  box-shadow: var(--shadow);
+  margin-bottom: 14px;
+}
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.filter-row:last-child { margin-bottom: 0; }
+.filter-label {
+  font-size: .78rem;
+  color: var(--ink-3);
+  min-width: 2.8em;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+.chip {
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink-2);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: .82rem;
+  cursor: pointer;
+  transition: .15s;
+}
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+.chip.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+.search-box {
+  flex: 1;
+  min-width: 160px;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: .9rem;
+  color: var(--ink);
+  outline: none;
+  font-family: var(--sans);
+}
+.search-box:focus { border-color: var(--accent); }
+
+/* template cards */
+.t-card {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.t-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 16px 18px 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.t-head:hover { background: rgba(169, 67, 42, .03); }
+.t-titles { flex: 1; min-width: 0; }
+.t-title {
+  font-family: var(--serif);
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0 0 2px;
+}
+.t-en {
+  font-family: var(--en);
+  color: var(--ink-3);
+  font-size: .82rem;
+  font-style: italic;
+}
+.t-scene {
+  margin: 8px 0 0;
+  color: var(--ink-2);
+  font-size: .88rem;
+  line-height: 1.55;
+}
+.t-badge {
+  flex: 0 0 auto;
+  font-size: .72rem;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 999px;
+  padding: 4px 10px;
+  margin-top: 2px;
+}
+.t-body {
+  display: none;
+  padding: 0 18px 18px;
+  border-top: 1px solid var(--rule-soft);
+}
+.t-card.open .t-body { display: block; }
+.t-section-title {
+  font-family: var(--serif);
+  font-size: .98rem;
+  font-weight: 700;
+  color: var(--gold);
+  margin: 16px 0 10px;
+  padding-left: 10px;
+  border-left: 3px solid var(--gold);
+}
+
+/* skeleton */
+.skeleton { display: grid; gap: 8px; }
+.skel-item {
+  display: grid;
+  grid-template-columns: 4.5em 1fr;
+  gap: 10px;
+  background: var(--paper);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: .88rem;
+}
+.skel-part {
+  font-weight: 700;
+  color: var(--accent);
+  font-size: .82rem;
+}
+.skel-tip { color: var(--ink-2); }
+
+/* patterns */
+.pattern-list { display: grid; gap: 10px; }
+.pattern {
+  background: var(--paper);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  position: relative;
+}
+.pattern-en {
+  font-family: var(--en);
+  font-size: 1.02rem;
+  line-height: 1.55;
+  color: var(--ink);
+  padding-right: 36px;
+  margin-bottom: 6px;
+}
+.pattern-zh {
+  font-size: .9rem;
+  color: var(--ink-2);
+  margin-bottom: 4px;
+}
+.pattern-note {
+  font-size: .8rem;
+  color: var(--ink-3);
+  padding-top: 6px;
+  border-top: 1px dashed var(--rule);
+}
+.pattern-note::before {
+  content: "用法 ";
+  color: var(--gold);
+  font-weight: 600;
+}
+.fav-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--rule);
+  background: var(--card);
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--ink-3);
+  transition: .15s;
+}
+.fav-btn:hover { border-color: var(--gold); color: var(--gold); }
+.fav-btn.on {
+  background: var(--gold-soft);
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+/* sample */
+.sample {
+  background: linear-gradient(180deg, #FFFDF8 0%, var(--paper) 100%);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+}
+.sample-title {
+  font-family: var(--serif);
+  font-weight: 700;
+  font-size: .95rem;
+  margin: 0 0 4px;
+}
+.sample-meta {
+  font-size: .78rem;
+  color: var(--ink-3);
+  margin-bottom: 10px;
+}
+.sample-body {
+  font-family: var(--en);
+  font-size: 1.02rem;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  color: var(--ink);
+}
+
+/* sentence library */
+.s-list { display: grid; gap: 10px; }
+.s-item {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+  position: relative;
+}
+.s-item .pattern-en { padding-right: 36px; }
+.s-tag {
+  display: inline-block;
+  font-size: .72rem;
+  color: var(--gold);
+  background: var(--gold-soft);
+  border-radius: 999px;
+  padding: 2px 10px;
+  margin-bottom: 8px;
+}
+
+/* practice */
+.practice-box {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 28px 22px;
+  text-align: center;
+  margin-bottom: 14px;
+}
+.practice-cat {
+  font-size: .8rem;
+  color: var(--ink-3);
+  margin-bottom: 14px;
+}
+.practice-en {
+  font-family: var(--en);
+  font-size: clamp(1.15rem, 3.5vw, 1.45rem);
+  line-height: 1.65;
+  margin-bottom: 16px;
+  min-height: 3.2em;
+}
+.practice-zh {
+  display: none;
+  background: var(--paper);
+  border: 1px dashed var(--rule);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  font-size: .98rem;
+  color: var(--ink-2);
+  margin-bottom: 8px;
+  text-align: left;
+}
+.practice-zh.show { display: block; }
+.practice-scene {
+  display: none;
+  font-size: .82rem;
+  color: var(--ink-3);
+  text-align: left;
+  margin-bottom: 8px;
+}
+.practice-scene.show { display: block; }
+
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 16px;
+}
+.btn {
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink-2);
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-size: .92rem;
+  cursor: pointer;
+  font-family: var(--sans);
+  transition: .15s;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.btn.primary:hover { filter: brightness(1.05); color: #fff; }
+.btn.ok {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: #fff;
+  font-weight: 600;
+}
+.btn.ghost { background: transparent; }
+
+.hint {
+  text-align: center;
+  color: var(--ink-3);
+  font-size: .82rem;
+  margin: 14px 0 0;
+}
+.hint kbd {
+  font-family: var(--mono);
+  font-size: .75rem;
+  border: 1px solid var(--rule);
+  background: var(--card);
+  border-radius: 5px;
+  padding: 1px 6px;
+}
+
+.empty {
+  text-align: center;
+  padding: 40px 16px;
+  color: var(--ink-3);
+}
+.empty h2 {
+  font-family: var(--serif);
+  font-size: 1.15rem;
+  color: var(--ink-2);
+  margin: 0 0 8px;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--ink);
+  color: var(--paper);
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-size: .88rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: .25s;
+  z-index: 50;
+  max-width: 90vw;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+footer {
+  text-align: center;
+  margin-top: 28px;
+  color: var(--ink-3);
+  font-size: .78rem;
+  line-height: 1.7;
+}
+
+@media (max-width: 520px) {
+  .wrap { padding: 16px 12px 48px; }
+  .t-head { padding: 14px 14px 10px; }
+  .t-body { padding: 0 14px 14px; }
+  .skel-item { grid-template-columns: 3.8em 1fr; }
+  .pattern-en, .sample-body { font-size: .98rem; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>考研英语作文模板与高分句型</h1>
+    <p class="sub">小作文 9 类 · 大作文 4 类 · 高分句型 50 条 · 可收藏 / 可练习</p>
+  </header>
+
+  <div class="stats" aria-live="polite">
+    <div class="stat">模板<b id="statTpl">0</b></div>
+    <div class="stat">句型<b id="statSent">0</b></div>
+    <div class="stat">收藏<b id="statFav">0</b></div>
+    <div class="stat">已掌握<b id="statMastered">0</b></div>
+  </div>
+
+  <nav class="tabs" role="tablist" aria-label="功能切换">
+    <button type="button" class="tab active" data-tab="letters" role="tab">小作文</button>
+    <button type="button" class="tab" data-tab="essays" role="tab">大作文</button>
+    <button type="button" class="tab" data-tab="sentences" role="tab">句型库</button>
+    <button type="button" class="tab" data-tab="practice" role="tab">随机练习</button>
+    <button type="button" class="tab" data-tab="favorites" role="tab">我的收藏</button>
+  </nav>
+
+  <!-- 小作文 -->
+  <section class="panel active" id="panel-letters">
+    <div class="filters">
+      <div class="filter-row">
+        <span class="filter-label">类型</span>
+        <div class="chips" id="letterChips"></div>
+      </div>
+    </div>
+    <div id="letterList"></div>
+  </section>
+
+  <!-- 大作文 -->
+  <section class="panel" id="panel-essays">
+    <div class="filters">
+      <div class="filter-row">
+        <span class="filter-label">模块</span>
+        <div class="chips" id="essayChips"></div>
+      </div>
+    </div>
+    <div id="essayList"></div>
+  </section>
+
+  <!-- 句型库 -->
+  <section class="panel" id="panel-sentences">
+    <div class="filters">
+      <div class="filter-row">
+        <span class="filter-label">功能</span>
+        <div class="chips" id="sentChips"></div>
+      </div>
+      <div class="filter-row">
+        <input class="search-box" id="sentSearch" type="search" placeholder="搜索英文或中文关键词…" aria-label="搜索句型">
+      </div>
+    </div>
+    <div class="s-list" id="sentList"></div>
+  </section>
+
+  <!-- 随机练习 -->
+  <section class="panel" id="panel-practice">
+    <div class="practice-box">
+      <div class="practice-cat" id="practiceCat">准备好了吗？点「换一句」开始</div>
+      <div class="practice-en" id="practiceEn">随机抽出一句英文，先自己想中文，再点开答案。</div>
+      <div class="practice-zh" id="practiceZh"></div>
+      <div class="practice-scene" id="practiceScene"></div>
+      <div class="btn-row">
+        <button type="button" class="btn primary" id="btnReveal">显示中文</button>
+        <button type="button" class="btn" id="btnNext">换一句</button>
+        <button type="button" class="btn ok" id="btnMaster">记住了</button>
+      </div>
+    </div>
+    <p class="hint">练习池来自句型库 50 条；「记住了」会写入本机进度。<kbd>空格</kbd> 显示中文 · <kbd>N</kbd> 下一句 · <kbd>M</kbd> 记住了</p>
+    <div id="practiceStats"></div>
+  </section>
+
+  <!-- 收藏 -->
+  <section class="panel" id="panel-favorites">
+    <div class="s-list" id="favList"></div>
+    <div class="empty" id="favEmpty" hidden>
+      <h2>还没有收藏</h2>
+      <p>在模板句型或句型库右上角点 ★ 即可收藏，方便考前集中背。</p>
+    </div>
+  </section>
+
+  <footer>
+    离线可用 · 无外部依赖 · 进度保存在本机浏览器 <code>writing_v1</code><br>
+    模板供参考结构与表达，考场上请根据题目替换信息，勿整篇硬套。
+  </footer>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="data.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var D = window.WRITING_DATA || { letters: [], essays: [], sentences: [] };
+  var LS_KEY = "writing_v1";
+  var FAV_ICON = "★";
+  var NO_FAV_ICON = "☆";
+
+  // ── state ──
+  var state = {
+    tab: "letters",
+    letterFilter: "all",
+    essayFilter: "all",
+    sentFilter: "all",
+    sentQuery: "",
+    favorites: {},
+    mastered: {},
+    practice: { shown: 0, mastered: 0, currentId: null, revealed: false }
+  };
+
+  function save() {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({
+        v: 1,
+        tab: state.tab,
+        letterFilter: state.letterFilter,
+        essayFilter: state.essayFilter,
+        sentFilter: state.sentFilter,
+        favorites: state.favorites,
+        mastered: state.mastered,
+        practice: state.practice
+      }));
+    } catch (e) { /* file:// 或隐私模式下静默 */ }
+  }
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(LS_KEY);
+      if (!raw) return;
+      var data = JSON.parse(raw);
+      if (!data || data.v !== 1) return;
+      if (data.tab) state.tab = data.tab;
+      if (data.letterFilter) state.letterFilter = data.letterFilter;
+      if (data.essayFilter) state.essayFilter = data.essayFilter;
+      if (data.sentFilter) state.sentFilter = data.sentFilter;
+      if (data.favorites) state.favorites = data.favorites;
+      if (data.mastered) state.mastered = data.mastered;
+      if (data.practice) state.practice = Object.assign(state.practice, data.practice);
+    } catch (e) { /* ignore */ }
+  }
+
+  // ── helpers ──
+  function el(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function wordCount(s) {
+    return String(s).split(/\s+/).filter(Boolean).length;
+  }
+  function toast(msg) {
+    var t = el("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(function () { t.classList.remove("show"); }, 1600);
+  }
+  function isFav(id) { return !!state.favorites[id]; }
+  function toggleFav(id) {
+    if (state.favorites[id]) {
+      delete state.favorites[id];
+      toast("已取消收藏");
+    } else {
+      state.favorites[id] = 1;
+      toast("已加入收藏");
+    }
+    save();
+    renderAll();
+  }
+
+  // collect every favoritable pattern into a lookup
+  function allPatterns() {
+    var map = {};
+    D.letters.forEach(function (L) {
+      L.patterns.forEach(function (p) {
+        map[p.id] = { id: p.id, en: p.en, zh: p.zh, note: p.note, src: "小作文 · " + L.title, cat: "模板句型" };
+      });
+    });
+    D.essays.forEach(function (E) {
+      E.patterns.forEach(function (p) {
+        map[p.id] = { id: p.id, en: p.en, zh: p.zh, note: p.note, src: "大作文 · " + E.title, cat: "模板句型" };
+      });
+    });
+    D.sentences.forEach(function (s) {
+      map[s.id] = { id: s.id, en: s.en, zh: s.zh, note: s.scene, src: "句型库", cat: s.cat };
+    });
+    return map;
+  }
+  var PATTERN_MAP = allPatterns();
+
+  // ── render chips ──
+  function renderLetterChips() {
+    var box = el("letterChips");
+    var types = [{ id: "all", title: "全部" }].concat(D.letters.map(function (L) {
+      return { id: L.id, title: L.title };
+    }));
+    box.innerHTML = types.map(function (t) {
+      return '<button type="button" class="chip' + (state.letterFilter === t.id ? " active" : "") +
+        '" data-id="' + esc(t.id) + '">' + esc(t.title) + "</button>";
+    }).join("");
+    box.querySelectorAll(".chip").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        state.letterFilter = btn.getAttribute("data-id");
+        save();
+        renderLetters();
+        renderLetterChips();
+      });
+    });
+  }
+
+  function renderEssayChips() {
+    var box = el("essayChips");
+    var types = [{ id: "all", title: "全部" }].concat(D.essays.map(function (E) {
+      return { id: E.id, title: E.title };
+    }));
+    box.innerHTML = types.map(function (t) {
+      return '<button type="button" class="chip' + (state.essayFilter === t.id ? " active" : "") +
+        '" data-id="' + esc(t.id) + '">' + esc(t.title) + "</button>";
+    }).join("");
+    box.querySelectorAll(".chip").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        state.essayFilter = btn.getAttribute("data-id");
+        save();
+        renderEssays();
+        renderEssayChips();
+      });
+    });
+  }
+
+  function renderSentChips() {
+    var box = el("sentChips");
+    var cats = ["all"].concat(uniqueCats());
+    box.innerHTML = cats.map(function (c) {
+      var label = c === "all" ? "全部" : c;
+      return '<button type="button" class="chip' + (state.sentFilter === c ? " active" : "") +
+        '" data-id="' + esc(c) + '">' + esc(label) + "</button>";
+    }).join("");
+    box.querySelectorAll(".chip").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        state.sentFilter = btn.getAttribute("data-id");
+        save();
+        renderSentences();
+        renderSentChips();
+      });
+    });
+  }
+
+  function uniqueCats() {
+    var seen = {}, out = [];
+    D.sentences.forEach(function (s) {
+      if (!seen[s.cat]) { seen[s.cat] = 1; out.push(s.cat); }
+    });
+    return out;
+  }
+
+  // ── pattern HTML ──
+  function patternHTML(p, noteLabel) {
+    var fav = isFav(p.id);
+    return '<div class="pattern">' +
+      '<button type="button" class="fav-btn' + (fav ? " on" : "") + '" data-fav="' + esc(p.id) +
+        '" aria-label="收藏">' + (fav ? FAV_ICON : NO_FAV_ICON) + "</button>" +
+      '<div class="pattern-en">' + esc(p.en) + "</div>" +
+      '<div class="pattern-zh">' + esc(p.zh) + "</div>" +
+      '<div class="pattern-note">' + esc(p.note || "") + "</div>" +
+      "</div>";
+  }
+
+  function bindFavButtons(root) {
+    root.querySelectorAll("[data-fav]").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        toggleFav(btn.getAttribute("data-fav"));
+      });
+    });
+  }
+
+  // ── template cards (letters / essays) ──
+  function templateCardHTML(item, kind, extra) {
+    var open = extra && extra.open ? " open" : "";
+    var wc = wordCount(item.sample.body);
+    var badge = kind === "letter" ? "范文 " + wc + " 词" : "范文 " + wc + " 词";
+    var skel = (item.skeleton || []).map(function (s) {
+      return '<div class="skel-item"><div class="skel-part">' + esc(s.part) +
+        '</div><div class="skel-tip">' + esc(s.tip) + "</div></div>";
+    }).join("");
+    var focus = item.focus ? '<p class="t-scene"><strong>要点：</strong>' + esc(item.focus) + "</p>" : "";
+    return '<article class="t-card' + open + '" data-id="' + esc(item.id) + '">' +
+      '<div class="t-head" role="button" tabindex="0">' +
+        '<div class="t-titles">' +
+          '<h2 class="t-title">' + esc(item.title) + "</h2>" +
+          '<div class="t-en">' + esc(item.en) + "</div>" +
+          '<p class="t-scene">' + esc(item.scene) + "</p>" +
+          focus +
+        "</div>" +
+        '<span class="t-badge">' + esc(badge) + "</span>" +
+      "</div>" +
+      '<div class="t-body">' +
+        (skel ? '<div class="t-section-title">结构骨架</div><div class="skeleton">' + skel + "</div>" : "") +
+        '<div class="t-section-title">可替换句型</div><div class="pattern-list">' +
+          item.patterns.map(function (p) { return patternHTML(p); }).join("") +
+        "</div>" +
+        '<div class="t-section-title">范文 · ' + esc(item.sample.title) + "</div>" +
+        '<div class="sample">' +
+          '<div class="sample-meta">词数 ' + wc + " · 可直接套用结构，替换题目信息</div>" +
+          '<div class="sample-body">' + esc(item.sample.body) + "</div>" +
+        "</div>" +
+      "</div>" +
+    "</article>";
+  }
+
+  function bindCards(root) {
+    root.querySelectorAll(".t-card").forEach(function (card) {
+      var head = card.querySelector(".t-head");
+      function toggle() { card.classList.toggle("open"); }
+      head.addEventListener("click", function (e) {
+        if (e.target.closest("[data-fav]")) return;
+        toggle();
+      });
+      head.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
+      });
+    });
+    bindFavButtons(root);
+  }
+
+  function renderLetters() {
+    var box = el("letterList");
+    var items = D.letters.filter(function (L) {
+      return state.letterFilter === "all" || L.id === state.letterFilter;
+    });
+    if (!items.length) {
+      box.innerHTML = '<div class="empty"><h2>没有匹配的模板</h2><p>请更换筛选条件。</p></div>';
+      return;
+    }
+    box.innerHTML = items.map(function (L) {
+      return templateCardHTML(L, "letter", { open: items.length === 1 });
+    }).join("");
+    bindCards(box);
+  }
+
+  function renderEssays() {
+    var box = el("essayList");
+    var items = D.essays.filter(function (E) {
+      return state.essayFilter === "all" || E.id === state.essayFilter;
+    });
+    if (!items.length) {
+      box.innerHTML = '<div class="empty"><h2>没有匹配的模板</h2><p>请更换筛选条件。</p></div>';
+      return;
+    }
+    box.innerHTML = items.map(function (E) {
+      return templateCardHTML(E, "essay", { open: items.length === 1 });
+    }).join("");
+    bindCards(box);
+  }
+
+  // ── sentence library ──
+  function sentItemHTML(s) {
+    return '<div class="s-item">' +
+      '<button type="button" class="fav-btn' + (isFav(s.id) ? " on" : "") + '" data-fav="' + esc(s.id) +
+        '" aria-label="收藏">' + (isFav(s.id) ? FAV_ICON : NO_FAV_ICON) + "</button>" +
+      '<span class="s-tag">' + esc(s.cat) + (state.mastered[s.id] ? " · 已掌握" : "") + "</span>" +
+      '<div class="pattern-en">' + esc(s.en) + "</div>" +
+      '<div class="pattern-zh">' + esc(s.zh) + "</div>" +
+      '<div class="pattern-note">' + esc(s.scene) + "</div>" +
+    "</div>";
+  }
+
+  function renderSentences() {
+    var box = el("sentList");
+    var q = state.sentQuery.trim().toLowerCase();
+    var items = D.sentences.filter(function (s) {
+      if (state.sentFilter !== "all" && s.cat !== state.sentFilter) return false;
+      if (!q) return true;
+      return (s.en + " " + s.zh + " " + s.scene).toLowerCase().indexOf(q) >= 0;
+    });
+    if (!items.length) {
+      box.innerHTML = '<div class="empty"><h2>没有匹配的句型</h2><p>换个关键词或筛选试试。</p></div>';
+      return;
+    }
+    box.innerHTML = items.map(sentItemHTML).join("");
+    bindFavButtons(box);
+  }
+
+  // ── favorites ──
+  function renderFavorites() {
+    var box = el("favList");
+    var empty = el("favEmpty");
+    var ids = Object.keys(state.favorites);
+    if (!ids.length) {
+      box.innerHTML = "";
+      empty.hidden = false;
+      return;
+    }
+    empty.hidden = true;
+    var items = ids.map(function (id) { return PATTERN_MAP[id]; }).filter(Boolean);
+    box.innerHTML = items.map(function (p) {
+      return '<div class="s-item">' +
+        '<button type="button" class="fav-btn on" data-fav="' + esc(p.id) + '" aria-label="取消收藏">' + FAV_ICON + "</button>" +
+        '<span class="s-tag">' + esc(p.cat) + " · " + esc(p.src) + "</span>" +
+        '<div class="pattern-en">' + esc(p.en) + "</div>" +
+        '<div class="pattern-zh">' + esc(p.zh) + "</div>" +
+        '<div class="pattern-note">' + esc(p.note || "") + "</div>" +
+      "</div>";
+    }).join("");
+    bindFavButtons(box);
+  }
+
+  // ── practice ──
+  function pickPractice() {
+    var pool = D.sentences;
+    if (!pool.length) return null;
+    var unmastered = pool.filter(function (s) { return !state.mastered[s.id]; });
+    var source = unmastered.length ? unmastered : pool;
+    // avoid repeating the current one when possible
+    var candidates = source.filter(function (s) { return s.id !== state.practice.currentId; });
+    if (!candidates.length) candidates = source;
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
+  function showPractice(s) {
+    if (!s) return;
+    state.practice.currentId = s.id;
+    state.practice.revealed = false;
+    state.practice.shown = (state.practice.shown || 0) + 1;
+    el("practiceCat").textContent = "句型库 · " + s.cat + (state.mastered[s.id] ? " · 已掌握" : "");
+    el("practiceEn").textContent = s.en;
+    el("practiceZh").textContent = s.zh;
+    el("practiceZh").classList.remove("show");
+    el("practiceScene").textContent = "场景：" + s.scene;
+    el("practiceScene").classList.remove("show");
+    el("btnReveal").textContent = "显示中文";
+    renderPracticeStats();
+    save();
+  }
+
+  function revealPractice() {
+    if (!state.practice.currentId) return;
+    if (state.practice.revealed) {
+      el("practiceZh").classList.remove("show");
+      el("practiceScene").classList.remove("show");
+      state.practice.revealed = false;
+      el("btnReveal").textContent = "显示中文";
+      return;
+    }
+    el("practiceZh").classList.add("show");
+    el("practiceScene").classList.add("show");
+    state.practice.revealed = true;
+    el("btnReveal").textContent = "收起答案";
+    save();
+  }
+
+  function masterCurrent() {
+    var id = state.practice.currentId;
+    if (!id) return;
+    if (!state.mastered[id]) {
+      state.mastered[id] = 1;
+      state.practice.mastered = (state.practice.mastered || 0) + 1;
+      toast("已标记掌握");
+    } else {
+      toast("这句已标记过");
+    }
+    save();
+    renderStats();
+    renderPracticeStats();
+    setTimeout(function () { showPractice(pickPractice()); }, 280);
+  }
+
+  function renderPracticeStats() {
+    var total = D.sentences.length;
+    var done = D.sentences.filter(function (s) { return state.mastered[s.id]; }).length;
+    el("practiceStats").innerHTML = '<p class="hint">句型库进度：<b>' + done + "</b> / " + total +
+      " 已掌握 · 本轮抽句 " + (state.practice.shown || 0) + " 次</p>";
+  }
+
+  // ── stats ──
+  function renderStats() {
+    var tpl = D.letters.length + D.essays.length;
+    var sent = D.sentences.length;
+    var fav = Object.keys(state.favorites).length;
+    var mastered = D.sentences.filter(function (s) { return state.mastered[s.id]; }).length;
+    el("statTpl").textContent = tpl;
+    el("statSent").textContent = sent;
+    el("statFav").textContent = fav;
+    el("statMastered").textContent = mastered;
+  }
+
+  // ── tabs ──
+  function switchTab(name) {
+    state.tab = name;
+    document.querySelectorAll(".tab").forEach(function (t) {
+      t.classList.toggle("active", t.getAttribute("data-tab") === name);
+    });
+    document.querySelectorAll(".panel").forEach(function (p) {
+      p.classList.toggle("active", p.id === "panel-" + name);
+    });
+    if (name === "practice") {
+      if (!state.practice.currentId || !PATTERN_MAP[state.practice.currentId] || !D.sentences.some(function (s) { return s.id === state.practice.currentId; })) {
+        showPractice(pickPractice());
+      } else {
+        renderPracticeStats();
+      }
+    }
+    if (name === "favorites") renderFavorites();
+    save();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function renderAll() {
+    renderStats();
+    renderLetterChips();
+    renderEssayChips();
+    renderSentChips();
+    renderLetters();
+    renderEssays();
+    renderSentences();
+    renderFavorites();
+    renderPracticeStats();
+  }
+
+  // ── events ──
+  document.querySelectorAll(".tab").forEach(function (t) {
+    t.addEventListener("click", function () {
+      switchTab(t.getAttribute("data-tab"));
+    });
+  });
+
+  el("sentSearch").addEventListener("input", function () {
+    state.sentQuery = el("sentSearch").value;
+    renderSentences();
+  });
+
+  el("btnReveal").addEventListener("click", revealPractice);
+  el("btnNext").addEventListener("click", function () {
+    showPractice(pickPractice());
+  });
+  el("btnMaster").addEventListener("click", masterCurrent);
+
+  document.addEventListener("keydown", function (e) {
+    if (state.tab !== "practice") return;
+    var tag = (e.target && e.target.tagName) || "";
+    if (tag === "INPUT" || tag === "TEXTAREA") return;
+    if (e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      revealPractice();
+    } else if (e.key === "n" || e.key === "N") {
+      showPractice(pickPractice());
+    } else if (e.key === "m" || e.key === "M") {
+      masterCurrent();
+    }
+  });
+
+  // ── init ──
+  load();
+  renderAll();
+  switchTab(state.tab || "letters");
+})();
+</script>
+</body>
+</html>

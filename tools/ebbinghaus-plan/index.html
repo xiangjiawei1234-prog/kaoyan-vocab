@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>艾宾浩斯复习计划表生成器</title>
+<style>
+  :root {
+    --paper: #faf7f0;
+    --ink: #2a2620;
+    --muted: #7a7264;
+    --line: #e4dccf;
+    --accent: #b33a2b;
+    --accent-soft: #f3e2dc;
+    --ok: #2f6b4f;
+    --bar: #c4b49a;
+    --bar-peak: #b33a2b;
+    --card: #fffdf8;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    font-family: "Songti SC", "Noto Serif SC", "Source Han Serif SC", Georgia, "Times New Roman", serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.55;
+    font-size: 16px;
+  }
+  .wrap {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 20px 16px 60px;
+  }
+  header {
+    text-align: center;
+    padding: 18px 0 8px;
+    border-bottom: 2px solid var(--ink);
+    margin-bottom: 18px;
+  }
+  header h1 {
+    margin: 0 0 6px;
+    font-size: 1.65rem;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+  }
+  header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.92rem;
+  }
+  section {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px 16px 14px;
+    margin-bottom: 16px;
+  }
+  h2 {
+    margin: 0 0 12px;
+    font-size: 1.12rem;
+    letter-spacing: 0.06em;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed var(--line);
+  }
+  h2 .num {
+    display: inline-block;
+    min-width: 1.5em;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    align-items: end;
+  }
+  label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  input[type="date"],
+  input[type="number"] {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--ink);
+    font-size: 1rem;
+    font-family: inherit;
+  }
+  input:focus {
+    outline: 2px solid var(--accent-soft);
+    border-color: var(--accent);
+  }
+  .presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  button {
+    font-family: inherit;
+    font-size: 0.95rem;
+    padding: 9px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--ink);
+    background: var(--ink);
+    color: var(--paper);
+    cursor: pointer;
+  }
+  button.secondary {
+    background: transparent;
+    color: var(--ink);
+    border-color: var(--line);
+  }
+  button.secondary:hover { border-color: var(--ink); }
+  button:hover { opacity: 0.92; }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+  }
+  .stat {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px;
+    background: var(--paper);
+  }
+  .stat .k {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .stat .v {
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .stat .v small {
+    font-size: 0.8rem;
+    font-weight: 400;
+    color: var(--muted);
+    margin-left: 4px;
+  }
+  .stat.peak {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .stat.peak .v { color: var(--accent); }
+  .chart-box {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--paper);
+    padding: 12px 10px 8px;
+  }
+  .chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 140px;
+    min-width: 100%;
+  }
+  .bar {
+    flex: 1 0 3px;
+    min-width: 3px;
+    max-width: 10px;
+    background: var(--bar);
+    border-radius: 2px 2px 0 0;
+    position: relative;
+  }
+  .bar.peak { background: var(--bar-peak); }
+  .bar.learning { box-shadow: inset 0 -3px 0 rgba(179, 58, 43, 0.25); }
+  .chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 10px;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+  .swatch {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    vertical-align: -1px;
+    margin-right: 4px;
+    background: var(--bar);
+  }
+  .swatch.peak { background: var(--bar-peak); }
+  .table-tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .table-tools select {
+    font-family: inherit;
+    font-size: 0.92rem;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--ink);
+  }
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+    min-width: 720px;
+  }
+  th, td {
+    border-bottom: 1px solid var(--line);
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+    white-space: nowrap;
+  }
+  th {
+    background: var(--paper);
+    font-weight: 700;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    border-bottom: 2px solid var(--ink);
+  }
+  tr.is-peak td { background: var(--accent-soft); }
+  tr.is-last td { border-top: 2px solid var(--ink); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .tag {
+    display: inline-block;
+    font-size: 0.75rem;
+    padding: 1px 6px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    color: var(--muted);
+    margin-right: 4px;
+  }
+  .tag.learn {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .tag.review {
+    border-color: var(--ok);
+    color: var(--ok);
+    background: #e7f2eb;
+  }
+  .hint {
+    font-size: 0.86rem;
+    color: var(--muted);
+    margin: 8px 0 0;
+  }
+  .stages {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+    min-width: 0;
+  }
+  .stages th, .stages td {
+    white-space: normal;
+    position: static;
+  }
+  .stages .day-off {
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .formula {
+    background: var(--paper);
+    border-left: 3px solid var(--ink);
+    padding: 10px 12px;
+    margin: 10px 0;
+    font-size: 0.92rem;
+  }
+  .formula code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.86em;
+    background: #fff;
+    padding: 1px 5px;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+  }
+  .test-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .test-list li {
+    padding: 7px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    margin-bottom: 6px;
+    font-size: 0.92rem;
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    flex-wrap: wrap;
+  }
+  .test-list li.pass { border-left: 4px solid var(--ok); }
+  .test-list li.fail { border-left: 4px solid var(--accent); background: var(--accent-soft); }
+  .badge {
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 1px 7px;
+    border-radius: 999px;
+  }
+  .badge.pass { background: var(--ok); color: #fff; }
+  .badge.fail { background: var(--accent); color: #fff; }
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--ink);
+    color: var(--paper);
+    padding: 10px 16px;
+    border-radius: 999px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s, transform .25s;
+    font-size: 0.92rem;
+    z-index: 50;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.82rem;
+    padding: 8px 0 20px;
+  }
+  .nowrap { white-space: nowrap; }
+
+  @media (max-width: 560px) {
+    body { font-size: 15px; }
+    header h1 { font-size: 1.35rem; }
+    .wrap { padding: 12px 10px 40px; }
+    section { padding: 12px; }
+    .chart { height: 110px; }
+  }
+
+  @media print {
+    @page {
+      size: A4;
+      margin: 12mm 10mm;
+    }
+    body {
+      background: #fff;
+      color: #000;
+      font-size: 11pt;
+    }
+    .wrap { max-width: none; padding: 0; }
+    .no-print, .presets, .actions, .table-tools, #sec-chart, #sec-tests, .toast {
+      display: none !important;
+    }
+    section {
+      border: none;
+      padding: 0 0 10pt;
+      margin-bottom: 8pt;
+      background: #fff;
+      break-inside: avoid;
+    }
+    h2 {
+      border-bottom: 1pt solid #000;
+      font-size: 13pt;
+    }
+    header {
+      border-bottom: 1.5pt solid #000;
+      margin-bottom: 8pt;
+      padding-top: 0;
+    }
+    header h1 { font-size: 16pt; }
+    .table-wrap {
+      border: none;
+      overflow: visible;
+    }
+    table {
+      min-width: 0;
+      font-size: 9.5pt;
+      width: 100%;
+    }
+    th, td {
+      padding: 4pt 5pt;
+      border-bottom: 0.4pt solid #999;
+      white-space: normal;
+    }
+    th {
+      position: static;
+      background: #eee;
+      border-bottom: 1pt solid #000;
+    }
+    tr.is-peak td { background: #f5e8e4 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    tr { break-inside: avoid; }
+    .stat {
+      border: 0.6pt solid #666;
+      background: #fff;
+    }
+    .stat.peak .v, .stat.peak .k { color: #000; }
+    .stat.peak { background: #f5e8e4 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    footer { margin-top: 8pt; }
+    a[href]:after { content: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>艾宾浩斯复习计划表</h1>
+    <p>与背单词主应用同一套 10 档间隔 · 纸质 / 电子复习计划一键生成</p>
+  </header>
+
+  <section id="sec-config">
+    <h2><span class="num">壹</span>计划参数</h2>
+    <div class="form-grid">
+      <div>
+        <label for="startDate">开始日期</label>
+        <input type="date" id="startDate">
+      </div>
+      <div>
+        <label for="wordsPerDay">每日新词量</label>
+        <input type="number" id="wordsPerDay" min="1" max="500" step="1" value="30">
+      </div>
+      <div>
+        <label for="totalWords">总词量</label>
+        <input type="number" id="totalWords" min="1" max="20000" step="1" value="8100">
+      </div>
+    </div>
+    <div class="presets no-print">
+      <button type="button" class="secondary" data-preset="8100,30">全库 8100 · 30/日</button>
+      <button type="button" class="secondary" data-preset="5500,50">核心 5500 · 50/日</button>
+      <button type="button" class="secondary" data-preset="2000,20">高频 2000 · 20/日</button>
+    </div>
+    <div class="actions no-print">
+      <button type="button" id="btnGen">生成计划</button>
+      <button type="button" id="btnCopy" class="secondary">复制 Markdown</button>
+      <button type="button" id="btnPrint" class="secondary">打印 / 导出 PDF</button>
+    </div>
+    <p class="hint">默认对齐主应用词库约 8100 词、每日 30 词。修改参数后点「生成计划」或直接复制 / 打印（会自动重算）。</p>
+  </section>
+
+  <section id="sec-overview">
+    <h2><span class="num">贰</span>总览</h2>
+    <div class="stats" id="stats"></div>
+    <p class="hint" id="overviewHint"></p>
+  </section>
+
+  <section id="sec-chart">
+    <h2><span class="num">叁</span>每日负荷</h2>
+    <div class="chart-box">
+      <div class="chart" id="chart" aria-label="每日负荷条形图"></div>
+    </div>
+    <div class="chart-legend">
+      <span><i class="swatch"></i>每日合计（新词 + 到期复习）</span>
+      <span><i class="swatch peak"></i>高峰日（计划内最大负荷）</span>
+      <span>底部深色细线 = 当日仍在学新词</span>
+    </div>
+  </section>
+
+  <section id="sec-plan">
+    <h2><span class="num">肆</span>按日计划表</h2>
+    <div class="table-tools no-print">
+      <label for="filterMode" style="margin:0">显示</label>
+      <select id="filterMode">
+        <option value="all">全部日期</option>
+        <option value="learn">仅学习日</option>
+        <option value="review">仅有复习的日</option>
+        <option value="peak">仅高峰日</option>
+      </select>
+      <span class="hint" id="rowCount"></span>
+    </div>
+    <div class="table-wrap">
+      <table id="planTable">
+        <thead>
+          <tr>
+            <th>日期</th>
+            <th>星期</th>
+            <th>新词范围</th>
+            <th class="num">新词</th>
+            <th>到期复习批次</th>
+            <th class="num">复习</th>
+            <th class="num">合计</th>
+          </tr>
+        </thead>
+        <tbody id="planBody"></tbody>
+      </table>
+    </div>
+    <p class="hint">「第 N 批」= 第 N 天学的新词（含词号范围）。括号内为该批按第几档间隔回来。当日新词另有 +5 分 / +30 分 / +12 小时三次闪回，属当日巩固，不计入复习列。</p>
+    <div class="actions no-print">
+      <button type="button" id="btnCopy2">复制 Markdown</button>
+      <button type="button" id="btnPrint2" class="secondary">打印</button>
+    </div>
+  </section>
+
+  <section id="sec-stages">
+    <h2><span class="num">伍</span>间隔表（与主应用一致）</h2>
+    <table class="stages">
+      <thead>
+        <tr>
+          <th>档位</th>
+          <th>间隔</th>
+          <th>距学习日</th>
+          <th>是否计入按日复习</th>
+        </tr>
+      </thead>
+      <tbody id="stagesBody"></tbody>
+    </table>
+    <div class="formula">
+      <b>按日复习公式</b>（全部判「会」的理想路径）：<br>
+      令某日为第 <code>D</code> 天，日级间隔集合 <code>R = {1, 2, 4, 7, 15, 30, 60}</code>（单位：天）。<br>
+      当日到期复习 = 所有满足 <code>D − d ∈ R</code> 的历史第 <code>d</code> 批词量之和。<br>
+      当日合计 = 当日新词 + 当日到期复习。<br>
+      学习天数 <code>L = ⌈总词量 / 每日新词⌉</code>；计划跨度 <code>L + 60</code> 天（末批最后一次 +60 天复习）。
+    </div>
+  </section>
+
+  <section id="sec-tests" class="no-print">
+    <h2><span class="num">陆</span>计算自检</h2>
+    <p class="hint">核心计算为纯函数 <code>EbPlan</code>，以下用例与 README 公式对齐：</p>
+    <ul class="test-list" id="testList"></ul>
+    <div class="actions">
+      <button type="button" id="btnTest" class="secondary">重新运行自检</button>
+    </div>
+  </section>
+
+  <footer>
+    艾宾浩斯复习计划表生成器 · 纯前端单文件 · 间隔与考研英语背单词主应用一致
+  </footer>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/**
+ * 核心计算：纯函数，挂到 window.EbPlan，便于在控制台或外部脚本验证。
+ * 间隔表与 js/app.js 中 STAGES 保持一致。
+ */
+(function (global) {
+  "use strict";
+
+  /** 与 js/app.js 的 STAGES 一一对应（文案与毫秒间隔）。 */
+  var STAGES = [
+    { t: "5 分钟",  ms: 5 * 60 * 1000,        day: 0,  key: "5min" },
+    { t: "30 分钟", ms: 30 * 60 * 1000,       day: 0,  key: "30min" },
+    { t: "12 小时", ms: 12 * 60 * 60 * 1000,  day: 0,  key: "12h" },
+    { t: "1 天",    ms: 24 * 60 * 60 * 1000,  day: 1,  key: "1d" },
+    { t: "2 天",    ms: 2 * 24 * 60 * 60 * 1000,  day: 2,  key: "2d" },
+    { t: "4 天",    ms: 4 * 24 * 60 * 60 * 1000,  day: 4,  key: "4d" },
+    { t: "7 天",    ms: 7 * 24 * 60 * 60 * 1000,  day: 7,  key: "7d" },
+    { t: "15 天",   ms: 15 * 24 * 60 * 60 * 1000, day: 15, key: "15d" },
+    { t: "30 天",   ms: 30 * 24 * 60 * 60 * 1000, day: 30, key: "30d" },
+    { t: "60 天",   ms: 60 * 24 * 60 * 60 * 1000, day: 60, key: "60d" }
+  ];
+
+  /** 参与「按日计划」的档位：day > 0 的间隔（单位天）。 */
+  var DAY_OFFSETS = STAGES.filter(function (s) { return s.day > 0; })
+    .map(function (s) { return s.day; });
+
+  /** 当日闪回档位（不计入按日复习列）。 */
+  var SAME_DAY_STAGES = STAGES.filter(function (s) { return s.day === 0; });
+
+  function toInt(n, fallback) {
+    var v = Math.floor(Number(n));
+    return Number.isFinite(v) ? v : fallback;
+  }
+
+  /** 学习天数 L = ⌈totalWords / wordsPerDay⌉ */
+  function learnDayCount(totalWords, wordsPerDay) {
+    var t = toInt(totalWords, 0), w = toInt(wordsPerDay, 0);
+    if (t <= 0 || w <= 0) return 0;
+    return Math.ceil(t / w);
+  }
+
+  /**
+   * 分批：返回 [{day, start, end, size}]，day 从 1 起。
+   * 最后一批可能不足 wordsPerDay。
+   */
+  function buildBatches(totalWords, wordsPerDay) {
+    var t = toInt(totalWords, 0), w = toInt(wordsPerDay, 0);
+    if (t <= 0 || w <= 0) return [];
+    var n = Math.ceil(t / w);
+    var batches = [];
+    for (var i = 0; i < n; i++) {
+      var start = i * w + 1;
+      var end = Math.min(t, (i + 1) * w);
+      batches.push({ day: i + 1, start: start, end: end, size: end - start + 1 });
+    }
+    return batches;
+  }
+
+  /**
+   * 某一天的到期复习批次。
+   * @param {number} day  第几天（1 起）
+   * @param {Array} batches  buildBatches 结果
+   * @param {number[]} offsets  日级间隔，默认 DAY_OFFSETS
+   * @returns {{fromDay:number,size:number,offset:number}[], total:number}}
+   *   按 offset 升序；fromDay = day - offset。
+   */
+  function reviewsOnDay(day, batches, offsets) {
+    var offs = offsets || DAY_OFFSETS;
+    var byDay = {};
+    for (var i = 0; i < batches.length; i++) byDay[batches[i].day] = batches[i];
+    var list = [];
+    var total = 0;
+    for (var k = 0; k < offs.length; k++) {
+      var off = offs[k];
+      var from = day - off;
+      var b = byDay[from];
+      if (b) {
+        list.push({ fromDay: from, size: b.size, offset: off, start: b.start, end: b.end });
+        total += b.size;
+      }
+    }
+    return { list: list, total: total };
+  }
+
+  /**
+   * 完整按日计划。
+   * @param {{startDate:string, wordsPerDay:number, totalWords:number, offsets?:number[]}} opts
+   *   startDate: 'YYYY-MM-DD'
+   */
+  function buildPlan(opts) {
+    var wordsPerDay = toInt(opts && opts.wordsPerDay, 30);
+    var totalWords = toInt(opts && opts.totalWords, 8100);
+    var offsets = opts && opts.offsets ? opts.offsets.slice() : DAY_OFFSETS.slice();
+    offsets.sort(function (a, b) { return a - b; });
+
+    if (wordsPerDay < 1) wordsPerDay = 1;
+    if (totalWords < 1) totalWords = 1;
+
+    var start = parseDate(opts && opts.startDate) || todayDate();
+    var batches = buildBatches(totalWords, wordsPerDay);
+    var learnDays = batches.length;
+    var maxOffset = offsets.length ? offsets[offsets.length - 1] : 0;
+    var span = learnDays + maxOffset;
+
+    var days = [];
+    for (var d = 1; d <= span; d++) {
+      var batch = d <= learnDays ? batches[d - 1] : null;
+      var rev = reviewsOnDay(d, batches, offsets);
+      var newCount = batch ? batch.size : 0;
+      var date = addDays(start, d - 1);
+      days.push({
+        day: d,
+        date: formatDate(date),
+        weekday: weekdayCN(date),
+        isNew: !!batch,
+        isLearnDay: newCount > 0,
+        batch: batch,
+        newCount: newCount,
+        newRange: batch ? batch.start + "–" + batch.end : "—",
+        reviews: rev.list,
+        reviewTotal: rev.total,
+        total: newCount + rev.total
+      });
+    }
+
+    var peak = 0;
+    for (var i = 0; i < days.length; i++) if (days[i].total > peak) peak = days[i].total;
+    var peakDays = days.filter(function (x) { return x.total === peak && peak > 0; })
+      .map(function (x) { return x.day; });
+
+    var reviewWork = 0;
+    for (var j = 0; j < days.length; j++) reviewWork += days[j].reviewTotal;
+
+    return {
+      startDate: formatDate(start),
+      wordsPerDay: wordsPerDay,
+      totalWords: totalWords,
+      offsets: offsets,
+      stages: STAGES,
+      sameDayStages: SAME_DAY_STAGES,
+      batches: batches,
+      learnDays: learnDays,
+      spanDays: span,
+      endDate: formatDate(addDays(start, span - 1)),
+      lastLearnDate: formatDate(addDays(start, Math.max(0, learnDays - 1))),
+      days: days,
+      peakLoad: peak,
+      peakDays: peakDays,
+      reviewWork: reviewWork,
+      grandTotal: totalWords + reviewWork
+    };
+  }
+
+  /** 导出 Markdown 表。 */
+  function toMarkdown(plan) {
+    var L = [];
+    L.push("# 艾宾浩斯复习计划表");
+    L.push("");
+    L.push("- 开始日期：" + plan.startDate);
+    L.push("- 每日新词：" + plan.wordsPerDay);
+    L.push("- 总词量：" + plan.totalWords);
+    L.push("- 学习天数：" + plan.learnDays + "（止于 " + plan.lastLearnDate + "）");
+    L.push("- 计划跨度：" + plan.spanDays + " 天（止于 " + plan.endDate + "）");
+    L.push("- 日级间隔：" + plan.offsets.map(function (x) { return x + "天"; }).join(" / "));
+    L.push("- 高峰日负荷：" + plan.peakLoad + " 词（第 " + plan.peakDays.join("、") + " 天）");
+    L.push("- 当日闪回：" + plan.sameDayStages.map(function (s) { return s.t; }).join(" / ") + "（不计入下表复习列）");
+    L.push("");
+    L.push("| 日期 | 星期 | 新词范围 | 新词 | 到期复习批次 | 复习 | 合计 |");
+    L.push("| --- | --- | --- | ---: | --- | ---: | ---: |");
+    plan.days.forEach(function (d) {
+      var rev = d.reviews.length
+        ? d.reviews.map(function (r) {
+            return "第" + r.fromDay + "批 " + r.size + "词(+" + r.offset + "d)";
+          }).join(" · ")
+        : "—";
+      L.push("| " + d.date + " | " + d.weekday + " | " + d.newRange +
+        " | " + d.newCount + " | " + rev + " | " + d.reviewTotal + " | " + d.total + " |");
+    });
+    L.push("");
+    L.push("> 公式：第 D 天到期复习 = 所有满足 D−d ∈ {1,2,4,7,15,30,60} 的第 d 批词量之和；当日合计 = 新词 + 复习。");
+    return L.join("\n");
+  }
+
+  /* ---------- 日期工具 ---------- */
+
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+
+  function parseDate(s) {
+    if (!s || typeof s !== "string") return null;
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s.trim());
+    if (!m) return null;
+    var y = +m[1], mo = +m[2], d = +m[3];
+    if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+    var dt = new Date(y, mo - 1, d);
+    if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
+    return dt;
+  }
+
+  function todayDate() {
+    var n = new Date();
+    return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  }
+
+  function addDays(date, n) {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate() + n);
+  }
+
+  function formatDate(d) {
+    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+  }
+
+  function weekdayCN(d) {
+    return "日一二三四五六".charAt(d.getDay());
+  }
+
+  /* ---------- 自检 ---------- */
+
+  function runSelfTests() {
+    var results = [];
+    function check(name, cond, detail) {
+      results.push({ name: name, pass: !!cond, detail: detail || "" });
+    }
+
+    var plan = buildPlan({ startDate: "2025-01-01", wordsPerDay: 30, totalWords: 8100 });
+
+    // 1. 第 1 天只有新词
+    var d1 = plan.days[0];
+    check("第 1 天只有新词", d1 && d1.newCount === 30 && d1.reviewTotal === 0 && d1.total === 30,
+      "new=" + (d1 && d1.newCount) + " review=" + (d1 && d1.reviewTotal));
+
+    // 2. 第 2 天复习 = 第 1 批 30（+1d）
+    var d2 = plan.days[1];
+    check("第 2 天复习=第 1 批 30 词（+1 天）",
+      d2 && d2.reviewTotal === 30 && d2.reviews.length === 1 && d2.reviews[0].fromDay === 1 && d2.reviews[0].offset === 1,
+      "review=" + (d2 && d2.reviewTotal) + " batches=" + (d2 && d2.reviews.map(function (r) { return r.fromDay + "@" + r.offset; }).join(",")));
+
+    // 3. 第 3 天复习 = 第 2 批(+1d) + 第 1 批(+2d) = 60
+    var d3 = plan.days[2];
+    check("第 3 天复习量=60（第 2、1 批）",
+      d3 && d3.reviewTotal === 60 && d3.reviews.length === 2,
+      "review=" + (d3 && d3.reviewTotal));
+
+    // 4. 第 6 天复习 = 第 5 批(+1d) + 第 4 批(+2d) + 第 2 批(+4d) = 90
+    var d6 = plan.days[5];
+    check("第 6 天复习量=90（第 5、4、2 批）",
+      d6 && d6.reviewTotal === 90 && d6.reviews.length === 3 &&
+      d6.reviews.map(function (r) { return r.fromDay; }).join(",") === "5,4,2",
+      "review=" + (d6 && d6.reviewTotal) + " from=" + (d6 && d6.reviews.map(function (r) { return r.fromDay; }).join(",")));
+
+    // 5. 学习天数 = ⌈8100/30⌉ = 270
+    check("学习天数 L=⌈8100/30⌉=270", plan.learnDays === 270, "learnDays=" + plan.learnDays);
+
+    // 6. 计划跨度 = 270 + 60 = 330，结束日期正确
+    check("计划跨度=330 天", plan.spanDays === 330 && plan.days.length === 330,
+      "span=" + plan.spanDays);
+
+    // 7. 第 61 天起进入稳态：7 档同时到期
+    var d61 = plan.days[60];
+    check("第 61 天复习 7 批（稳态）",
+      d61 && d61.reviews.length === 7 && d61.reviewTotal === 210,
+      "batches=" + (d61 && d61.reviews.length) + " review=" + (d61 && d61.reviewTotal));
+
+    // 8. 学完后第 1 天（第 271 天）无新词，仍有 7 批复习
+    var d271 = plan.days[270];
+    check("学完次日无新词且仍有复习",
+      d271 && d271.newCount === 0 && d271.reviewTotal === 210,
+      "new=" + (d271 && d271.newCount) + " review=" + (d271 && d271.reviewTotal));
+
+    // 9. 末日（第 330 天）= 末批 +60d
+    var dLast = plan.days[329];
+    check("末日=第 270 批 +60 天复习",
+      dLast && dLast.reviewTotal === 30 && dLast.reviews.length === 1 && dLast.reviews[0].fromDay === 270 && dLast.reviews[0].offset === 60,
+      "from=" + (dLast && dLast.reviews.map(function (r) { return r.fromDay + "@" + r.offset; }).join(",")));
+
+    // 10. 末批不规则：total=65, perDay=30 → 3 批 30/30/5
+    var partial = buildPlan({ startDate: "2025-01-01", wordsPerDay: 30, totalWords: 65 });
+    check("末批不规则切分 30/30/5",
+      partial.batches.length === 3 && partial.batches[2].size === 5 && partial.batches[2].start === 61 && partial.batches[2].end === 65,
+      partial.batches.map(function (b) { return b.size; }).join("/"));
+
+    // 11. 高峰负荷：稳态学习日 = 7×30+30 = 240
+    check("高峰负荷=240（7×复习30+新30）", plan.peakLoad === 240, "peak=" + plan.peakLoad);
+
+    // 12. Markdown 可生成且含表头
+    var md = toMarkdown(plan);
+    check("Markdown 含表头与公式行",
+      md.indexOf("| 日期 | 星期 |") >= 0 && md.indexOf("公式") >= 0 && md.indexOf("2025-01-01") >= 0,
+      "len=" + md.length);
+
+    return results;
+  }
+
+  global.EbPlan = {
+    STAGES: STAGES,
+    DAY_OFFSETS: DAY_OFFSETS,
+    SAME_DAY_STAGES: SAME_DAY_STAGES,
+    learnDayCount: learnDayCount,
+    buildBatches: buildBatches,
+    reviewsOnDay: reviewsOnDay,
+    buildPlan: buildPlan,
+    toMarkdown: toMarkdown,
+    parseDate: parseDate,
+    formatDate: formatDate,
+    addDays: addDays,
+    runSelfTests: runSelfTests
+  };
+})(typeof window !== "undefined" ? window : globalThis);
+
+/* ================= UI ================= */
+(function () {
+  "use strict";
+  var Eb = window.EbPlan;
+  var currentPlan = null;
+
+  function $(id) { return document.getElementById(id); }
+
+  function toast(msg) {
+    var el = $("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function () { el.classList.remove("show"); }, 1800);
+  }
+
+  function readForm() {
+    return {
+      startDate: $("startDate").value,
+      wordsPerDay: Math.max(1, Math.floor(Number($("wordsPerDay").value) || 30)),
+      totalWords: Math.max(1, Math.floor(Number($("totalWords").value) || 8100))
+    };
+  }
+
+  function renderStages() {
+    var body = $("stagesBody");
+    body.innerHTML = Eb.STAGES.map(function (s, i) {
+      var isDay = s.day > 0;
+      return "<tr>" +
+        "<td>第 " + (i + 1) + " 档</td>" +
+        "<td>" + s.t + "</td>" +
+        "<td class='" + (isDay ? "day-off" : "") + "'>" +
+          (isDay ? ("学习日 + " + s.day + " 天") : "学习当日") +
+        "</td>" +
+        "<td>" + (isDay ? "是（+ " + s.day + " 天）" : "否（当日闪回）") + "</td>" +
+        "</tr>";
+    }).join("");
+  }
+
+  function renderStats(plan) {
+    var peakRange = plan.peakDays.length > 3
+      ? ("第 " + plan.peakDays[0] + "–" + plan.peakDays[plan.peakDays.length - 1] + " 天等 " + plan.peakDays.length + " 天")
+      : plan.peakDays.map(function (d) { return "第 " + d + " 天"; }).join("、");
+    $("stats").innerHTML =
+      card("学习天数", plan.learnDays + " 天", "学完 " + plan.totalWords + " 词") +
+      card("学完日期", plan.lastLearnDate, "最后一批新词") +
+      card("计划结束", plan.endDate, "末次 +60 天复习") +
+      card("复习总量", plan.reviewWork.toLocaleString("en-US") + " 词次", "全部到期复习之和") +
+      card("高峰负荷", plan.peakLoad + " 词/日", peakRange, true) +
+      card("工作总量", plan.grandTotal.toLocaleString("en-US") + " 词次", "新词 + 复习");
+    $("overviewHint").textContent =
+      "参数：" + plan.startDate + " 起，每日 " + plan.wordsPerDay + " 词，共 " + plan.totalWords +
+      " 词。日级间隔 " + plan.offsets.join("/") + " 天。图中红色为高峰日。";
+  }
+
+  function card(k, v, sub, peak) {
+    return "<div class='stat" + (peak ? " peak" : "") + "'>" +
+      "<div class='k'>" + k + "</div>" +
+      "<div class='v'>" + v + (sub ? "<small>" + sub + "</small>" : "") + "</div></div>";
+  }
+
+  function renderChart(plan) {
+    var chart = $("chart");
+    var max = Math.max(1, plan.peakLoad);
+    var peakSet = {};
+    plan.peakDays.forEach(function (d) { peakSet[d] = true; });
+    chart.innerHTML = plan.days.map(function (d) {
+      var h = Math.max(2, Math.round(d.total / max * 100));
+      var cls = "bar" + (peakSet[d.day] ? " peak" : "") + (d.isLearnDay ? " learning" : "");
+      var title = "第" + d.day + "天 " + d.date + "：新" + d.newCount + " + 复习" + d.reviewTotal + " = " + d.total;
+      return "<div class='" + cls + "' style='height:" + h + "%' title='" + title + "'></div>";
+    }).join("");
+  }
+
+  function renderTable(plan) {
+    var mode = $("filterMode").value;
+    var peakSet = {};
+    plan.peakDays.forEach(function (d) { peakSet[d] = true; });
+    var rows = plan.days.filter(function (d) {
+      if (mode === "learn") return d.isLearnDay;
+      if (mode === "review") return d.reviewTotal > 0;
+      if (mode === "peak") return !!peakSet[d.day];
+      return true;
+    });
+    $("rowCount").textContent = "共 " + rows.length + " 行 / 计划 " + plan.spanDays + " 天";
+    $("planBody").innerHTML = rows.map(function (d) {
+      var rev = d.reviews.length
+        ? d.reviews.map(function (r) {
+            return "<span class='tag review'>第" + r.fromDay + "批 · " + r.size + "词 · +" + r.offset + "d</span>";
+          }).join(" ")
+        : "<span class='tag'>—</span>";
+      var newCell = d.isLearnDay
+        ? "<span class='tag learn'>第 " + d.batch.day + " 批</span> " + d.newRange
+        : "<span class='tag'>—</span>";
+      var cls = (peakSet[d.day] ? "is-peak" : "") + (d.day === plan.spanDays ? " is-last" : "");
+      return "<tr class='" + cls + "'>" +
+        "<td class='nowrap'>" + d.date + "</td>" +
+        "<td>周" + d.weekday + "</td>" +
+        "<td>" + newCell + "</td>" +
+        "<td class='num'>" + d.newCount + "</td>" +
+        "<td>" + rev + "</td>" +
+        "<td class='num'>" + d.reviewTotal + "</td>" +
+        "<td class='num'><b>" + d.total + "</b></td>" +
+        "</tr>";
+    }).join("");
+  }
+
+  function renderTests() {
+    var results = Eb.runSelfTests();
+    var pass = results.filter(function (r) { return r.pass; }).length;
+    $("testList").innerHTML = results.map(function (r) {
+      return "<li class='" + (r.pass ? "pass" : "fail") + "'>" +
+        "<span class='badge " + (r.pass ? "pass" : "fail") + "'>" + (r.pass ? "通过" : "失败") + "</span>" +
+        "<span>" + r.name + "</span>" +
+        (r.detail ? "<span class='hint'>" + r.detail + "</span>" : "") +
+        "</li>";
+    }).join("") + "<li class='" + (pass === results.length ? "pass" : "fail") + "'>" +
+      "<span class='badge " + (pass === results.length ? "pass" : "fail") + "'>" +
+      pass + "/" + results.length + "</span><span>自检汇总</span></li>";
+  }
+
+  function generate() {
+    currentPlan = Eb.buildPlan(readForm());
+    renderStats(currentPlan);
+    renderChart(currentPlan);
+    renderTable(currentPlan);
+    return currentPlan;
+  }
+
+  function copyMarkdown() {
+    var plan = currentPlan || generate();
+    var md = Eb.toMarkdown(plan);
+    function ok() { toast("Markdown 已复制（" + plan.spanDays + " 行计划）"); }
+    function fail() {
+      window.prompt("复制以下 Markdown：", md);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(md).then(ok).catch(function () {
+        fallbackCopy(md, ok, fail);
+      });
+    } else {
+      fallbackCopy(md, ok, fail);
+    }
+  }
+
+  function fallbackCopy(text, ok, fail) {
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      var done = document.execCommand("copy");
+      document.body.removeChild(ta);
+      if (done) ok(); else fail();
+    } catch (e) {
+      fail();
+    }
+  }
+
+  function init() {
+    var start = new Date();
+    $("startDate").value = Eb.formatDate(new Date(start.getFullYear(), start.getMonth(), start.getDate()));
+    renderStages();
+    renderTests();
+    generate();
+
+    $("btnGen").addEventListener("click", function () {
+      generate();
+      toast("已生成计划");
+    });
+    $("btnCopy").addEventListener("click", copyMarkdown);
+    $("btnCopy2").addEventListener("click", copyMarkdown);
+    $("btnPrint").addEventListener("click", function () {
+      generate();
+      window.print();
+    });
+    $("btnPrint2").addEventListener("click", function () {
+      generate();
+      window.print();
+    });
+    $("filterMode").addEventListener("change", function () {
+      if (currentPlan) renderTable(currentPlan);
+    });
+    $("btnTest").addEventListener("click", function () {
+      renderTests();
+      toast("自检已运行");
+    });
+
+    ["startDate", "wordsPerDay", "totalWords"].forEach(function (id) {
+      $(id).addEventListener("change", function () { generate(); });
+    });
+
+    document.querySelectorAll("[data-preset]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var parts = btn.getAttribute("data-preset").split(",");
+        $("totalWords").value = parts[0];
+        $("wordsPerDay").value = parts[1];
+        generate();
+        toast("已套用 " + parts[0] + " 词 / " + parts[1] + " 每日");
+      });
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>

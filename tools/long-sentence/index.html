@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>考研长难句拆解练习</title>
+<meta name="description" content="考研英语真题长难句结构拆解练习：主干、从句、修饰分层标注，练习模式与学习模式，本地进度。">
+<style>
+:root {
+  --paper: #f4efe3;
+  --paper-deep: #ebe4d3;
+  --card: #fffdf7;
+  --ink: #2b2620;
+  --ink-soft: #5c5348;
+  --line: #d6cdb8;
+  --line-strong: #b9ab8e;
+  --accent: #9a3b2e;
+  --accent-soft: #f0ddd6;
+  --sk-bg: #f3dfb0;
+  --sk-line: #b8892e;
+  --cl-bg: #d9e6f4;
+  --cl-line: #3d6ea8;
+  --mod-bg: #e7e1d2;
+  --mod-line: #8a7d64;
+  --ok: #2f6b4f;
+  --shadow: 0 1px 0 rgba(90, 70, 40, 0.08), 0 8px 24px rgba(90, 70, 40, 0.06);
+  --radius: 14px;
+  --serif: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC",
+           "SimSun", Georgia, "Times New Roman", serif;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--serif);
+  color: var(--ink);
+  background:
+    radial-gradient(1200px 400px at 10% -10%, #fff9ec 0%, transparent 50%),
+    linear-gradient(180deg, var(--paper) 0%, var(--paper-deep) 100%);
+  min-height: 100vh;
+  line-height: 1.65;
+  -webkit-text-size-adjust: 100%;
+}
+.wrap {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 20px 16px 48px;
+}
+header {
+  text-align: center;
+  padding: 12px 8px 18px;
+}
+h1 {
+  margin: 0 0 6px;
+  font-size: clamp(1.55rem, 4.5vw, 2.15rem);
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+.sub {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+}
+.tabs {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 8px 0 14px;
+}
+.tab {
+  appearance: none;
+  border: 1px solid var(--line-strong);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 8px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff8f0;
+}
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  background: rgba(255,253,247,0.7);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 0.86rem;
+  color: var(--ink-soft);
+}
+.chip b { color: var(--ink); font-weight: 700; }
+button {
+  font: inherit;
+  cursor: pointer;
+}
+.btn {
+  appearance: none;
+  border: 1px solid var(--line-strong);
+  background: var(--card);
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 9px 14px;
+  font-size: 0.95rem;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff8f0;
+}
+.btn.primary:hover { filter: brightness(1.05); color: #fff8f0; }
+.btn.ghost { background: transparent; }
+.btn.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px 18px 16px;
+  margin-bottom: 14px;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  margin-bottom: 12px;
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 0.82rem;
+}
+.badge.fav {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.english {
+  font-size: clamp(1.05rem, 2.8vw, 1.28rem);
+  line-height: 1.95;
+  letter-spacing: 0.01em;
+  margin: 4px 0 14px;
+}
+.tok {
+  border-radius: 4px;
+  padding: 1px 1px;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+.practice .tok.w {
+  cursor: pointer;
+}
+.practice .tok.w:hover {
+  background: #f0e6cf;
+}
+.practice .tok.w.user {
+  background: var(--sk-bg);
+  box-shadow: inset 0 -2px 0 var(--sk-line);
+}
+.tok.sk {
+  background: var(--sk-bg);
+  box-shadow: inset 0 -2px 0 var(--sk-line);
+  font-weight: 600;
+}
+.tok.cl {
+  background: var(--cl-bg);
+  box-shadow: inset 0 -2px 0 var(--cl-line);
+}
+.tok.mod {
+  background: var(--mod-bg);
+  box-shadow: inset 0 -2px 0 var(--mod-line);
+}
+.tok.miss {
+  outline: 1px dashed var(--accent);
+}
+.tok.extra {
+  outline: 1px solid rgba(154,59,46,0.45);
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin: 0 0 12px;
+  font-size: 0.84rem;
+  color: var(--ink-soft);
+}
+.legend i {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  margin-right: 6px;
+  vertical-align: -2px;
+}
+.legend .sk i { background: var(--sk-bg); box-shadow: inset 0 -2px 0 var(--sk-line); }
+.legend .cl i { background: var(--cl-bg); box-shadow: inset 0 -2px 0 var(--cl-line); }
+.legend .mod i { background: var(--mod-bg); box-shadow: inset 0 -2px 0 var(--mod-line); }
+
+.hint {
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  margin: 0 0 12px;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 4px;
+}
+.panel {
+  border-top: 1px dashed var(--line);
+  margin-top: 14px;
+  padding-top: 14px;
+}
+.panel h3 {
+  margin: 0 0 8px;
+  font-size: 1.02rem;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+.block {
+  margin: 0 0 12px;
+}
+.block .label {
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.08em;
+  margin-bottom: 4px;
+}
+.structure {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.structure li {
+  display: grid;
+  grid-template-columns: minmax(7.5em, 11em) 1fr;
+  gap: 8px 12px;
+  padding: 7px 0;
+  border-bottom: 1px dotted var(--line);
+  font-size: 0.95rem;
+}
+.structure li:last-child { border-bottom: 0; }
+.structure .k {
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+}
+.translation {
+  background: linear-gradient(180deg, #fffaf0, #fbf4e6);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 1.02rem;
+}
+.tips {
+  margin: 0;
+  padding-left: 1.2em;
+}
+.tips li {
+  margin: 6px 0;
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+.score-box {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  align-items: center;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 10px 0 4px;
+  font-size: 0.92rem;
+}
+.score-box b { font-size: 1.05rem; }
+.nav {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.nav .mid { display: flex; gap: 8px; flex-wrap: wrap; }
+.empty {
+  text-align: center;
+  color: var(--ink-soft);
+  padding: 36px 12px;
+}
+.tipbar {
+  margin-top: 18px;
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+}
+kbd {
+  font-family: var(--serif);
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: 1px 6px;
+  background: var(--card);
+  font-size: 0.82rem;
+}
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%) translateY(12px);
+  background: #2b2620;
+  color: #fff8f0;
+  padding: 10px 16px;
+  border-radius: 999px;
+  font-size: 0.92rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 20;
+  max-width: 90vw;
+}
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.progress {
+  height: 6px;
+  background: var(--paper-deep);
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 8px 0 16px;
+  border: 1px solid var(--line);
+}
+.progress > i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--sk-line), var(--accent));
+  width: 0%;
+  transition: width 0.25s ease;
+}
+@media (max-width: 560px) {
+  .wrap { padding: 12px 12px 36px; }
+  .card { padding: 14px 12px; }
+  .structure li { grid-template-columns: 1fr; gap: 2px; }
+  .nav .btn { flex: 1 1 auto; text-align: center; }
+  .actions .btn { flex: 1 1 44%; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>考研长难句拆解练习</h1>
+    <p class="sub">真题长句 · 主干 / 从句 / 修饰分层拆解 · 标注精读</p>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="模式">
+    <button type="button" class="tab active" data-mode="practice" role="tab">练习模式</button>
+    <button type="button" class="tab" data-mode="study" role="tab">学习模式</button>
+    <button type="button" class="tab" data-mode="fav" role="tab">我的收藏</button>
+  </div>
+
+  <div class="toolbar">
+    <div class="chips">
+      <span class="chip">进度 <b id="statProgress">0 / 0</b></span>
+      <span class="chip">已掌握 <b id="statDone">0</b></span>
+      <span class="chip">收藏 <b id="statFav">0</b></span>
+      <span class="chip">主干匹配 <b id="statScore">—</b></span>
+    </div>
+    <div class="chips">
+      <button type="button" class="btn ghost" id="btnShuffle" aria-pressed="false">乱序</button>
+      <button type="button" class="btn ghost" id="btnReseed">重排</button>
+    </div>
+  </div>
+
+  <div class="progress" aria-hidden="true"><i id="progressBar"></i></div>
+
+  <div class="legend" id="legend" hidden>
+    <span class="sk"><i></i>主干（主谓宾核心）</span>
+    <span class="cl"><i></i>从句</span>
+    <span class="mod"><i></i>修饰 / 插入 / 非谓语</span>
+  </div>
+
+  <section class="card" id="card">
+    <div class="meta">
+      <span class="badge" id="srcBadge">—</span>
+      <span class="chip" id="wordChip">— 词</span>
+      <span class="chip" id="idxChip">—</span>
+      <button type="button" class="btn ghost" id="btnFav" aria-pressed="false">☆ 收藏</button>
+    </div>
+
+    <div class="english" id="english" lang="en"></div>
+
+    <p class="hint" id="hint">先通读句子，点击你认为属于<strong>主干</strong>的单词，再点「揭晓结构」。</p>
+
+    <div class="actions" id="practiceActions">
+      <button type="button" class="btn" id="btnClear">清除选择</button>
+      <button type="button" class="btn primary" id="btnReveal">揭晓结构</button>
+    </div>
+
+    <div class="score-box" id="scoreBox" hidden>
+      <span>主干匹配 <b id="scoreF1">0%</b></span>
+      <span>选中 <b id="scoreUser">0</b></span>
+      <span>应选 <b id="scoreTrue">0</b></span>
+      <span id="scoreVerdict"></span>
+    </div>
+
+    <div class="panel" id="panel" hidden>
+      <h3>结构拆解</h3>
+      <div class="block">
+        <div class="label">句子成分</div>
+        <ul class="structure" id="structureList"></ul>
+      </div>
+      <div class="block">
+        <div class="label">参考译文</div>
+        <div class="translation" id="translation"></div>
+      </div>
+      <div class="block">
+        <div class="label">难点提示</div>
+        <ul class="tips" id="tipsList"></ul>
+      </div>
+    </div>
+  </section>
+
+  <div class="nav">
+    <button type="button" class="btn" id="btnPrev">← 上一句</button>
+    <div class="mid">
+      <button type="button" class="btn" id="btnMastered">标记已掌握</button>
+      <button type="button" class="btn" id="btnAgain">再看一遍</button>
+      <button type="button" class="btn primary" id="btnNext">下一句 →</button>
+    </div>
+  </div>
+
+  <p class="empty" id="empty" hidden>当前没有可显示的句子。<br>可切换到「练习 / 学习」模式，或取消筛选。</p>
+
+  <p class="tipbar">
+    <kbd>空格</kbd> 揭晓 · <kbd>N</kbd> 下一句 · <kbd>P</kbd> 上一句 · <kbd>F</kbd> 收藏 ·
+    进度保存在本机浏览器 <code>long_sentence_v1</code>
+  </p>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="data.js"></script>
+<script>
+(function () {
+  "use strict";
+  var STORAGE_KEY = "long_sentence_v1";
+  var DATA = window.LONG_SENTENCE_DATA || [];
+
+  var state = {
+    mode: "practice", // practice | study | fav
+    shuffle: false,
+    order: [],
+    idx: 0,
+    favorites: {},
+    done: {},
+    scores: {},
+    revealed: false,
+    userPick: {}
+  };
+
+  function $(id) { return document.getElementById(id); }
+  function toast(msg) {
+    var el = $("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function () { el.classList.remove("show"); }, 1800);
+  }
+
+  function defaultOrder() {
+    return DATA.map(function (s) { return s.id; });
+  }
+
+  function hashSeed(str) {
+    var h = 2166136261;
+    for (var i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = (h * 16777619) >>> 0;
+    }
+    return h;
+  }
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function shuffled(arr, seed) {
+    var rnd = mulberry32(seed || Date.now());
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(rnd() * (i + 1));
+      var tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+    }
+    return a;
+  }
+
+  function save() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        v: 1,
+        mode: state.mode,
+        shuffle: state.shuffle,
+        order: state.order,
+        idx: state.idx,
+        favorites: state.favorites,
+        done: state.done,
+        scores: state.scores
+      }));
+    } catch (e) { /* ignore quota / private mode */ }
+  }
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) {
+        state.order = defaultOrder();
+        return;
+      }
+      var d = JSON.parse(raw);
+      if (d && d.v === 1) {
+        state.mode = d.mode || "practice";
+        state.shuffle = !!d.shuffle;
+        state.favorites = d.favorites || {};
+        state.done = d.done || {};
+        state.scores = d.scores || {};
+        var valid = {};
+        DATA.forEach(function (s) { valid[s.id] = 1; });
+        var order = (d.order || []).filter(function (id) { return valid[id]; });
+        // fill missing ids
+        DATA.forEach(function (s) {
+          if (order.indexOf(s.id) < 0) order.push(s.id);
+        });
+        state.order = order;
+        state.idx = Math.max(0, Math.min(order.length - 1, d.idx | 0));
+      } else {
+        state.order = defaultOrder();
+      }
+    } catch (e) {
+      state.order = defaultOrder();
+    }
+    if (!state.order || !state.order.length) state.order = defaultOrder();
+    if (state.shuffle && state.order.length) {
+      state.order = shuffled(state.order, hashSeed(state.order.join("|")));
+    }
+  }
+
+  function byId(id) {
+    for (var i = 0; i < DATA.length; i++) if (DATA[i].id === id) return DATA[i];
+    return null;
+  }
+
+  function visibleIds() {
+    if (state.mode === "fav") {
+      return state.order.filter(function (id) { return state.favorites[id]; });
+    }
+    return state.order.slice();
+  }
+
+  function currentSentence() {
+    var ids = visibleIds();
+    if (!ids.length) return null;
+    if (state.idx >= ids.length) state.idx = ids.length - 1;
+    if (state.idx < 0) state.idx = 0;
+    return byId(ids[state.idx]);
+  }
+
+  // ---- tokenization with roles from segments ----
+  function buildTokens(sentence) {
+    var tokens = [];
+    var roleOfChar = new Array(sentence.text.length);
+    var pos = 0;
+    sentence.segments.forEach(function (seg) {
+      for (var i = 0; i < seg.t.length; i++) {
+        roleOfChar[pos++] = seg.r;
+      }
+    });
+    var re = /\w+(?:['’]\w+)?|\s+|[^\w\s]/g;
+    var m;
+    while ((m = re.exec(sentence.text)) !== null) {
+      var raw = m[0];
+      var isWord = /\w/.test(raw[0]);
+      tokens.push({
+        raw: raw,
+        word: isWord,
+        role: isWord ? (roleOfChar[m.index] || "mod") : null,
+        start: m.index
+      });
+    }
+    return tokens;
+  }
+
+  function skeletonWordCount(sentence) {
+    return buildTokens(sentence).filter(function (t) {
+      return t.word && t.role === "sk";
+    }).length;
+  }
+
+  function userPickedCount() {
+    var n = 0;
+    for (var k in state.userPick) if (state.userPick[k]) n++;
+    return n;
+  }
+
+  function computeScore(sentence) {
+    var tokens = buildTokens(sentence);
+    var tp = 0, fp = 0, fn = 0;
+    tokens.forEach(function (t, i) {
+      if (!t.word) return;
+      var picked = !!state.userPick[i];
+      var truth = t.role === "sk";
+      if (picked && truth) tp++;
+      else if (picked && !truth) fp++;
+      else if (!picked && truth) fn++;
+    });
+    var prec = tp + fp ? tp / (tp + fp) : 0;
+    var rec = tp + fn ? tp / (tp + fn) : 0;
+    var f1 = prec + rec ? (2 * prec * rec) / (prec + rec) : 0;
+    return { tp: tp, fp: fp, fn: fn, f1: f1, prec: prec, rec: rec };
+  }
+
+  function renderEnglish(sentence) {
+    var host = $("english");
+    host.innerHTML = "";
+    var tokens = buildTokens(sentence);
+    var showRoles = state.mode === "study" || state.revealed;
+    tokens.forEach(function (t, i) {
+      if (t.word) {
+        var span = document.createElement("span");
+        span.className = "tok w";
+        span.textContent = t.raw;
+        span.dataset.i = String(i);
+        if (state.mode !== "study" && !state.revealed) {
+          // practice picking
+          if (state.userPick[i]) span.classList.add("user");
+        } else {
+          if (t.role === "sk") span.classList.add("sk");
+          else if (t.role === "cl") span.classList.add("cl");
+          else span.classList.add("mod");
+          if (state.mode === "practice" && state.revealed) {
+            var picked = !!state.userPick[i];
+            var truth = t.role === "sk";
+            if (picked && !truth) span.classList.add("extra");
+            if (!picked && truth) span.classList.add("miss");
+          }
+        }
+        host.appendChild(span);
+      } else {
+        var textNode = document.createTextNode(t.raw);
+        host.appendChild(textNode);
+      }
+    });
+  }
+
+  function renderPanel(sentence) {
+    var panel = $("panel");
+    if (!(state.mode === "study" || state.revealed)) {
+      panel.hidden = true;
+      return;
+    }
+    panel.hidden = false;
+    var ul = $("structureList");
+    ul.innerHTML = "";
+    sentence.structure.forEach(function (item) {
+      var li = document.createElement("li");
+      var k = document.createElement("div");
+      k.className = "k";
+      k.textContent = item.k;
+      var t = document.createElement("div");
+      t.className = "t";
+      t.textContent = item.t;
+      li.appendChild(k);
+      li.appendChild(t);
+      ul.appendChild(li);
+    });
+    $("translation").textContent = sentence.translation;
+    var tips = $("tipsList");
+    tips.innerHTML = "";
+    sentence.tips.forEach(function (tip) {
+      var li = document.createElement("li");
+      li.textContent = tip;
+      tips.appendChild(li);
+    });
+  }
+
+  function renderStats() {
+    var ids = visibleIds();
+    var total = ids.length;
+    var doneCount = 0;
+    ids.forEach(function (id) { if (state.done[id]) doneCount++; });
+    var favCount = 0;
+    Object.keys(state.favorites).forEach(function (id) {
+      if (state.favorites[id] && byId(id)) favCount++;
+    });
+    $("statProgress").textContent = (total ? state.idx + 1 : 0) + " / " + total;
+    $("statDone").textContent = String(doneCount);
+    $("statFav").textContent = String(favCount);
+
+    var scores = [];
+    ids.forEach(function (id) {
+      if (typeof state.scores[id] === "number") scores.push(state.scores[id]);
+    });
+    if (scores.length) {
+      var avg = scores.reduce(function (a, b) { return a + b; }, 0) / scores.length;
+      $("statScore").textContent = Math.round(avg * 100) + "%";
+    } else {
+      $("statScore").textContent = "—";
+    }
+    var pct = total ? Math.round((doneCount / total) * 100) : 0;
+    $("progressBar").style.width = pct + "%";
+  }
+
+  function render() {
+    var sentence = currentSentence();
+    var empty = $("empty");
+    var card = $("card");
+    var nav = document.querySelector(".nav");
+    if (!sentence) {
+      empty.hidden = false;
+      card.hidden = true;
+      nav.hidden = true;
+      renderStats();
+      return;
+    }
+    empty.hidden = true;
+    card.hidden = false;
+    nav.hidden = false;
+
+    $("srcBadge").textContent = sentence.source;
+    var tokens = buildTokens(sentence);
+    var wordCount = tokens.filter(function (t) { return t.word; }).length;
+    $("wordChip").textContent = wordCount + " 词";
+    var ids = visibleIds();
+    $("idxChip").textContent = (state.idx + 1) + " / " + ids.length;
+
+    var favBtn = $("btnFav");
+    var isFav = !!state.favorites[sentence.id];
+    favBtn.textContent = isFav ? "★ 已收藏" : "☆ 收藏";
+    favBtn.classList.toggle("on", isFav);
+    favBtn.setAttribute("aria-pressed", isFav ? "true" : "false");
+
+    var isPracticePick = state.mode === "practice" && !state.revealed;
+    $("english").classList.toggle("practice", isPracticePick);
+    $("legend").hidden = !(state.mode === "study" || state.revealed);
+    $("practiceActions").hidden = state.mode === "study";
+    $("hint").hidden = state.mode === "study";
+
+    if (state.mode === "practice" && !state.revealed) {
+      $("hint").innerHTML = '先通读句子，点击你认为属于<strong>主干</strong>的单词，再点「揭晓结构」。已选 <strong id="pickCount">' + userPickedCount() + '</strong> 词。';
+      $("scoreBox").hidden = true;
+    } else if (state.mode === "practice" && state.revealed) {
+      $("hint").hidden = true;
+      $("scoreBox").hidden = false;
+      var sc = computeScore(sentence);
+      $("scoreF1").textContent = Math.round(sc.f1 * 100) + "%";
+      $("scoreUser").textContent = String(userPickedCount());
+      $("scoreTrue").textContent = String(skeletonWordCount(sentence));
+      $("scoreVerdict").textContent =
+        sc.f1 >= 0.85 ? "主干抓得很准" :
+        sc.f1 >= 0.6 ? "大致正确，对照高亮补齐" :
+        "建议对照「主干」高亮再读一遍";
+      state.scores[sentence.id] = sc.f1;
+    } else {
+      $("scoreBox").hidden = true;
+    }
+
+    renderEnglish(sentence);
+    renderPanel(sentence);
+    renderStats();
+    save();
+  }
+
+  function go(delta) {
+    var ids = visibleIds();
+    if (!ids.length) return;
+    state.idx = (state.idx + delta + ids.length) % ids.length;
+    state.revealed = false;
+    state.userPick = {};
+    render();
+  }
+
+  function togglePickFromEvent(e) {
+    if (state.mode === "study" || state.revealed) return;
+    var el = e.target;
+    if (!el || !el.classList || !el.classList.contains("tok") || !el.classList.contains("w")) return;
+    var i = el.dataset.i;
+    state.userPick[i] = !state.userPick[i];
+    el.classList.toggle("user", !!state.userPick[i]);
+    var pickCount = $("pickCount");
+    if (pickCount) pickCount.textContent = String(userPickedCount());
+  }
+
+  function reveal() {
+    if (state.mode === "study") return;
+    if (!state.revealed) {
+      state.revealed = true;
+      render();
+      toast("已揭晓结构与译文");
+    } else {
+      // re-render to keep panel
+      render();
+    }
+  }
+
+  // events
+  document.querySelectorAll(".tab").forEach(function (tab) {
+    tab.addEventListener("click", function () {
+      state.mode = tab.getAttribute("data-mode");
+      state.revealed = false;
+      state.userPick = {};
+      state.idx = 0;
+      document.querySelectorAll(".tab").forEach(function (t) {
+        t.classList.toggle("active", t === tab);
+      });
+      render();
+    });
+  });
+
+  $("english").addEventListener("click", togglePickFromEvent);
+  $("btnClear").addEventListener("click", function () {
+    state.userPick = {};
+    render();
+  });
+  $("btnReveal").addEventListener("click", reveal);
+  $("btnMastered").addEventListener("click", function () {
+    var s = currentSentence();
+    if (!s) return;
+    if (state.done[s.id]) {
+      delete state.done[s.id];
+      toast("已取消「已掌握」");
+    } else {
+      state.done[s.id] = true;
+      toast("已标记掌握");
+    }
+    render();
+  });
+  $("btnFav").addEventListener("click", function () {
+    var s = currentSentence();
+    if (!s) return;
+    if (state.favorites[s.id]) {
+      delete state.favorites[s.id];
+      toast("已取消收藏");
+    } else {
+      state.favorites[s.id] = true;
+      toast("已加入收藏难句");
+    }
+    render();
+  });
+  $("btnPrev").addEventListener("click", function () { go(-1); });
+  $("btnNext").addEventListener("click", function () { go(1); });
+  $("btnAgain").addEventListener("click", function () {
+    state.revealed = false;
+    state.userPick = {};
+    render();
+    toast("已重置本句");
+  });
+  $("btnShuffle").addEventListener("click", function () {
+    state.shuffle = !state.shuffle;
+    $("btnShuffle").setAttribute("aria-pressed", state.shuffle ? "true" : "false");
+    $("btnShuffle").classList.toggle("on", state.shuffle);
+    if (state.shuffle) {
+      state.order = shuffled(defaultOrder(), hashSeed(String(Date.now())));
+      toast("已乱序");
+    } else {
+      state.order = defaultOrder();
+      toast("已恢复顺序");
+    }
+    state.idx = 0;
+    state.revealed = false;
+    state.userPick = {};
+    render();
+  });
+  $("btnReseed").addEventListener("click", function () {
+    state.shuffle = true;
+    $("btnShuffle").setAttribute("aria-pressed", "true");
+    $("btnShuffle").classList.add("on");
+    state.order = shuffled(defaultOrder(), hashSeed(String(Date.now()) + Math.random()));
+    state.idx = 0;
+    state.revealed = false;
+    state.userPick = {};
+    render();
+    toast("已用新 seed 重排");
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;
+    if (e.key === " " || e.key === "Spacebar") {
+      e.preventDefault();
+      if (state.mode !== "study") reveal();
+      return;
+    }
+    if (e.key === "n" || e.key === "N") { go(1); return; }
+    if (e.key === "p" || e.key === "P") { go(-1); return; }
+    if (e.key === "f" || e.key === "F") { $("btnFav").click(); }
+  });
+
+  // init
+  load();
+  document.querySelectorAll(".tab").forEach(function (t) {
+    t.classList.toggle("active", t.getAttribute("data-mode") === state.mode);
+  });
+  $("btnShuffle").classList.toggle("on", state.shuffle);
+  $("btnShuffle").setAttribute("aria-pressed", state.shuffle ? "true" : "false");
+  render();
+})();
+</script>
+</body>
+</html>
