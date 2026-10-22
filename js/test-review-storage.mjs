@@ -197,15 +197,24 @@ test("损坏记录保护期间新作答仍保存在本页，不可切走丢失",
   assert.equal(b.storage.get(KEY), "{broken");
 });
 
-test("另一标签删除主键后本页清空旧进度，后续保存不复活", () => {
+test("另一标签删除主键后本页清空旧进度，后续计时保存不复活", () => {
   const b = browser();
   const i = b.T.cur;
   b.T.judge(true);
   b.storage.delete(KEY);
   b.storageEvent(KEY);
   assert.equal(Object.keys(b.T.getS().progress).length, 0);
-  b.intervals.find(x => x.ms === 15000).fn();
-  assert.equal(JSON.parse(b.storage.get(KEY)).progress[i], undefined);
+  // 旧测试用 15000ms 定时器触发保存；新口径是 1000ms 采样 + 有效学习活动。
+  const study = b.window.__vocabStudy;
+  assert.ok(study, "app.js 应提供 __vocabStudy 计时钩子");
+  study.act();
+  b.advance(31000);
+  const timer = b.intervals.find(x => x.ms === study.getDebug().tickMs);
+  assert.ok(timer, "应存在学习时长采样定时器");
+  timer.fn();
+  const saved = b.storage.get(KEY);
+  assert.ok(saved, "同步后仍应能正常保存新记录");
+  assert.equal(JSON.parse(saved).progress[i], undefined, "已删除的旧进度不得复活");
 });
 
 test("localStorage.clear 的空 key 事件同步清除进度与抽样", () => {

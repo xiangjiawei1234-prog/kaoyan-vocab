@@ -90,6 +90,10 @@ check("综合词书可切换、来源标签正确、学习和熟练记录与原�
   assert.equal(T.switchBook("combined"), true);
   assert.equal(T.getBook(), "combined");
   assert.equal(+b.$("#pmin").max, 209);
+  // 默认顺序已改为随机乱序，不能依赖首张卡恰好是三书同名词；显式选 study。
+  const idx = T.getW().findIndex(x => x.w === "study");
+  assert.ok(idx >= 0);
+  T.setCur(idx);
   const word = T.getW()[T.cur].w;
   T.judge(true);
   assert.ok(b.storage.get("combined_vocab_v1"));

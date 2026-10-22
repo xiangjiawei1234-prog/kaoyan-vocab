@@ -300,6 +300,45 @@ for (let i = 0; i < entries.length; i++) {
   // fm 仅类型已查；含中文标签为设计如此（界面「词形：…」）
 }
 
+// ---------- 内容修订回归（2026-10-22 首批，证据见 docs/内容修订记录-2026-10-22.md） ----------
+// 只锁定已核对修订的固定期望与已清理的残留，不做全库语义判断；失败以 warning 提示人工复核。
+{
+  const fixedExpect = [
+    { w: "use", ok: (a) => a[1] === "juːz", note: "主读音应为动词 /juːz/（名词 /juːs/ 由读音展示层按词性呈现）" },
+    { w: "minute", ok: (a) => a[1] === "ˈminit" && !/[\s.]/.test(a[1]), note: "主读音应为名词 /ˈmɪnɪt/，不得把形容词 /maɪˈnjuːt/ 塞进 ph" },
+    { w: "lead", ok: (a) => !/[\s.]/.test(a[1]), note: "ph 不得夹带过去式 led 的读音" },
+    { w: "lie", ok: (a) => /躺/.test(a[2]) && /说谎/.test(a[2]) && /lain/.test(a[10]) && /lied/.test(a[10]), note: "需分义列出躺（lay/lain）与说谎（lied/lied）的词形" },
+    { w: "unmistakable", ok: (a) => /the trend that Mr\. McWhorter documents is unmistakable\.$/.test(a[7]) && !/^McWhorter documents is unmistakable/.test(a[7]), note: "例句应恢复为 2005 Text 4 完整原句，而非截断残句" },
+    { w: "statistics", ok: (a) => a[3] === 0, note: "普通名词应为 NOUN（p=0），不应标为专名 p=12" },
+  ];
+  const forms = {
+    use: ["use", "uses", "used", "using"],
+    minute: ["minute", "minutes"],
+    lead: ["lead", "led", "leads", "leading"],
+    lie: ["lie", "lies", "lay", "lain", "lied", "lying"],
+    unmistakable: ["unmistakable"],
+    statistics: ["statistics", "statistic"],
+  };
+  const hasForm = (ex, list) => list.some((f) => new RegExp(`(^|[^a-z])${f}($|[^a-z])`, "i").test(String(ex || "")));
+  for (const { w, ok, note } of fixedExpect) {
+    const i = wordFirstIdx.get(w);
+    if (i === undefined) {
+      warn("content", "修订词条缺失", -1, w, "内容修订回归：词库中找不到该词条");
+      continue;
+    }
+    if (!ok(entries[i])) warn("content", "内容修订回归失败", i, w, note);
+    if (!hasForm(entries[i][7], forms[w])) warn("content", "例句未包含目标词形", i, w, `期望 ${forms[w].join("/")}；实际 ${short(entries[i][7])}`);
+  }
+  // 本轮已清理的填空题/OCR 残留不得回流。
+  for (const token of ["_lQ_", "In tum", "can loneliness"]) {
+    entries.forEach((a, i) => {
+      if (Array.isArray(a) && a.length === 11 && typeof a[7] === "string" && a[7].includes(token)) {
+        warn("content", "例句含已清理的 OCR/填空残留", i, a[0], `“${token}”：${short(a[7])}`);
+      }
+    });
+  }
+}
+
 // r 连续性与 f 单调性（全局）
 if (entries.length && rFirstIdx.size) {
   const rs = [...rFirstIdx.keys()].sort((a, b) => a - b);
@@ -403,10 +442,10 @@ console.log(`  警告：${warns.length} 条（${warnGroups.length} 类）`);
 console.log(`  无问题词条：${cleanWords} / ${entries.length}`);
 console.log("");
 
-const typeOrder = ["structure", "word", "phonetic", "meaning", "freq", "example", "ky", "sample"];
+const typeOrder = ["structure", "word", "phonetic", "meaning", "freq", "example", "ky", "content", "sample"];
 const typeTitle = {
   structure: "结构", word: "单词", phonetic: "音标", meaning: "释义",
-  freq: "词频 r/f/c", example: "例句/来源", ky: "考研大纲 ky", sample: "高频抽样",
+  freq: "词频 r/f/c", example: "例句/来源", ky: "考研大纲 ky", content: "内容修订回归", sample: "高频抽样",
 };
 console.log("分类统计（错误/警告）：");
 for (const t of typeOrder) {
@@ -540,6 +579,7 @@ md.push("| 5 | 词频 r/f/c | r<1 或重复；f<1；c<1 或 c>46 或 c>f | r 不
 md.push("| 6 | 例句/来源 | — | 含中文；过短(<4词)；残留题号/选项；引号不配对；乱码；非常见字符；例句与来源不齐；来源格式不规范 |");
 md.push("| 7 | ky 一致性 | ky∉{0,1}；大纲词缺释义 | 大纲词缺音标；残缺词形标大纲；词性 PROPN 却标大纲 |");
 md.push("| 8 | 高频抽样 | — | r 前 50 释义不合格（无中文/无词性前缀/过短/占位/乱码） |");
+md.push("| 9 | 内容修订回归 | — | 已核对词条（use/minute/lead/lie/unmistakable/statistics）的读音/词性/词形/例句偏离固定期望；例句回流 `_lQ_`、`In tum` 等已清理残留；例句不含目标词形 |");
 md.push("");
 md.push("字段顺序（与 `js/app.js` 一致）：`w, ph, m, p, r, f, c, ex, src, ky, fm`。");
 md.push("");

@@ -6,7 +6,7 @@
 <meta name="description" content="基于真题词频的背单词工具（考研 / 英语四级 / 英语六级 / 综合词书）">
 <meta name="theme-color" content="#F6F3ED">
 <title>考研英语单词背诵</title>
-<link rel="stylesheet" href="css/app.css?v=20261022-r21">
+<link rel="stylesheet" href="css/app.css?v=20261022-r37">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
 </head>
@@ -17,7 +17,7 @@
     <span class="brand-mark" id="brandMark" aria-hidden="true">研</span>
     <div class="brand-text">
       <h1 id="brandTitle">考研英语单词</h1>
-      <p class="brand-sub" id="scopeLabel">词库载入中…</p>
+      <button type="button" class="brand-sub" id="scopeLabel" title="查看并调整当前背诵范围">词库载入中…</button>
     </div>
   </div>
   <nav class="nav" aria-label="主导航">
@@ -27,6 +27,10 @@
     <button type="button" data-v="set" aria-controls="v-set">设置</button>
   </nav>
   <div class="top-actions">
+    <button type="button" class="icon-btn theme-toggle" id="btnTheme" aria-label="切换到深色模式" title="切换到深色模式" aria-pressed="false">
+      <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.4v2.2M12 19.4v2.2M2.4 12h2.2M19.4 12h2.2M5.2 5.2l1.6 1.6M17.2 17.2l1.6 1.6M18.8 5.2l-1.6 1.6M6.8 17.2l-1.6 1.6"/></svg>
+      <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14.2A8.6 8.6 0 0 1 9.8 3.5a8.6 8.6 0 1 0 10.7 10.7Z"/></svg>
+    </button>
     <button type="button" class="icon-btn book-btn" id="btnBooks" aria-label="切换词书" title="切换词书" aria-haspopup="dialog" aria-expanded="false">词书⌄</button>
     <button type="button" class="icon-btn" id="btnHelp" aria-label="快捷键帮助" title="快捷键（?）">?</button>
   </div>
@@ -36,49 +40,143 @@
   <div class="app-alert-main"><b id="appAlertTitle"></b><span id="appAlertBody"></span></div>
   <div class="app-alert-actions" id="appAlertActions"></div>
 </div>
+<!-- 11 首次打开的可跳过提示条：不遮挡操作区、不拦截键盘，确认后不再自动出现 -->
+<div class="guide-banner" id="guideBanner" role="region" aria-label="首次使用提示" hidden>
+  <p class="guide-banner-text"><b>第一次使用？</b>先在顶部「词书」与设置页「每日新词」里选好计划；当前范围默认按词频与套卷筛选，<b>通常少于全书</b>。背诵时先回忆，再判「会 / 不会」；标为「熟练」的词会长期移出学习队列。</p>
+  <div class="guide-banner-acts">
+    <button type="button" class="btn ghost sm" id="guideBannerOpen">查看使用说明</button>
+    <button type="button" class="btn ghost sm" id="guideBannerDismiss">知道了</button>
+  </div>
+</div>
 
 <main id="main" tabindex="-1">
   <!-- ============ 背诵 ============ -->
   <section class="view on" id="v-study" aria-label="背诵">
     <div class="stat-line" id="statLine">
-      <div class="chip" title="今日已学新词 / 每日上限">
-        <span class="chip-label">今日新词</span>
-        <span class="chip-val"><b id="s-new">0</b><i>/</i><b id="s-newmax">30</b></span>
+      <div class="chip chip-new" id="newGoalChip" title="今日已学新词 / 今日目标（每日计划 + 今日临时加量）；圆环表示今日目标完成度">
+        <span class="chip-label" id="s-newlabel">今日新词</span>
+        <span class="chip-val">
+          <svg class="ring" viewBox="0 0 36 36" aria-hidden="true">
+            <circle class="ring-bg" cx="18" cy="18" r="15"></circle>
+            <circle class="ring-fg" id="ringFg" cx="18" cy="18" r="15"></circle>
+          </svg>
+          <b id="s-new">0</b><i>/</i><b id="s-newmax">20</b>
+          <i class="chip-goal" id="s-goal">0%</i>
+        </span>
       </div>
-      <div class="chip" title="今日复习次数">
+      <div class="chip review-chip" title="今日复习判定次数 / 单日复习上限（可在设置页调整）">
         <span class="chip-label">今日复习</span>
-        <span class="chip-val"><b id="s-rev">0</b></span>
+        <span class="chip-val"><b id="s-rev">0</b><i aria-hidden="true">/</i><b class="chip-max" id="s-revmax">100</b></span>
       </div>
       <div class="chip" title="本次进度按本组初始单词计算，重考单独显示">
         <span class="chip-label" id="s-proglabel">本次进度</span>
         <span class="chip-val"><b id="s-prog">0/0</b></span>
         <span class="chip-pending" id="s-pending" hidden></span>
       </div>
-      <div class="chip" title="今日正确率">
+      <div class="chip" title="今日正确率（自评：来自「会 / 不会」判定，不是考试结果）">
         <span class="chip-label">正确率</span>
         <span class="chip-val"><b id="s-acc">—</b></span>
       </div>
       <div class="chip survey-chip" id="surveyChip" hidden title="乱序模式历史首次自评样本，不代表全书掌握率">
         <span class="chip-label">首次自评</span>
-        <span class="chip-val"><b id="s-survey">—</b><i id="s-survey-ci"></i></span>
-      </div>
-      <div class="chip ring-chip" title="今日新词相对每日新词上限">
-        <svg class="ring" viewBox="0 0 36 36" aria-hidden="true">
-          <circle class="ring-bg" cx="18" cy="18" r="15"></circle>
-          <circle class="ring-fg" id="ringFg" cx="18" cy="18" r="15"></circle>
-        </svg>
-        <span class="chip-label">新词目标</span>
-        <span class="chip-val"><b id="s-goal">0%</b></span>
+        <span class="chip-val"><b id="s-survey">—</b><i id="s-survey-ci"></i><i class="survey-n" id="s-survey-n"></i></span>
+        <details class="survey-detail" id="surveyDetail">
+          <summary>说明</summary>
+          <p>只统计乱序模式下新词的首次作答，改判/撤销会同步修正样本；样本范围随当时筛选变化，<b>不代表当前范围或全书掌握率</b>。复习与错词特训不计入。</p>
+        </details>
       </div>
     </div>
 
     <div class="drill-bar">
+      <button type="button" class="study-scope" id="studyScope" title="查看并调整当前背诵范围">范围载入中…</button>
       <button type="button" class="btn ghost sm" id="btnDrill" aria-label="进入错词特训">错词特训</button>
       <p class="drill-hint" id="drillHint" role="status" aria-live="polite"></p>
     </div>
 
     <div class="card" id="card" tabindex="-1" aria-label="当前单词"></div>
     <div class="acts" id="acts"></div>
+    <div class="cap-pause" id="capPause" hidden role="region" aria-labelledby="capPauseTitle">
+      <p class="cap-pause-title" id="capPauseTitle"></p>
+      <p class="cap-pause-desc" id="capPauseDesc"></p>
+      <div class="cap-pause-stats" id="capPauseStats" role="status" aria-live="polite"></div>
+      <div class="cap-pause-acts" id="capPauseActs">
+        <button type="button" class="btn ghost" id="capPauseEnd">结束本组，明天继续</button>
+        <div id="capPauseExtra">
+          <div class="extra-new extra-new-paused" id="extraNewPaused" role="group" aria-label="今日临时加量（额度暂停时仍可加新词）" hidden>
+            <p class="extra-new-title">今天还想再学新词？</p>
+            <p class="extra-new-desc">临时加量只影响今天，次日回到原计划；只加新词，不提高复习上限。</p>
+            <div class="extra-new-btns">
+              <button type="button" class="btn ghost sm" id="extraNew10Paused">再学 10 个</button>
+              <button type="button" class="btn ghost sm" id="extraNew20Paused">再学 20 个</button>
+              <button type="button" class="btn ghost sm" id="extraNewCustomPaused" aria-expanded="false" aria-controls="extraNewCustomBoxPaused">自定义</button>
+            </div>
+            <div class="extra-new-custom" id="extraNewCustomBoxPaused" hidden>
+              <label class="sr-only" for="extraNewCustomInputPaused">自定义临时加量词数（1–100）</label>
+              <input type="number" id="extraNewCustomInputPaused" min="1" max="100" step="1" value="10" inputmode="numeric">
+              <span class="extra-new-unit" aria-hidden="true">词</span>
+              <button type="button" class="btn ghost sm" id="extraNewCustomGoPaused">加量</button>
+            </div>
+            <p class="extra-new-hint" id="extraNewHintPaused" role="status" aria-live="polite"></p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="group-status" id="groupStatus">
+      <div class="resume-notice" id="resumeNotice" role="status" hidden>
+        <p class="resume-notice-text" id="resumeNoticeText"></p>
+        <button type="button" class="btn ghost sm" id="resumeNoticeDismiss">知道了</button>
+      </div>
+      <div class="plan-pending" id="planPendingNotice" role="status" hidden>
+        <p class="plan-pending-text" id="planPendingText"></p>
+        <button type="button" class="btn ghost sm" id="planPendingApply">应用并重新开始</button>
+      </div>
+      <div class="auto-resume" id="autoResume" role="region" aria-labelledby="autoResumeTitle" hidden>
+        <div class="auto-resume-head">
+          <p class="auto-resume-title" id="autoResumeTitle">挂机自动续背</p>
+          <p class="auto-resume-countdown" id="autoResumeCountdown" role="status" aria-live="polite" hidden></p>
+        </div>
+        <p class="auto-resume-text" id="autoResumeText"></p>
+        <div class="auto-resume-acts">
+          <button type="button" class="btn ghost sm" id="autoResumeNow">立即开始</button>
+          <button type="button" class="btn ghost sm" id="autoResumePause">今天暂停自动续背</button>
+        </div>
+      </div>
+      <div class="group-footer" id="groupFooter" role="status" hidden>
+        <p class="group-footer-text" id="groupFooterText"></p>
+        <div class="group-footer-actions">
+          <button type="button" class="btn ghost sm" id="nextGroupBtn" hidden>继续下一组</button>
+          <button type="button" class="btn ghost sm" id="returnMainGroup" title="只学今日计划内新词 · 返回原组" aria-label="只学今日计划内新词，返回原组" hidden>返回原组</button>
+        </div>
+      </div>
+      <div class="backlog-notice" id="backlogNotice" role="status" hidden>
+        <p class="backlog-title">今天优先复习</p>
+        <p class="backlog-text" id="backlogNoticeText"></p>
+        <div class="backlog-actions">
+          <button type="button" class="btn ghost sm" id="learnNewAnyway">仍学今日计划内新词</button>
+          <span class="backlog-note">不会提高复习上限</span>
+        </div>
+      </div>
+    </div>
+    <div class="extra-new" id="extraNewRow" role="group" aria-label="今天还想再学（临时加量）" hidden>
+      <p class="extra-new-title">今天还想再学？</p>
+      <p class="extra-new-desc">临时加量只影响今天，次日回到原计划；不提高复习上限；撤销首次判定也不会撤回已授予的加量。</p>
+      <div class="extra-new-btns">
+        <button type="button" class="btn ghost sm" id="extraNew10">再学 10 个</button>
+        <button type="button" class="btn ghost sm" id="extraNew20">再学 20 个</button>
+        <button type="button" class="btn ghost sm" id="extraNewCustom" aria-expanded="false" aria-controls="extraNewCustomBox">自定义</button>
+      </div>
+      <div class="extra-new-custom" id="extraNewCustomBox" hidden>
+        <label class="sr-only" for="extraNewCustomInput">自定义临时加量词数（1–100）</label>
+        <input type="number" id="extraNewCustomInput" min="1" max="100" step="1" value="10" inputmode="numeric">
+        <span class="extra-new-unit" aria-hidden="true">词</span>
+        <button type="button" class="btn ghost sm" id="extraNewCustomGo">加量</button>
+      </div>
+      <p class="extra-new-hint" id="extraNewHint" role="status" aria-live="polite"></p>
+    </div>
+    <div class="prof-feedback" id="profFeedback" hidden>
+      <p class="prof-feedback-text" id="profFeedbackText" role="status" aria-live="polite"></p>
+      <button type="button" class="btn ghost sm" id="btnUnMaster">取消熟练</button>
+    </div>
     <p class="sr-only" id="studyAnnouncement" role="status" aria-live="polite" aria-atomic="true"></p>
     <p class="hint" id="hint" aria-live="polite"></p>
     <p class="gate-toast" id="gateToast" role="status" aria-live="polite"></p>
@@ -89,7 +187,7 @@
     <div class="view-heading"><div><p class="eyebrow">WORD LIBRARY</p><h2>我的词表</h2></div><p>查词、整理，让每一次复习更有方向。</p></div>
     <div class="list-toolbar">
       <div class="tools">
-        <input id="q" type="search" placeholder="搜索单词" aria-label="搜索单词或中文释义">
+        <input id="q" type="search" placeholder="搜索单词或中文释义" aria-label="搜索单词或中文释义">
         <select id="fst" aria-label="按状态筛选">
           <option value="all">全部</option>
           <option value="active">待学习</option>
@@ -112,16 +210,20 @@
       <details class="list-export-menu" id="listExportMenu">
         <summary class="btn ghost sm" title="导出与列表管理">导出</summary>
         <div class="list-export-pop">
-          <button type="button" class="btn ghost sm" id="btnDrillList" hidden>一键特训</button>
           <button type="button" class="btn ghost sm" id="btnPrintBookList">导出打印生词本</button>
           <button type="button" class="btn ghost sm" id="btnExportListTxt">导出筛选结果 TXT</button>
           <button type="button" class="btn ghost sm" id="btnSplitListTxt">拆分导出 TXT</button>
         </div>
       </details>
     </div>
+    <p class="list-scope-summary" id="listCount" role="status" aria-live="polite"></p>
+    <div class="list-drill-row" id="listDrillRow">
+      <p class="list-drill-hint" id="drillListHint" role="status" aria-live="polite"></p>
+      <button type="button" class="btn ghost sm" id="btnDrillList" aria-describedby="drillListHint">特训全部错词</button>
+    </div>
     <details class="list-note">
-      <summary>熟练词自动移出背诵与复习 · 查看筛选说明</summary>
-      <p>标为「熟练」的词会从背诵、复习和乱序队列中排除，可在筛选「熟练」中恢复。「到期复习」按到期先后排列；详情中可查看下次复习时间。</p>
+      <summary>熟练词自动移出背诵与复习 · 会 / 已掌握 / 熟练的区别</summary>
+      <p>「会」只记录这一次自评；「已掌握」是走完 10 档复习；「熟练」是你主动长期移出队列，可随时取消。标为「熟练」的词会从背诵、复习和乱序队列中排除，可在筛选「熟练」中恢复。「到期复习」按到期先后排列；详情中可查看下次复习时间。</p>
     </details>
     <div id="listWrap">
       <div id="listHead" aria-hidden="true">
@@ -141,38 +243,39 @@
       <p>试试其他关键词，或查看当前词书的全部单词。</p>
       <button type="button" class="btn ghost sm" id="clearListFilters">查看全部单词</button>
     </div>
-    <p class="hint" id="listCount" role="status" aria-live="polite"></p>
   </section>
 
   <!-- ============ 统计 ============ -->
   <section class="view" id="v-stats" aria-label="统计">
     <div class="view-heading stats-wide"><div><p class="eyebrow">LEARNING JOURNAL</p><h2>学习足迹</h2></div><p>看见积累，也为下一次复习做好准备。</p></div>
     <div class="panel stats-wide overview-panel">
-      <h3>学习总览 <span class="panel-note">当前词书</span></h3>
+      <h3>学习总览 <span class="panel-note">掌握类＝当前背诵范围 · 其他＝当前词书</span></h3>
+      <p class="stats-note" id="timeSecNote">累计时长按实际学习计量：有有效操作与停留才累计，闲置约 1 分钟后暂停；切后台、休眠和跨页不补记。旧版本按页面停留累计的历史数值原样保留。</p>
       <div class="mastery-meter" id="masteryMeter"></div>
       <div class="grid" id="kpis"></div>
     </div>
     <div class="panel review-action-panel">
       <h3>今日计划 <span class="panel-note">当前背诵范围</span></h3>
       <p class="review-plan" id="reviewPlan" role="status" aria-live="polite"></p>
+      <p class="review-cap-line" id="reviewCapLine" role="status"></p>
       <div class="stats-review-actions"><button type="button" class="btn primary" id="btnDueList">查看到期词</button><button type="button" class="btn ghost" id="btnStatsStudy">返回背诵</button></div>
       <div class="today-goal" id="todayGoal"></div>
     </div>
-    <div class="panel">
-      <h3>复习负荷 <span class="panel-note">未来 14 天</span></h3>
+    <details class="panel stats-details" id="statsForecastPanel">
+      <summary><h3>复习负荷 <span class="panel-note">当前背诵范围 · 未来 14 天</span></h3></summary>
       <p class="chart-instruction">选择日期查看词数，方向键切换日期<span class="chart-mobile-hint">左右滑动查看全部日期</span></p>
       <div class="chart-scroll"><div class="forecast" id="forecast" role="group" aria-label="未来 14 天到期词数，左右方向键切换日期"></div></div>
       <p class="chart-summary" id="forecastSummary"></p>
       <div class="chart-hint" id="forecastHint" role="status" aria-live="polite"></div>
-    </div>
-    <div class="panel" id="surveyPanel">
-      <h3>历史首次自评 <span class="panel-note">乱序样本 · 非全书掌握率</span></h3>
+    </details>
+    <details class="panel stats-details" id="surveyPanel">
+      <summary><h3>历史首次自评 <span class="panel-note">乱序历史样本 · 非当前范围/全书掌握率</span></h3></summary>
       <div class="grid" id="surveyKpis"></div>
       <div class="survey-gauge" id="surveyGauge"></div>
       <p class="chart-hint" id="surveyHint" role="status" aria-live="polite"></p>
-    </div>
-    <div class="panel">
-      <h3>词频分层掌握度 <span class="panel-note">当前背诵范围</span></h3>
+    </details>
+    <details class="panel stats-details" id="statsFreqPanel">
+      <summary><h3>词频分层掌握度 <span class="panel-note">当前背诵范围</span></h3></summary>
       <div class="fm-list" id="freqMastery"></div>
       <div class="legend" aria-hidden="true">
         <span><i class="lg-mastered"></i>已掌握</span>
@@ -180,15 +283,15 @@
         <span><i class="lg-unseen"></i>未学</span>
       </div>
       <p class="chart-summary" id="freqMasterySummary"></p>
-    </div>
-    <div class="panel">
-      <h3>掌握阶段分布 <span class="panel-note">艾宾浩斯 10 档</span></h3>
+    </details>
+    <details class="panel stats-details" id="statsStagesPanel">
+      <summary><h3>掌握阶段分布 <span class="panel-note">当前背诵范围 · 艾宾浩斯 10 档</span></h3></summary>
       <p class="chart-instruction" id="stagesSummary">仅统计已开始学习的词，选择档位查看词数</p><p class="chart-mobile-hint">左右滑动查看全部档位</p>
       <div class="chart-scroll"><div class="stages" id="stages" role="group" aria-label="掌握阶段分布，左右方向键切换档位"></div></div>
       <div class="chart-hint" id="stagesHint" role="status" aria-live="polite"></div>
-    </div>
-    <div class="panel">
-      <h3>近 14 天学习量</h3>
+    </details>
+    <details class="panel stats-details" id="statsDaysPanel">
+      <summary><h3>近 14 天学习量 <span class="panel-note">当前词书全部学习活动</span></h3></summary>
       <p class="chart-instruction">选择日期查看新词、复习和正确率<span class="chart-mobile-hint">左右滑动查看全部日期</span></p>
       <div class="chart-scroll"><div class="days" id="days" role="group" aria-label="近 14 天学习量，左右方向键切换日期"></div></div>
       <div class="legend" aria-hidden="true">
@@ -197,15 +300,15 @@
       </div>
       <p class="chart-summary" id="daysSummary"></p>
       <div class="chart-hint" id="daysHint" role="status" aria-live="polite"></div>
-    </div>
-    <div class="panel stats-wide">
-      <h3>学习热力图 <span class="panel-note">近 12 周</span></h3>
+    </details>
+    <details class="panel stats-details stats-wide" id="statsHeatmapPanel">
+      <summary><h3>学习热力图 <span class="panel-note">当前词书 · 近 12 周</span></h3></summary>
       <div class="heatmap-scroll" id="heatmapScroll">
         <div class="heatmap" id="heatmap"></div>
       </div>
       <div class="heatmap-legend" aria-label="颜色越深表示当日学习量越多"><span>少</span><i data-level="0"></i><i data-level="1"></i><i data-level="2"></i><i data-level="3"></i><i data-level="4"></i><span>多</span></div>
       <div class="chart-hint" id="heatmapTip" role="status" aria-live="polite"></div>
-    </div>
+    </details>
     <div class="panel stats-wide stats-storage-panel">
       <h3>备份与导出 <span class="panel-note">学习记录仅保存在当前浏览器</span></h3>
       <div class="stats-backup-actions">
@@ -214,6 +317,7 @@
         <button type="button" class="btn ghost" id="imp">导入进度</button>
       </div>
       <p class="storage-note">进度与熟练标记保存在当前浏览器中；更换浏览器或清除网站数据后不会自动恢复。可导出进度备份；导入前会展示备份时间、各书记录量与替换范围，替换学习记录但保留已有熟练标记。熟练词可用「取消熟练」恢复背诵与复习。</p>
+      <p class="backup-status" id="backupStatus" role="status" aria-live="polite"></p>
       <details class="stats-danger-area"><summary>重置当前词书<span>谨慎操作</span></summary><div class="stats-danger-body"><p>只影响当前词书。建议先导出进度备份；操作前会再次确认影响范围。</p><div class="stats-backup-actions"><button type="button" class="btn ghost danger" id="resetProficient">清空熟练标记</button><button type="button" class="btn ghost danger" id="rst">重置当前词书记录</button></div></div></details>
       <input type="file" id="file" accept=".json" hidden>
     </div>
@@ -228,22 +332,78 @@
       <a href="#settings-appearance"><span aria-hidden="true">03</span>外观与显示</a>
       <a href="#settings-keys"><span aria-hidden="true">04</span>快捷键</a>
       <a href="#settings-rhythm"><span aria-hidden="true">05</span>复习节奏</a>
+      <a href="#settings-offline"><span aria-hidden="true">06</span>离线与帮助</a>
     </nav>
     <div class="settings-content">
       <section class="panel settings-section" id="settings-plan" aria-labelledby="planTitle">
         <div class="settings-section-head"><span class="section-index" aria-hidden="true">01</span><div><h3 id="planTitle">学习计划</h3><p>设置每天的学习量，以及遇见单词的顺序。</p></div></div>
+        <div class="settings-lifecycle" id="settingsLifecycle" aria-label="当前组与下一组的范围计划">
+          <p class="sl-line sl-next" id="settingsNextPreview"></p>
+          <p class="sl-line sl-current" id="settingsCurrentGroup"></p>
+          <div class="sl-acts">
+            <button type="button" class="btn ghost sm" id="applySettingsRestart" hidden>应用并重新开始本组</button>
+            <span class="sl-note">设置自动保存；计划与范围默认只在下一组生效，外观与显示偏好立即生效。</span>
+          </div>
+        </div>
         <div class="set">
           <label for="dailyNew">每日新词上限<span class="desc" id="dailyNewDesc">可设为 1–500 词；到期复习不占这个名额。</span></label>
           <div class="stepper"><button type="button" data-step-target="dailyNew" data-step-dir="-1" aria-label="减少每日新词上限">−</button><input type="number" id="dailyNew" min="1" max="500" step="1" inputmode="numeric" aria-describedby="dailyNewDesc"><span class="input-unit" aria-hidden="true">词 / 天</span><button type="button" data-step-target="dailyNew" data-step-dir="1" aria-label="增加每日新词上限">＋</button></div>
         </div>
-        <div class="set setting-order">
-          <label for="order">背诵顺序<span class="desc" id="orderDesc">乱序会在每组开始时重新打乱，并估计当前词书的掌握率。</span></label>
-          <select id="order" aria-describedby="orderDesc"><option value="freq">按词频顺序</option><option value="shuffle">乱序（每组重新打乱）</option><option value="wrong">错词优先</option></select>
+        <div class="set">
+          <label for="groupSize">每组词数<span class="desc" id="groupSizeDesc">一次来多少张卡的分组长度，不是每日复习上限。每日新词额度与单日复习上限仍分别生效；本次没进组的到期词仍然到期，不会被清掉或改期。</span></label>
+          <div class="stepper"><button type="button" data-step-target="groupSize" data-step-dir="-1" aria-label="减少每组词数">−</button><input type="number" id="groupSize" min="1" max="100" step="1" inputmode="numeric" aria-describedby="groupSizeDesc"><span class="input-unit" aria-hidden="true">词 / 组</span><button type="button" data-step-target="groupSize" data-step-dir="1" aria-label="增加每组词数">＋</button></div>
         </div>
-        <p class="setting-footnote">词书之间独立保存学习计划。调整计划和范围后，会更新当前学习队列。</p>
+        <div class="field cap-field">
+          <div class="field-title"><h4 id="reviewCapTitle">单日复习上限</h4><span class="field-hint">次 / 天 · 0 = 不限</span></div>
+          <p class="fdesc" id="reviewCapDesc">单位是「主流程复习判定次数」：已学词的到期复习 + 组内重考各算 1 次；不含新词首次学习，也不含错词特训。旧记录默认不限；调低上限只影响之后的复习，不会回滚已学进度。启用前未记录的次数无法从旧汇总补算；启用当天只含已有台账，次日起按完整自然日统计。</p>
+          <div class="cap-presets" id="reviewCapPresets" role="group" aria-label="单日复习上限预设">
+            <button type="button" data-cap="30" aria-pressed="false">轻量 30</button>
+            <button type="button" data-cap="60" aria-pressed="false">适中 60</button>
+            <button type="button" data-cap="100" aria-pressed="true">标准 100</button>
+            <button type="button" data-cap="200" aria-pressed="false">加强 200</button>
+            <button type="button" data-cap="0" aria-pressed="false">不限</button>
+          </div>
+          <div class="cap-custom">
+            <label for="reviewCapCustom">自定义</label>
+            <span class="number-control"><input type="number" id="reviewCapCustom" min="1" max="1000" step="1" inputmode="numeric" value="100" aria-describedby="reviewCapDesc"><span aria-hidden="true">次 / 天</span></span>
+          </div>
+        </div>
+        <div class="field outline-field backlog-field">
+          <div><label class="ftitle" for="backlogGuard" id="backlogGuardLabel">积压保护</label><p class="fdesc" id="backlogGuardDesc">当天到期复习量超过「今日剩余复习额度」时，不再自动往本组补新词，先保证到期复习做完。关闭后新词照常补，但到期词不会消失，仍受单日复习上限约束；两种情况下都可以在完成页主动「仍学今日计划内新词」。</p></div>
+          <span class="sw"><input type="checkbox" role="switch" id="backlogGuard" aria-labelledby="backlogGuardLabel" aria-describedby="backlogGuardDesc"><i aria-hidden="true"></i></span>
+        </div>
+        <div class="field auto-resume-field">
+          <div class="field-title"><h4 id="autoResumeSetTitle">完成后挂机自动续背</h4><span class="field-hint">可随时取消</span></div>
+          <p class="fdesc" id="autoResumeDesc">主学习组真正完成且没有待巩固后，若连续一段时间没有有效操作、当前范围可背词达到阈值，会先出现可取消倒计时，再自动开始下一组。只刷新到期与额度，不判定、不消耗额度、不增加学习时长；后台标签不抢焦点。旧记录默认关闭。</p>
+          <div class="ar-presets" id="autoResumePresets" role="group" aria-label="自动续背预设">
+            <button type="button" data-ar-preset="timely" aria-pressed="false">及时（1 张 / 1 分钟）</button>
+            <button type="button" data-ar-preset="balanced" aria-pressed="false">均衡（5 张 / 2 分钟）</button>
+            <button type="button" data-ar-preset="focused" aria-pressed="false">集中（10 张 / 5 分钟）</button>
+            <button type="button" data-ar-preset="off" aria-pressed="false">关闭</button>
+          </div>
+          <div class="ar-custom">
+            <label for="autoResumeThreshold">待背阈值<span class="number-control"><input type="number" id="autoResumeThreshold" min="1" max="50" step="1" inputmode="numeric" aria-describedby="autoResumeDesc"><span aria-hidden="true">张</span></span></label>
+            <label for="autoResumeIdleMin">挂机等待<span class="number-control"><input type="number" id="autoResumeIdleMin" min="0.5" max="10" step="0.5" inputmode="decimal" aria-describedby="autoResumeDesc"><span aria-hidden="true">分钟</span></span></label>
+            <label for="autoResumeCountdownSec">倒计时<span class="number-control"><input type="number" id="autoResumeCountdownSec" min="3" max="60" step="1" inputmode="numeric" aria-describedby="autoResumeDesc"><span aria-hidden="true">秒</span></span></label>
+          </div>
+          <p class="ar-hint" id="autoResumeStatus" role="status" aria-live="polite"></p>
+          <div class="ar-legacy" id="autoResumeLegacy" hidden>
+            <p>检测到旧记录：自动续背默认关闭。可一键开启推荐方案（5 张 / 2 分钟 / 15 秒）。</p>
+            <button type="button" class="btn ghost sm" id="autoResumeRecommend">开启推荐方案</button>
+          </div>
+        </div>
+        <div class="set setting-order">
+          <label for="order">背诵顺序<span class="desc" id="orderDesc">随机乱序会在每组开始时重新打乱。乱序模式下，只有新词的首次作答会留下历史自评样本；样本随当时筛选变化，不代表当前范围或全书掌握率。</span></label>
+          <select id="order" aria-describedby="orderDesc"><option value="freq">按词频顺序</option><option value="shuffle">随机乱序</option><option value="wrong">错词优先</option></select>
+        </div>
+        <div class="settings-reset-row">
+          <span class="control-help">恢复默认只改学习计划（每日新词、每组词数、复习上限、积压保护、顺序与自动续背），不影响范围筛选、外观、学习进度与熟练名单。</span>
+          <button type="button" class="btn ghost sm" data-reset="plan">恢复默认学习计划</button>
+        </div>
+        <p class="setting-footnote">词书之间独立保存学习计划。调整计划或范围默认只在下一组生效：当前组继续使用开始时的范围与计划，进度分母固定；需要立即重开时点上方「应用并重新开始本组」或学习页提示里的按钮。</p>
       </section>
 
-      <section class="panel settings-section" id="settings-scope" aria-labelledby="scopeTitle">
+      <section class="panel settings-section" id="settings-scope" aria-labelledby="scopeTitle" tabindex="-1">
         <div class="settings-section-head"><span class="section-index" aria-hidden="true">02</span><div><h3 id="scopeTitle">词库范围</h3><p>先选一个方向，再按词频、试卷覆盖或词性细调。</p></div></div>
         <div class="scope-summary"><div><span class="scope-caption">当前可背范围</span><strong class="scope-count" id="scopeCount"></strong><span class="scope-caption">已自动排除熟练词，所有筛选条件共同生效。</span></div><button type="button" class="btn primary sm" id="btnStartFromSettings">开始背诵 <span aria-hidden="true">↗</span></button></div>
         <div class="scope-empty" id="scopeEmpty" hidden role="status"><strong>当前条件下没有可背单词</strong><span>降低词频或套卷门槛，或恢复默认筛选后再试。</span><button type="button" class="btn ghost sm" data-combo="reset">恢复默认筛选</button></div>
@@ -281,7 +441,15 @@
           <div class="presets" id="pminPresets" role="group" aria-label="试卷覆盖快捷范围"></div>
         </div>
         <div class="field outline-field"><div><label class="ftitle" for="kyOnly" id="kyOnlyLabel">只保留考研大纲词</label><p class="fdesc" id="kyOnlyDesc">开启后只背 ECDICT 标注的大纲词。</p></div><span class="sw"><input type="checkbox" role="switch" id="kyOnly" aria-labelledby="kyOnlyLabel" aria-describedby="kyOnlyDesc"><i aria-hidden="true"></i></span></div>
-        <div class="field"><div class="field-title"><h4>词性</h4><span class="field-hint">可多选；不选表示全部</span></div><div class="chips" id="posChips" role="group" aria-label="按词性筛选"></div></div>
+        <div class="field pos-field">
+          <div class="field-title"><h4>词性</h4><span class="field-hint">可多选；不选表示全部</span></div>
+          <div class="pos-mode" id="posMode" role="group" aria-label="词性筛选口径" aria-describedby="posModeDesc">
+            <button type="button" data-pos-mode="primary" aria-pressed="true">按主要词性</button>
+            <button type="button" data-pos-mode="all" aria-pressed="false">按全部词性</button>
+          </div>
+          <p class="pos-mode-desc" id="posModeDesc">默认只按每个词的主词性计入（如 work 主词性是名词）；切到「按全部词性」会按释义里出现的所有词性判断，可背词数变多。</p>
+          <div class="chips" id="posChips" role="group" aria-label="按词性筛选"></div>
+        </div>
         <div class="filter-reset-row"><span>想重新选择？</span><button type="button" class="text-action" data-combo="reset">恢复默认筛选 <span aria-hidden="true">↺</span></button></div>
         <div class="scope-export"><div><h4>带走这份词表</h4><p>导出当前范围，每行一个单词。每日配额不会截断词表。</p></div><div class="scope-export-actions"><button type="button" class="btn ghost sm" id="btnExportBookTxt">导出 TXT</button><button type="button" class="btn ghost sm" id="btnSplitBookTxt">分批导出</button></div></div>
       </section>
@@ -293,6 +461,32 @@
         <div class="set"><label for="showEx">显示例句<span class="desc" id="showExDesc">判定后展示例句，可点词查看释义。</span></label><span class="sw"><input type="checkbox" role="switch" id="showEx" aria-describedby="showExDesc"><i aria-hidden="true"></i></span></div>
         <div class="set"><label for="showFm">显示词形变化<span class="desc" id="showFmDesc">判定后显示复数、时态等词形。</span></label><span class="sw"><input type="checkbox" role="switch" id="showFm" aria-describedby="showFmDesc"><i aria-hidden="true"></i></span></div>
         <div class="set"><label for="autoSpk">自动发音<span class="desc" id="autoSpkDesc">进入单词卡片时朗读；语音及联网需求取决于系统设置。</span></label><span class="sw"><input type="checkbox" role="switch" id="autoSpk" aria-describedby="autoSpkDesc"><i aria-hidden="true"></i></span></div>
+        <div class="field seg-field fontsize-field">
+          <div class="field-title"><h4 id="fontSizeTitle">阅读字号</h4><span class="field-hint">只放大释义与例句</span></div>
+          <div class="seg" id="fontSizeSeg" role="group" aria-label="阅读字号" aria-describedby="fontSizeDesc">
+            <button type="button" data-font-size="standard" aria-pressed="true">标准</button>
+            <button type="button" data-font-size="large" aria-pressed="false">大字</button>
+          </div>
+          <p class="fdesc" id="fontSizeDesc">大字会放大释义与例句，并给长单词保留最小可读尺寸；不会盖住操作按钮，长词必要时换行。</p>
+        </div>
+        <div class="field speech-field">
+          <div class="field-title"><h4 id="speechTitle">发音</h4><span class="field-hint">使用设备系统语音</span></div>
+          <div class="speech-row">
+            <label for="voiceSelect">语音</label>
+            <select id="voiceSelect" aria-describedby="voiceHint"></select>
+          </div>
+          <div class="speech-row">
+            <label for="speechRate">语速</label>
+            <input type="range" id="speechRate" min="0.5" max="1.5" step="0.01" value="0.92" aria-describedby="voiceHint">
+            <span class="speech-rate-val" id="speechRateVal">0.92×</span>
+            <button type="button" class="btn ghost sm" id="btnVoiceTest">试听</button>
+          </div>
+          <p class="fdesc" id="voiceHint" role="status" aria-live="polite">朗读使用设备系统语音（不是词典原声）；能否离线发音取决于系统已安装的英语语音。</p>
+        </div>
+        <div class="settings-reset-row">
+          <span class="control-help">恢复默认只改外观与显示（浅色主题、显示音标/例句/词形、自动发音关闭）并恢复默认按键；不会重新启用单字符快捷键，也不影响学习计划、范围与进度。</span>
+          <button type="button" class="btn ghost sm" data-reset="appearance">恢复默认外观与键盘</button>
+        </div>
       </section>
 
       <section class="panel settings-section" id="settings-keys" aria-labelledby="keysTitle">
@@ -303,8 +497,49 @@
       </section>
 
       <section class="panel settings-section" id="settings-rhythm" aria-labelledby="rhythmTitle">
-        <div class="settings-section-head"><span class="section-index" aria-hidden="true">05</span><div><h3 id="rhythmTitle">复习节奏</h3><p>由短到长，逐步巩固记忆。</p></div></div>
-        <div class="curve" id="curveInfo"></div>
+        <div class="settings-section-head"><span class="section-index" aria-hidden="true">05</span><div><h3 id="rhythmTitle">复习节奏</h3><p>十档间隔可调，决定「上一次判定后多久再见」。</p></div></div>
+        <div class="rhythm-intro">
+          <p>每一档表示<b>上一次有效判定后到下一次复习的间隔</b>，不是从第一次学习起累计的天数；十档只是不同负荷的可调起点，不是对所有人都最优的固定答案。</p>
+          <p>修改默认从<b>下一组</b>生效：当前组沿用开始时冻结的曲线，已经写好的到期时间不会被重排。</p>
+        </div>
+        <div class="rhythm-block">
+          <div class="rhythm-block-head"><h4 id="rhythmPresetsTitle">预设曲线</h4><span class="rhythm-status" id="rhythmStatus" role="status" aria-live="polite">当前：均衡</span></div>
+          <div class="rhythm-presets" id="rhythmPresets" role="group" aria-label="复习曲线预设">
+            <button type="button" data-preset="balanced" aria-pressed="true">均衡</button>
+            <button type="button" data-preset="light" aria-pressed="false">轻负荷</button>
+            <button type="button" data-preset="intense" aria-pressed="false">短期强化</button>
+            <button type="button" data-preset="legacy" aria-pressed="false">旧版密集</button>
+          </div>
+          <p class="rhythm-note">预设只是起点；改动任意一档后会变成「自定义」。</p>
+        </div>
+        <div class="rhythm-block">
+          <div class="rhythm-block-head"><h4 id="rhythmStagesTitle">十档间隔</h4><span class="rhythm-block-hint">1 分钟 – 365 天 · 必须严格递增</span></div>
+          <div class="rhythm-stages" id="rhythmStages" role="group" aria-labelledby="rhythmStagesTitle"></div>
+          <p class="rhythm-error" id="rhythmError" role="alert" hidden></p>
+        </div>
+        <div class="rhythm-block rhythm-relearn-block">
+          <div class="rhythm-block-head"><h4 id="rhythmRelearnTitle">不会后跨组重学间隔</h4><span class="rhythm-block-hint">下一次分组时再见</span></div>
+          <div class="rhythm-relearn" id="rhythmRelearn"></div>
+          <p class="rhythm-note">这是「不会」的词在<b>之后的组</b>里再次出现的间隔；组内最多两轮的即时重考是另一套机制，改这里不会关闭组内重考。</p>
+        </div>
+        <div class="rhythm-preview" id="rhythmPreview"></div>
+        <div class="rhythm-footer">
+          <p class="rhythm-note">恢复默认只改复习节奏（均衡曲线），不清空学习进度、熟练或收藏。</p>
+          <button type="button" class="btn ghost sm" data-rhythm-reset>恢复默认曲线</button>
+        </div>
+      </section>
+
+      <section class="panel settings-section" id="settings-offline" aria-labelledby="offlineTitle">
+        <div class="settings-section-head"><span class="section-index" aria-hidden="true">06</span><div><h3 id="offlineTitle">离线与帮助</h3><p>查看离线缓存是否就绪，需要时重看使用说明。</p></div></div>
+        <div class="field offline-field">
+          <div class="field-title"><h4 id="offlineStatusTitle">离线与更新</h4><span class="field-hint" id="offlineBadge"></span></div>
+          <p class="offline-status" id="offlineStatus" role="status" aria-live="polite">正在检查离线缓存…</p>
+          <div class="offline-actions">
+            <button type="button" class="btn ghost sm" id="offlineRetry" hidden>重试</button>
+            <button type="button" class="btn ghost sm" id="btnReplayGuide">再看一次使用说明</button>
+          </div>
+          <p class="offline-note">离线缓存由浏览器管理：显示「已可离线」表示断网也能打开本页；更新会在所有旧页面关闭后整组启用，不会自动刷新或打断学习。直接双击 index.html（file://）时浏览器不提供离线缓存，建议改用本地静态服务（例如在项目目录运行 python3 -m http.server）。</p>
+        </div>
       </section>
     </div>
   </section>
@@ -332,7 +567,72 @@
       <button type="button" class="icon-btn" data-close aria-label="关闭">×</button>
     </header>
     <ul class="key-list" id="keyList"></ul>
-    <p class="sheet-note">在输入框中输入时快捷键不会触发。未判定时，「下一个」会被拦截。</p>
+    <p class="sheet-note">在输入框中输入时快捷键不会触发。未判定时，「下一个」会被拦截。<button type="button" class="text-action guide-reopen" id="btnGuideFromHelp">再看一次使用说明</button></p>
+  </div>
+</div>
+
+<!-- 使用说明（11 引导：首次提示条确认后可随时从这里再次打开） -->
+<div class="sheet" id="guideSheet" hidden>
+  <div class="sheet-backdrop" data-close></div>
+  <div class="sheet-panel guide-panel" role="dialog" aria-modal="true" aria-labelledby="guideTitle" tabindex="-1">
+    <header class="sheet-head">
+      <h2 id="guideTitle">使用说明</h2>
+      <button type="button" class="icon-btn" data-close aria-label="关闭使用说明">×</button>
+    </header>
+    <ol class="guide-list">
+      <li><b>选词书与每日量</b><span>顶部「词书」切换考研 / 四级 / 六级 / 综合，四本书的进度互相独立。设置页「学习计划」决定每日新词与每组张数；新用户默认每日 20 个新词、每组 30 张。</span></li>
+      <li><b>当前范围不是全书</b><span>默认只背出现 ≥1 次、跨 ≥2 套卷的词，所以可背范围通常少于词库总数。范围摘要会显示在设置页与词表；改范围默认只在下一组生效，当前组进度分母不变。</span></li>
+      <li><b>先回忆，再判「会 / 不会」</b><span>看到单词先想中文意思，判定后才显示释义；可改判、可撤销上一步。未判定时「下一个」会被拦截，快速连击也只判定一次。</span></li>
+      <li><b>熟练会长期移出</b><span>「熟练」是主动长期移出背诵、复习与乱序队列，可在词表「熟练」筛选里取消；「会」只记录这一次自评，「已掌握」是走完 10 档复习。</span></li>
+      <li><b>额度、复习与备份</b><span>到期词优先复习，单日复习上限与十档曲线在设置页调整；今日额度用完时本组暂停，未答位置与进度不会丢。学习记录只保存在当前浏览器，建议在统计页定期导出备份。</span></li>
+    </ol>
+    <p class="sheet-note">这份说明可随时从「?」帮助浮层、设置页「离线与帮助」或首次提示条再次打开。</p>
+    <div class="acts start"><button type="button" class="btn primary" data-close id="guideStartBtn">开始学习</button></div>
+  </div>
+</div>
+
+<!-- 拼写专项（16）：模态训练；不占新词额度、不推进主学习档位，记录按书随备份 v3 导出 -->
+<div class="sheet" id="spellingSheet" hidden>
+  <div class="sheet-backdrop" data-spell-close></div>
+  <div class="sheet-panel spelling-panel" role="dialog" aria-modal="true" aria-labelledby="spellTitle" tabindex="-1">
+    <header class="sheet-head">
+      <h2 id="spellTitle">拼写专项</h2>
+      <button type="button" class="icon-btn" data-spell-close aria-label="退出拼写专项">×</button>
+    </header>
+    <div class="spell-body">
+      <p class="spell-progress" id="spellProgress" role="status" aria-live="polite"></p>
+      <p class="spell-group-note" id="spellGroupNote"></p>
+      <section class="spell-prompt" id="spellPrompt" aria-label="本词提示">
+        <p class="spell-pos" id="spellPos"></p>
+        <p class="spell-mean" id="spellMean" lang="zh-CN"></p>
+        <p class="spell-ph" id="spellPh" lang="en" hidden></p>
+      </section>
+      <form class="spell-form" id="spellForm" autocomplete="off" novalidate>
+        <label class="sr-only" for="spellInput">输入英文拼写</label>
+        <div class="spell-input-row">
+          <input id="spellInput" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done" inputmode="text" aria-describedby="spellHint">
+          <button type="submit" class="btn primary" id="spellSubmit">提交</button>
+        </div>
+        <div class="spell-feedback" id="spellFeedback" role="status" aria-live="polite"></div>
+      </form>
+      <div class="spell-actions" id="spellActions">
+        <button type="button" class="btn primary sm" id="spellNext" hidden>下一词（Enter）</button>
+        <button type="button" class="btn ghost sm" id="spellListen">听发音</button>
+        <button type="button" class="btn ghost sm" id="spellSkip">跳过</button>
+        <button type="button" class="btn ghost sm" id="spellExit">退出</button>
+      </div>
+      <p class="spell-hint" id="spellHint">大小写不敏感；连字符/空格、撇号与常见英美变体会在反馈中说明。练习不占每日新词额度、不推进主学习档位，也不记为「已学」。</p>
+      <section class="spell-result" id="spellResult" hidden aria-labelledby="spellResultTitle">
+        <h3 id="spellResultTitle">本组专项表现</h3>
+        <p class="spell-result-line" id="spellResultLine"></p>
+        <div class="spell-result-words" id="spellResultWords"></div>
+        <p class="spell-result-note">专项表现只统计本组拼写练习，不代表主学习自评正确率或全书掌握率。</p>
+        <div class="spell-result-acts">
+          <button type="button" class="btn primary sm" id="spellAgain">再来一组</button>
+          <button type="button" class="btn ghost sm" id="spellDone">完成返回</button>
+        </div>
+      </section>
+    </div>
   </div>
 </div>
 
@@ -431,14 +731,8 @@
 <script src="js/words-data.js"></script>
 <script src="js/cet-words-data.js"></script>
 <script src="js/combined-words-data.js"></script>
+<script src="js/senses-data.js"></script>
 <script src="js/txt-zip.js"></script>
-<script src="js/app.js?v=20261022-r21"></script>
-<script>
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", function () {
-    navigator.serviceWorker.register("sw.js").catch(function () {});
-  });
-}
-</script>
+<script src="js/app.js?v=20261022-r37"></script>
 </body>
 </html>

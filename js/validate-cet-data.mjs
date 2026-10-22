@@ -348,6 +348,52 @@ function crossCheckWordfreq(bookKey, entries) {
   return { checked, fMismatch, cMismatch, missing, rMismatch, papersMismatch };
 }
 
+/**
+ * 内容修订回归（2026-10-22 首批，证据见 docs/内容修订记录-2026-10-22.md）。
+ * 只锁定已核对词条的固定期望与已清理的残留，不做全库语义判断；失败为 warning，供人工复核。
+ */
+function checkContentFixes(bookKey, entries) {
+  const byWord = new Map();
+  entries.forEach((row, i) => {
+    if (Array.isArray(row) && typeof row[0] === "string" && !byWord.has(row[0])) byWord.set(row[0], i);
+  });
+  const hasForm = (ex, forms) => forms.some(f => new RegExp(`(^|[^a-z])${f}($|[^a-z])`, "i").test(String(ex || "")));
+  const expect = (w, ok, note) => {
+    const i = byWord.get(w);
+    if (i === undefined) {
+      warn("内容修订", `修订词条缺失：${w}`, bookKey, null, w, "docs/内容修订记录-2026-10-22.md 记录的修订词条应存在");
+      return;
+    }
+    if (!ok(entries[i])) warn("内容修订", `内容修订回归：${w}`, bookKey, i, w, note);
+  };
+  if (bookKey === "cet4") {
+    expect("use", a => a[1] === "juːz", "use 主读音应为动词 /juːz/（名词 /juːs/ 交给读音展示层）");
+    expect("minute", a => a[1] === "ˈminit" && !/[\s.]/.test(a[1]) && /细微|微小/.test(a[2]), "minute 主读音应为名词 /ˈmɪnɪt/，并补形容词义「微小的/细微的」");
+    expect("lead", a => !/[\s.]/.test(a[1]) && hasForm(a[7], ["lead", "led", "leads", "leading"]) && /[.!?]["']?$/.test(a[7]), "lead 例句应为完整句并含目标词形 led；ph 不得夹带 led 读音");
+    expect("study", a => hasForm(a[7], ["study", "studies"]) && /[.!?]["']?$/.test(a[7]), "study 例句应为完整句（与 lead 同句的截断已恢复）");
+    expect("researcher", a => hasForm(a[7], ["researcher", "researchers"]) && /[.!?]["']?$/.test(a[7]), "researcher 例句应为完整句（与 lead 同句的截断已恢复）");
+    expect("customer", a => hasForm(a[7], ["customer", "customers"]) && !/[·ŧ]/.test(a[7]) && !/\bmodem\b/.test(a[7]), "customer 例句不得残留 ratings·/ŧ/modem 等 OCR 污染");
+    expect("rate", a => hasForm(a[7], ["rate", "rates", "rated", "rating"]) && !a[7].includes("_lQ_"), "rate 例句不得是 _lQ_ 填空残句，且须含目标词形");
+    expect("barely", a => hasForm(a[7], ["barely"]) && !a[7].includes("_lQ_"), "barely 例句不得是 _lQ_ 填空残句，且须含目标词形");
+    expect("lie", a => /躺/.test(a[2]) && /说谎/.test(a[2]) && /lain/.test(a[10]) && /lied/.test(a[10]), "lie 需分义列出躺（lay/lain）与说谎（lied/lied）的词形");
+  }
+  if (bookKey === "cet6") {
+    expect("use", a => a[1] === "juːz", "use 主读音应为动词 /juːz/（名词 /juːs/ 交给读音展示层）");
+    expect("minute", a => a[1] === "ˈminit" && !/[\s.]/.test(a[1]), "minute 主读音应为名词 /ˈmɪnɪt/，不得把形容词读音塞进 ph");
+    expect("lead", a => !/[\s.]/.test(a[1]), "lead 的 ph 不得夹带过去式 led 读音");
+    expect("contract", a => /收缩/.test(a[2]) && hasForm(a[7], ["contract", "contracts", "contracted", "contracting"]) && /[.!?]["']?$/.test(a[7]), "contract 需补「收缩」义，例句完整且含目标词形");
+    expect("object", a => a[8] === "自编" && hasForm(a[7], ["object", "objects", "objected", "objecting"]) && /[.!?]["']?$/.test(a[7]), "object 原残句（In tum…can loneliness.）应替换为准确标注的自编完整句");
+    expect("loneliness", a => a[8] === "自编" && hasForm(a[7], ["loneliness"]) && /[.!?]["']?$/.test(a[7]), "loneliness 原残句应替换为准确标注的自编完整句");
+    expect("lie", a => /躺/.test(a[2]) && /说谎/.test(a[2]) && /lain/.test(a[10]) && /lied/.test(a[10]), "lie 需分义列出躺（lay/lain）与说谎（lied/lied）的词形");
+  }
+  // 已清理的填空残留不得回流（本轮清理 _lQ_；cet6 的 tum 残句已列入待核对，不在此断言）。
+  entries.forEach((row, i) => {
+    if (Array.isArray(row) && typeof row[7] === "string" && row[7].includes("_lQ_")) {
+      warn("内容修订", "例句含已清理的填空残留 _lQ_", bookKey, i, row[0], short(row[7]));
+    }
+  });
+}
+
 // ---------- 执行 ----------
 console.log("四六级词书数据静态校验（js/validate-cet-data.mjs）");
 console.log(`数据源：${path.relative(ROOT, DATA)}（${(rawSource.length / 1024 / 1024).toFixed(2)} MB）`);
@@ -368,6 +414,7 @@ for (const bookKey of Object.keys(BOOKS)) {
   checkMeta(bookKey, arr, stats);
   const mig = checkMigrations(bookKey, arr);
   if (mig) stats.migrations = mig;
+  checkContentFixes(bookKey, arr);
   const cross = crossCheckWordfreq(bookKey, arr);
   stats.cross = cross;
   statsByBook[bookKey] = { ...index, ...stats, meta: meta[bookKey] || null };
@@ -384,7 +431,7 @@ if (Array.isArray(win.WORDS_CET4) && Array.isArray(win.WORDS_CET6) && win.WORDS_
 // ---------- 汇总 ----------
 const errors = issues.filter(x => x.sev === "error");
 const warns = issues.filter(x => x.sev === "warn");
-const typeTitle = { 结构: "11 元组/结构", 类型: "字段类型", 单词: "单词格式/重复", 词性: "posIdx", 排名: "r 连续性", 词频: "f", 套数: "c", 大纲: "ky", 释义: "释义覆盖", 例句: "例句出处", 安全: "安全注入", 编码: "编码", meta: "meta 一致性", 交叉核对: "wordfreq 交叉核对", 数据: "数据整体", 体积: "文件体积" };
+const typeTitle = { 结构: "11 元组/结构", 类型: "字段类型", 单词: "单词格式/重复", 词性: "posIdx", 排名: "r 连续性", 词频: "f", 套数: "c", 大纲: "ky", 释义: "释义覆盖", 例句: "例句出处", 安全: "安全注入", 编码: "编码", meta: "meta 一致性", 交叉核对: "wordfreq 交叉核对", 内容修订: "内容修订回归", 数据: "数据整体", 体积: "文件体积" };
 const groupBy = list => {
   const map = new Map();
   for (const it of list) {
@@ -476,6 +523,7 @@ try {
   lines.push("## 判定口径", "");
   lines.push("- error 即失败：两册非空、11 元组与类型、全小写 ASCII、无重复、`r` 连续 1..N、`f>=1`、`1<=c<=paperCount`、`ky∈{0,1}`、`posIdx∈[0,15]`、释义非空、例句出处格式 `四级/六级 YYYY.MM` 或考研来源/自编、meta 与数组一致、无 HTML/脚本注入。");
   lines.push("- warning 提示信息披露项：音标/例句/词形覆盖率、释义不含中文、wordfreq 缺词（补回词）、yearRange 与例句年份差异等。");
+  lines.push("- 内容修订回归（warning）：`docs/内容修订记录-2026-10-22.md` 首批已核对词条的读音/词性/释义/例句固定期望（use、minute、contract、object、loneliness、rate、barely、lead、customer、lie），以及例句回流 `_lQ_` 等已清理残留。");
   lines.push("- `r` 排名口径：按 `(-f, -c, word)` 排序的 1 基排名；补回实义虚词 `will/may/can/one/own` 连续追加在数组末尾。");
   lines.push("");
   fs.writeFileSync(REPORT, lines.join("\n"), "utf8");

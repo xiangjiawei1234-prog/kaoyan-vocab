@@ -144,6 +144,17 @@ function fullScope(b, dailyNew = 10) {
   return S;
 }
 
+/** 用真实 1000ms 采样 + 一次有效活动触发学习时长落盘（旧测试依赖已删除的 15000ms 定时器）。 */
+function studySave(b, advanceMs = 31000) {
+  const study = b.window.__vocabStudy;
+  assert.ok(study, "app.js 应提供 __vocabStudy 计时钩子");
+  study.act();
+  b.advance(advanceMs);
+  const timer = b.intervals.find(t => t.ms === study.getDebug().tickMs);
+  assert.ok(timer, "应存在学习时长采样定时器");
+  timer.fn();
+}
+
 function requireProficient(b) {
   for (const name of ["isProficient", "setProficient", "resetProficient", "normalizeState", "importState", "buildQueue"])
     assert.equal(typeof b.T[name], "function", `缺少 ${name}`);
@@ -361,14 +372,18 @@ await test("导入旧备份不会让当前熟练词重新入队", () => {
   assert.equal(b.T.Q.includes(i), false);
 });
 
-await test("另一标签普通保存不能抹去刚新增的熟练词", () => {
+await test("另一标签计时落盘不会抹去刚新增的熟练词", () => {
   const a = browser(); fullScope(a);
   const b = browser({ sharedStorage: a.storage }); fullScope(b);
   const i = a.T.cur, word = a.T.getW()[i].w;
   a.T.setProficient(i, true);
-  b.intervals.find(t => t.ms === 15000).fn();
-  assert.ok(JSON.parse(a.storage.get(PROF_KEY))[word]);
-  assert.ok(JSON.parse(a.storage.get(KEY)).proficient[word]);
+  const mainAfterA = JSON.parse(a.storage.get(KEY));
+  studySave(b);   // B 的学习时长落盘（真实 1000ms 采样）
+  assert.ok(JSON.parse(a.storage.get(PROF_KEY))[word], "独立熟练键保留 A 的新增");
+  assert.ok(JSON.parse(a.storage.get(KEY)).proficient[word],
+    "B 的计时落盘不得抹去主记录里的熟练词");
+  assert.equal(JSON.stringify(JSON.parse(a.storage.get(KEY)).progress),
+    JSON.stringify(mainAfterA.progress), "学习进度也不被旧快照覆盖");
   b.storageEvent(PROF_KEY);
   assert.equal(b.T.isProficient(i), true);
   assert.equal(b.T.Q.includes(i), false);
@@ -399,16 +414,20 @@ await test("仅学习时长的外部同步不重置当前已判定卡片", () =>
   assert.equal(b.T.getS().timeSec, state.timeSec);
 });
 
-await test("另一标签未收到事件时，时长自动保存不会覆盖新判定", () => {
+await test("另一标签未收到事件时，学习时长落盘不会覆盖新判定", () => {
   const a = browser(); fullScope(a);
   const b = browser({ sharedStorage: a.storage }); fullScope(b);
   const i = a.T.cur;
   a.T.judge(true);
   const judged = clone(a.T.getS());
-  b.intervals.find(t => t.ms === 15000).fn();
+  studySave(b);
   const saved = JSON.parse(a.storage.get(KEY));
-  assert.equal(JSON.stringify(saved.progress), JSON.stringify(judged.progress));
+  assert.equal(JSON.stringify(saved.progress), JSON.stringify(judged.progress),
+    "B 的计时落盘不得覆盖 A 的新判定");
   assert.equal(JSON.stringify(saved.days), JSON.stringify(judged.days));
+  assert.equal(saved.timeSec || 0, judged.timeSec || 0,
+    "内容不一致时 B 宁可不写时长，也不覆盖别人的判定");
+  b.storageEvent(KEY);   // 事件送达后 B 才同步
   assert.equal(JSON.stringify(b.T.getS().progress[i]), JSON.stringify(judged.progress[i]));
   assert.equal(b.T.Q.includes(i), false);
 });
@@ -518,13 +537,20 @@ await test("答错追加重考不扩大本组进度分母，并单独显示待�
   assert.match(b.query("#s-pending").textContent, /待巩固 1 次/, "重考单独显示待巩固");
 });
 
-await test("修改设置时限制额度和覆盖数并重建匹配词队列", async () => {
+await test("修改设置默认只应用到下一组，显式应用后才按新覆盖数重建", async () => {
   const b = browser(), S = fullScope(b);
   b.T.show("set");
+  const queueBefore = JSON.stringify(b.T.Q);
   b.query("#dailyNew").value = 99999; b.query("#pmin").value = 99;
   await b.query("#dailyNew").dispatch("change");
   assert.equal(S.settings.dailyNew, 500); assert.equal(S.settings.pmin, 46);
-  assert.ok(b.T.Q.every(i => b.T.getW()[i].c >= 46));
+  // 08：当前组继续使用开始时的范围与计划，不因连续试选重建；进度分母保持。
+  assert.equal(JSON.stringify(b.T.Q), queueBefore, "改设置不得重建当前组队列");
+  assert.equal(typeof b.T.getPlan().scopeSig, "string", "本组冻结计划带范围签名（08）");
+  assert.equal(b.T.hasPendingScopeSettings(), true, "设置已更改待应用");
+  assert.equal(b.T.applySettingsRestart(), true, "显式「应用并重新开始」重建本组");
+  assert.ok(b.T.Q.length > 0 && b.T.Q.every(i => b.T.getW()[i].c >= 46),
+    "显式重开后按新覆盖数重建匹配词队列");
 });
 
 for (const bad of [null, [], "text", 23, { progress: null }, { days: null }, { settings: null, progress: [] }]) {
@@ -581,7 +607,7 @@ await test("导入无效索引和调度数据不会影响有效词条", () => {
   assert.deepEqual(clone(clean.progress[0]), [1, b.now, 2, 3, b.now - 5000]);
   assert.equal(clean.settings.dailyNew, 500);
   assert.equal(clean.settings.pmin, 46);
-  assert.equal(clean.settings.order, "freq");
+  assert.equal(clean.settings.order, "shuffle");
   assert.equal(clean.settings.fmin, 1);
   assert.equal(clean.settings.fmax, 0);
   assert.deepEqual(clone(clean.settings.pos), ["n"]);
@@ -937,7 +963,7 @@ await test("字段缺省的备份可导入并落到安全默认值", () => {
     progress: { 0: [1, b.now + 1000, 1, 0, b.now] },
     days: { [today(b.now - 86400000)]: { n: 1, r: 1, ok: 1, no: 0 } }
   });
-  assert.equal(out.settings.dailyNew, 30);
+  assert.equal(out.settings.dailyNew, 20);
   assert.equal(out.timeSec, 0);
   assert.deepEqual(Object.keys(out.stars), []);
   assert.deepEqual(Object.keys(out.proficient), []);
@@ -946,7 +972,7 @@ await test("字段缺省的备份可导入并落到安全默认值", () => {
 
 await test("导入时数值类型安全强转，脏类型拒绝", () => {
   const b = browser(); fullScope(b);
-  assert.equal(b.T.normalizeState({ settings: { dailyNew: "30" }, progress: {}, days: {} }).settings.dailyNew, 30);
+  assert.equal(b.T.normalizeState({ settings: { dailyNew: "30" }, progress: {}, days: {} }).settings.dailyNew, 20);
   assert.equal(b.T.normalizeState({ settings: { dailyNew: 7.9 }, progress: {}, days: {} }).settings.dailyNew, 7);
   assert.equal(b.T.normalizeState({ settings: { fmin: 5, fmax: 2 }, progress: {}, days: {} }).settings.fmax, 5);
   assert.equal(b.T.normalizeState({ settings: { pos: ["n", "n", "bogus"] }, progress: {}, days: {} }).settings.pos.join(), "n");
@@ -1123,10 +1149,12 @@ await test("详情区分未学、到期、未来、已掌握与熟练复习状�
   const b = browser(), S = fullScope(b), i = b.T.cur;
   assert.match(b.T.wordReviewLabel(i), /尚未学习/);
   b.T.judge(false);
-  assert.match(b.T.wordReviewLabel(i), /2026-10-10 12:05/);
+  // 新用户默认 balanced 曲线：不会后跨组重学间隔 = 1440 分钟（1 天）；
+  // 旧版 5 分钟只适用于旧记录（legacy 兼容分支）。
+  assert.match(b.T.wordReviewLabel(i), /2026-10-11 12:00/);
   b.T.openWord(i);
   assert.match(b.query("#wordDetail").innerHTML, /下次复习/);
-  b.advance(300000);
+  b.advance(86400000 + 60000);   // 越过 1 天间隔
   assert.match(b.T.wordReviewLabel(i), /已到期/);
   S.progress[i][0] = 11;
   assert.match(b.T.wordReviewLabel(i), /已掌握/);

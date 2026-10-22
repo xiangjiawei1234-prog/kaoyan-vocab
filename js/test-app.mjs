@@ -315,8 +315,8 @@ console.log("== 10. normalizeState · 设置边界 ==");
 {
   const n = o => T.normalizeState({ settings: o, progress: {}, days: {} }).settings;
   ck(n({ dailyNew: 0 }).dailyNew === 1 && n({ dailyNew: 1.9 }).dailyNew === 1
-    && n({ dailyNew: -5 }).dailyNew === 30 && n({ dailyNew: 99999 }).dailyNew === 500,
-    "dailyNew 边界：0→1、小数取整、负数→30、超限→500");
+    && n({ dailyNew: -5 }).dailyNew === 20 && n({ dailyNew: 99999 }).dailyNew === 500,
+    "dailyNew 边界：0→1、小数取整、负数→20、超限→500");
   ck(n({ fmin: 5, fmax: 2 }).fmax === 5 && n({ fmin: 3, fmax: 0 }).fmax === 0
     && n({ pmin: 1.5 }).pmin === 1 && n({ pmin: -3 }).pmin === 2 && n({ pmin: 99 }).pmin === 46,
     "fmax<fmin 抬升；fmax=0 不限；pmin 同规则钳制");
@@ -505,15 +505,15 @@ console.log("== 14. 导入导出 · 保真与类型强转 ==");
     && clean.stars[j] === 1 && clean.settings.dailyNew === 7,
     "normalize 后进度/收藏/设置保真");
   const missing = T.normalizeState({ progress: {}, days: {} });
-  ck(missing.settings.dailyNew === 30 && missing.timeSec === 0
+  ck(missing.settings.dailyNew === 20 && missing.timeSec === 0
     && Object.keys(missing.stars).length === 0 && Object.keys(missing.proficient).length === 0,
     "缺省 settings/timeSec/stars/proficient 走安全默认");
   const strN = T.normalizeState({ settings: { dailyNew: "30" }, progress: {}, days: {} }).settings.dailyNew;
   const fltN = T.normalizeState({ settings: { dailyNew: 7.9 }, progress: {}, days: {} }).settings.dailyNew;
   let threw = false;
   try { T.normalizeState({ progress: { 0: ["1", 0, 1, 0, 0] }, days: {} }); } catch (e) { threw = true; }
-  ck(strN === 30 && fltN === 7 && threw,
-    "数值字符串/小数安全强转，字符串 stage 拒绝");
+  ck(strN === 20 && fltN === 7 && threw,
+    "非数值字符串落到默认 20、小数取整，字符串 stage 拒绝");
 
   T.importState(backup);
   S = T.getS();
@@ -776,6 +776,92 @@ console.log("== 12. 乱序随机抽样 · 掌握率估计 ==");
   ck(idxHtml.includes('id="surveyChip"') && idxHtml.includes('id="surveyKpis"')
     && idxHtml.includes("历史首次自评"),
     "index.html 含掌握率 chip 与统计面板");
+}
+
+console.log("== 18. 首次打开默认值 · 主题入口 · 乱序命名 ==");
+{
+  const d = T.normalizeState({ progress: {}, days: {} }).settings;
+  ck(d.dailyNew === 20 && d.order === "shuffle" && d.theme === "light",
+    "首次打开默认：每日 20 词 / 随机乱序 / 浅色主题", JSON.stringify([d.dailyNew, d.order, d.theme]));
+  ck(T.getBook() === "kaoyan", "首次打开默认词书为考研", T.getBook());
+  const keep = T.normalizeState({ settings: { theme: "dark", order: "wrong", dailyNew: 50 }, progress: {}, days: {} }).settings;
+  ck(keep.theme === "dark" && keep.order === "wrong" && keep.dailyNew === 50,
+    "已保存的显式主题/顺序/每日量不被新默认覆盖");
+  const idxHtml = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
+  ck(idxHtml.includes('id="btnTheme"') && idxHtml.includes('class="icon-btn theme-toggle"')
+    && idxHtml.includes("切换到深色模式"),
+    "首页顶部 header 含深色/浅色切换按钮");
+  ck(idxHtml.includes('<option value="shuffle">随机乱序</option>')
+    && !idxHtml.includes("乱序（每组重新打乱）"),
+    "背诵顺序选项已改名为「随机乱序」");
+  ck(idxHtml.includes("随机乱序会在每组开始时重新打乱"), "顺序说明文案同步更新");
+  const css = fs.readFileSync(path.join(ROOT, "css", "app.css"), "utf8");
+  ck(css.includes(".theme-toggle") && css.includes('.theme-icon-sun') && css.includes('.theme-icon-moon'),
+    "主题切换按钮图标样式存在（浅色月亮 / 深色太阳）");
+}
+
+console.log("== 19. 批次 C：首屏结构 · 范围摘要 · 统计页展开 ==");
+{
+  const idxHtml = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
+  const css = fs.readFileSync(path.join(ROOT, "css", "app.css"), "utf8");
+  const appJs = fs.readFileSync(path.join(ROOT, "js", "app.js"), "utf8");
+
+  // ---- 静态结构（09 首屏/统计页） ----
+  ck(idxHtml.includes('<button type="button" class="brand-sub" id="scopeLabel"'),
+    "#scopeLabel 改为可点按钮（查看/调整范围）");
+  ck(idxHtml.includes('id="studyScope"'), "学习页含可点当前范围摘要 #studyScope");
+  ck(/class="chip chip-new"[\s\S]*?id="ringFg"[\s\S]*?id="s-goal"/.test(idxHtml),
+    "环形进度并入「今日新词」chip（#ringFg/#s-goal 同 chip）");
+  ck(!idxHtml.includes("ring-chip"), "独立的 ring-chip 行已删除");
+  ck(/id="surveyChip"[\s\S]*?id="surveyDetail"/.test(idxHtml) && idxHtml.includes('id="s-survey-n"'),
+    "首次自评 chip 含样本量 #s-survey-n 与可展开说明 #surveyDetail");
+  const detailPanels = idxHtml.match(/details class="panel stats-details(?: stats-wide)?"/g) || [];
+  ck(detailPanels.length === 6, "统计页 6 个高阶面板使用原生 details", String(detailPanels.length));
+  ck(idxHtml.includes('id="statsForecastPanel"') && idxHtml.includes('id="statsHeatmapPanel"'),
+    "统计 details 面板 id 稳定，便于 QA/测试定位");
+  ck(idxHtml.includes('tabindex="-1"></section>') || idxHtml.includes('id="settings-scope" aria-labelledby="scopeTitle" tabindex="-1"'),
+    "设置页「词库范围」可被范围摘要聚焦跳转");
+  ck(css.includes(".study-scope") && css.includes(".survey-detail") && css.includes(".stats-details"),
+    "新增样式（上下文条/自评说明/统计 details）存在");
+  ck(!css.includes(":has(#groupStatus:has("), "CSS 不再使用 Chrome 不支持的嵌套 :has");
+  ck(!css.includes(".ring-chip"), "无 ring-chip 残留样式");
+  ck(/\.view\.on \{\s*display: block;\s*animation: viewIn \.16s/.test(css) && /\.answer \{[^}]*answerIn \.15s/.test(css),
+    "入场动效收敛到 120–180ms（viewIn/cardIn .16s、answerIn .15s）");
+  ck(!/\.card\.enter \{ animation: cardIn \.22s/.test(css), "旧 .22s 卡片入场动效已收敛");
+  ck(!appJs.includes("#curveInfo"), "app.js 已清除 #curveInfo legacy 兜底路径");
+  ck(appJs.includes("function renderStudyScope(") && appJs.includes("function shortScopeText(") && appJs.includes("function jumpToScopeSettings("),
+    "范围摘要渲染/跳转函数存在");
+
+  // ---- 行为：survey 样本量与可展开说明 ----
+  S = T.getS();
+  S.progress = {}; S.days = {}; S.stars = {}; S.proficient = {};
+  Object.assign(S.settings, {order: "shuffle", dailyNew: 20, pmin: 0, fmin: 1, fmax: 0, kyOnly: false, pos: []});
+  T.resetSurvey();
+  T.startSession();
+  ck(getEl("#surveyDetail").hidden === false, "乱序模式显示首次自评说明入口");
+  ck(getEl("#surveyChip").hidden === false, "乱序模式显示首次自评 chip");
+  T.judge(true);
+  ck(getEl("#s-survey-n").textContent === "样本 1", "chip 紧凑显示样本量", getEl("#s-survey-n").textContent);
+  ck(String(getEl("#studyScope").textContent).includes("乱序") && String(getEl("#studyScope").textContent).includes("词"),
+    "范围摘要显示顺序与词数", getEl("#studyScope").textContent);
+
+  // ---- 行为（08 联动）：改设置后摘要显示“本组”冻结范围 ----
+  S.settings.fmin = 5;
+  T.show("set");
+  ck(String(getEl("#studyScope").textContent).startsWith("本组"),
+    "改设置只影响下一组：范围摘要仍显示本组冻结范围", getEl("#studyScope").textContent);
+  ck(String(getEl("#studyScope").title).includes("下一组"),
+    "范围摘要 title 说明设置将在下一组生效", getEl("#studyScope").title);
+  ck(String(getEl("#scopeLabel").title).includes("点击"), "#scopeLabel title 说明可点击查看范围");
+
+  // ---- 行为：错词为 0 折叠特训，有条常驻；有错词恢复 ----
+  S.progress = {}; S.days = {}; S.settings.fmin = 1;
+  T.startSession(); T.setCur(T.cur);
+  ck(getEl("#btnDrill").hidden === true, "无错词时折叠 #btnDrill");
+  ck(getEl("#studyScope").hidden === false, "无错词时上下文条常驻，范围摘要仍可见");
+  T.judge(false);
+  ck(getEl("#btnDrill").hidden === false && String(getEl("#drillHint").textContent).includes("错词本"),
+    "有错词时显示特训入口与提示", JSON.stringify([getEl("#btnDrill").hidden, getEl("#drillHint").textContent]));
 }
 
 console.log(`\n结果：${pass} 通过，${fail} 失败`);

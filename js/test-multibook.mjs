@@ -568,8 +568,8 @@ await test("C1 切换时携带主题与按键等纯 UI 偏好，学习设置各�
   assert.equal(s4.showEx, false, "showEx 应携带");
   assert.equal(s4.showFm, false, "showFm 应携带");
   assert.equal(s4.autoSpk, true, "autoSpk 应携带");
-  assert.equal(s4.dailyNew, 30, "dailyNew 属于学习设置，不应携带（应为默认 30）");
-  assert.equal(s4.order, "freq", "order 不应携带");
+  assert.equal(s4.dailyNew, 20, "dailyNew 属于学习设置，不应携带（应为默认 20）");
+  assert.equal(s4.order, "shuffle", "order 不应携带（默认随机乱序）");
   assert.equal(s4.pmin, 2, "pmin 不应携带（默认 2）");
   assert.equal(s4.fmin, 1, "fmin 不应携带");
   assert.equal(s4.kyOnly, false, "kyOnly 不应携带");
