@@ -1,6 +1,15 @@
 # macOS
 .DS_Store
 
-# 编辑器
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# 编辑器/工具
+.mimocode/
 .idea/
 .vscode/
+
+# 测试生成的校验报告
+tests/reports/

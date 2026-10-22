@@ -72,11 +72,13 @@
         prev = r;
       }
       if (bad || byFrom.has(m.from)) continue;   // 非法/重复 from：忽略该条
-      const entry = {from: m.from, to: m.to, removed: m.removed.slice()};
+      const entry = {from: m.from, to: m.to, removed: m.removed.slice(), addedCount: 0};
       if (Array.isArray(m.removedWords) && m.removedWords.length === m.removed.length
           && m.removedWords.every(w => typeof w === "string" && /^[a-z]+$/.test(w))) {
         entry.removedWords = m.removedWords.slice();
       }
+      if (Array.isArray(m.added) && m.added.every(n => Number.isInteger(n) && n >= 0)) entry.addedCount = m.added.length;
+      else if (Array.isArray(m.addedWords) && m.addedWords.every(w => typeof w === "string" && /^[a-z]+$/.test(w))) entry.addedCount = m.addedWords.length;
       byFrom.set(m.from, entry);
     }
     const chain = [];
@@ -84,8 +86,8 @@
     while (ver > 1) {
       const m = byFrom.get(ver - 1);
       if (!m) return fallback;                        // 迁移链不完整 → 整组忽略
-      const oldLen = len + m.removed.length;
-      if (m.removed.length >= oldLen) return fallback;
+      const oldLen = len + m.removed.length - (m.addedCount || 0);
+      if (oldLen <= 0 || m.removed.length >= oldLen) return fallback;
       for (const r of m.removed) if (r >= oldLen) return fallback;
       chain.unshift(m);
       len = oldLen;
@@ -143,6 +145,7 @@
   let SURVEY_KEY = BOOKS[currentBookId].SURVEY_KEY;
   /** 乱序模式随机抽样：单词 → 0/1（1 = 首次作答「会」）。按词文本存，跨数据版本天然对齐。 */
   let SURVEY = {};
+  let lastSurvey = {};
 
   /* ================= 艾宾浩斯调度 ================= */
   const STAGES = [
@@ -187,6 +190,7 @@
       fmin: 1, fmax: 0, pmin: 2, kyOnly: false, pos: [],
       theme: "auto",
       showPh: true, showEx: true, showFm: true, autoSpk: false,
+      singleCharKeys: true,
       keys: Object.assign({}, DEFKEYS)
     },
     progress: {}, days: {}, stars: {}, proficient: {}, timeSec: 0, dv: 1
@@ -204,12 +208,58 @@
 
   let S = freshState(currentBook());
   let storageOK = true;
+  let loadError = null;
   // 某本书的主记录损坏/存储被禁用时暂停该书写入，避免把可恢复的备份覆盖成空记录。
   // 只影响损坏的那一本；切换到另一本仍可正常读写。
   const blockedBooks = new Set();
   let lastMainRaw = null;
+  // 渲染会建立空的当日计数；空计数不代表有尚未保存的用户改动。
+  function savedStateSignature(state){
+    return JSON.stringify([state.settings, state.progress,
+      Object.fromEntries(Object.entries(state.days).filter(([, d]) => d.r > 0)),
+      state.stars, state.proficient, state.timeSec]);
+  }
+  let lastSavedSignature = savedStateSignature(S);
+  /**
+   * 熟练键写入失败时，新增/取消操作仍保留在本页内存中。导出与后续保存
+   * 用「最新存储 + 待写入操作」合并，既不丢这次操作，也不覆盖别的标签页。
+   */
+  const pendingProf = new Map();
+  function pendingProfOf(bookId){
+    let p = pendingProf.get(bookId);
+    if (!p) { p = {add: new Map(), remove: new Set()}; pendingProf.set(bookId, p); }
+    return p;
+  }
+  function markProfPending(bookId, word, value, at){
+    const p = pendingProfOf(bookId);
+    if (value) { p.add.set(word, at || Date.now()); p.remove.delete(word); }
+    else { p.remove.add(word); p.add.delete(word); }
+    if (!p.add.size && !p.remove.size) pendingProf.delete(bookId);
+  }
+  function clearProfPending(bookId){ pendingProf.delete(bookId); }
+  function mergePendingProficient(list, bookId){
+    const p = pendingProf.get(bookId);
+    if (!p) return Object.assign({}, list || {});
+    const out = Object.assign({}, list || {});
+    for (const w of p.remove) delete out[w];
+    for (const [w, at] of p.add) out[w] = at;
+    return out;
+  }
+  function pendingProfCount(bookId){
+    const p = pendingProf.get(bookId);
+    return p ? p.add.size + p.remove.size : 0;
+  }
+  function snapshotPendingProf(){
+    const out = new Map();
+    for (const [id, p] of pendingProf) out.set(id, {add: new Map(p.add), remove: new Set(p.remove)});
+    return out;
+  }
+  function restorePendingProf(snap){
+    pendingProf.clear();
+    for (const [id, p] of snap || []) pendingProf.set(id, {add: new Map(p.add), remove: new Set(p.remove)});
+  }
 
-  // spaCy 分词产生的残缺词形 → 正确词形（与词库修正表保持一致）。
+  // spaCy 残缺词形 → 正确词形（与 tests/fixtures/spelling-fixes.json 保持一致）。
   // 仅当旧拼写已不在词库、新拼写存在时才迁移熟练名单键，避免与保留的同名词条冲突。
   const SPELLING_FIX = {
     "acqui": "acquire",
@@ -318,7 +368,8 @@
     const removed = migration.removed;
     const removedSet = new Set(removed);
     const oldLength = book.words.length + book.migrations
-      .filter(m => m.from >= migration.from).reduce((n, m) => n + m.removed.length, 0);
+      .filter(m => m.from >= migration.from)
+      .reduce((n, m) => n + m.removed.length - (m.addedCount || 0), 0);
     const out = JSON.parse(JSON.stringify(st));
     if (isRecord(st.progress)) {
       const progress = {};
@@ -368,7 +419,10 @@
     if (!isRecord(o)) return o;                       // 交给 normalizeState 报错
     const target = book.dataVersion || 1;
     const dv = integer(o.dv, 1, 1, Number.MAX_SAFE_INTEGER);
-    if (dv >= target) return o;
+    if (dv > target) {
+      throw new Error("学习记录来自更新的词库（数据版本 " + dv + " > 当前 " + target + "）；请更新应用后再导入，原记录不会被覆盖");
+    }
+    if (dv === target) return o;
     let cur = o, v = dv;
     while (v < target) {
       const m = book.migrations.find(x => x.from === v);
@@ -407,14 +461,18 @@
   }
   function syncProficientFromStorage(){
     const raw = localStorage.getItem(PROF_KEY);
-    if (raw === null) return;
+    if (raw === null) {
+      // 独立键尚未建立时，主记录里的熟练名单仍然有效，不能被空值抹掉。
+      S.proficient = mergePendingProficient(S.proficient, currentBookId);
+      return;
+    }
     const parsed = JSON.parse(raw);
     const next = normalizeProficientByBook(parsed, currentBook());
-    S.proficient = next;
     // 旧拼写键已迁移 / 删词清理时回写一次，让 localStorage 与词库文本对齐。
     if (Object.keys(parsed).some(k => !(k in next))) {
       try { localStorage.setItem(PROF_KEY, JSON.stringify(next)); } catch (e) { /* ignore */ }
     }
+    S.proficient = mergePendingProficient(next, currentBookId);
   }
 
   /**
@@ -439,7 +497,7 @@
     s.pmin = integer(old.pmin, Math.min(book.defaultPmin || 2, pminMax), 0, pminMax);
     if (["freq", "shuffle", "wrong"].includes(old.order)) s.order = old.order;
     if (["auto", "light", "dark"].includes(old.theme)) s.theme = old.theme;
-    for (const k of ["kyOnly", "showPh", "showEx", "showFm", "autoSpk"]) {
+    for (const k of ["kyOnly", "showPh", "showEx", "showFm", "autoSpk", "singleCharKeys"]) {
       if (typeof old[k] === "boolean") s[k] = old[k];
     }
     s.pos = Array.isArray(old.pos) ? [...new Set(old.pos.filter(k => POSCHIPS.some(x => x.k === k)))] : [];
@@ -477,7 +535,7 @@
   /** 读取某本词书已保存的 state；无记录 → 空白默认记录，损坏 → 抛错 */
   function readBookState(book){
     const raw = localStorage.getItem(book.KEY);
-    if (!raw) return {state: freshState(book), raw: null};
+    if (raw === null) return {state: freshState(book), raw: null};
     return {state: normalizeState(JSON.parse(raw), book.id), raw: raw};
   }
   function load(){
@@ -488,27 +546,40 @@
       lastMainRaw = got.raw;
       blockedBooks.delete(book.id);
       storageOK = true;
+      loadError = null;
     } catch (e) {
       storageOK = false;
       blockedBooks.add(book.id);
+      loadError = e && e.message ? e.message : "记录格式无法读取";
       // Do not overwrite an unreadable or damaged backup with empty records.
     }
     // Permanent exclusions can still be recovered if the main backup is damaged.
     try { syncProficientFromStorage(); }
     catch (e) { storageOK = false; blockedBooks.add(book.id); }
+    lastSavedSignature = savedStateSignature(S);
     loadSurvey();
   }
   function save(proficiencyChanged = false, replaceAll = false){
     if (blockedBooks.has(currentBookId)) return false;   // 该书记录损坏/不可写时保护原文件
     try {
-      if (proficiencyChanged) localStorage.setItem(PROF_KEY, JSON.stringify(S.proficient));
-      else syncProficientFromStorage();
+      if (proficiencyChanged) {
+        localStorage.setItem(PROF_KEY, JSON.stringify(S.proficient));
+        clearProfPending(currentBookId);
+      } else {
+        syncProficientFromStorage();
+        // 上次熟练写入失败时，随这次主记录保存一并重试。
+        if (pendingProfCount(currentBookId)) {
+          localStorage.setItem(PROF_KEY, JSON.stringify(S.proficient));
+          clearProfPending(currentBookId);
+        }
+      }
       const latest = localStorage.getItem(KEY);
       if (!replaceAll && latest !== lastMainRaw) {
         // A delayed storage event must not let an older tab overwrite newer learning records.
-        S = latest ? normalizeState(JSON.parse(latest), currentBookId) : freshState(currentBook());
+        S = latest !== null ? normalizeState(JSON.parse(latest), currentBookId) : freshState(currentBook());
         syncProficientFromStorage();
         lastMainRaw = latest;
+        lastSavedSignature = savedStateSignature(S);
         bindSet(); applyFilter(); renderStats(); startSession();
         toast("另一窗口已更新记录，学习队列已同步");
         storageOK = true;
@@ -517,9 +588,16 @@
       }
       const serialized = JSON.stringify(S);
       localStorage.setItem(KEY, serialized); lastMainRaw = serialized;
-      storageOK = true; blockedBooks.delete(currentBookId); return true;
+      lastSavedSignature = savedStateSignature(S);
+      storageOK = true; blockedBooks.delete(currentBookId); clearAlert("save"); return true;
     }
-    catch (e) { storageOK = false; toast("进度保存失败，请导出备份（存储空间不足或被禁用）"); return false; }
+    catch (e) {
+      storageOK = false;
+      showAlert("进度保存失败", "受影响词书：" + currentBook().name
+        + "。浏览器存储不可用或空间不足；当前页面仍可继续学习，但刷新前请导出备份。"
+        + (pendingProfCount(currentBookId) ? "另有熟练标记尚未写入。" : ""), {kind: "save", export: true});
+      return false;
+    }
   }
   function migrateScope(oldSet, cur){
     if (oldSet.fmin !== undefined) return;
@@ -530,13 +608,14 @@
 
   /* ================= 多词书：切换 / 统计 / 备份 ================= */
   /** 切换词书时携带的纯界面偏好（学习相关设置各书独立） */
-  const CARRY_SETTINGS = ["theme", "keys", "showPh", "showEx", "showFm", "autoSpk"];
+  const CARRY_SETTINGS = ["theme", "keys", "showPh", "showEx", "showFm", "autoSpk", "singleCharKeys"];
   function cloneSettingsValue(v){
     return (v && typeof v === "object") ? JSON.parse(JSON.stringify(v)) : v;
   }
   /** 某书学习概况（用于词书列表展示）：已学 = 有进度记录的词数，已掌握 = 走完全部档位 */
   function bookStats(id){
     let prog = null;
+    if (id === currentBookId && blockedBooks.has(id)) return {ok: false, learned: 0, mastered: 0};
     if (id === currentBookId) prog = S.progress;
     else {
       try {
@@ -546,7 +625,7 @@
     let learned = 0, mastered = 0;
     for (const k of Object.keys(prog || {})) {
       const p = prog[k];
-      if (!Array.isArray(p)) continue;
+      if (!Array.isArray(p) || !hasMainProgress(p)) continue;
       learned++;
       if (p[0] >= MASTER) mastered++;
     }
@@ -560,6 +639,7 @@
     try {
       const state = readBookState(BOOKS[id]).state;
       try { state.proficient = readBookProficient(BOOKS[id], state.proficient); } catch (e) {}
+      state.proficient = mergePendingProficient(state.proficient, id);
       return state;
     }
     catch (e) { return null; }
@@ -571,6 +651,7 @@
     try {
       localStorage.setItem(book.KEY, JSON.stringify(state));
       localStorage.setItem(book.PROF_KEY, JSON.stringify(state.proficient));
+      clearProfPending(id);
       blockedBooks.delete(id);
       return true;
     } catch (e) {
@@ -596,7 +677,16 @@
       if (!opts.silent) { renderBookList(); if (activeSheet) closeSheet(); }
       return true;
     }
-    if (opts.persist !== false) save();   // 切换前先保存当前书
+    saveListUi();
+    const saved = opts.persist === false ? storageOK : save();
+    if (!saved) {
+      // 保存失败后切走会丢掉只能从当前内存导出的学习记录。
+      // 初次读到损坏记录、尚未学习的书仍可切出，不妨碍其它词书使用。
+      if (!blockedBooks.has(currentBookId) || savedStateSignature(S) !== lastSavedSignature) {
+        toast("当前词书未能保存，已保留在本页；请先导出进度备份后再切换");
+        return false;
+      }
+    }
     // 读取目标书记录；目标记录损坏时保护原文件（blocked）并先用空白记录，可由导入备份恢复
     let target = freshState(book);
     let targetRaw = null;
@@ -609,6 +699,7 @@
         const profRaw = localStorage.getItem(book.PROF_KEY);
         if (profRaw !== null) target.proficient = normalizeProficientByBook(JSON.parse(profRaw), book);
       } catch (e) { targetBlocked = true; }
+      target.proficient = mergePendingProficient(target.proficient, id);
     } catch (e) { targetBlocked = true; }
     if (opts.carry !== false) {
       for (const k of CARRY_SETTINGS) {
@@ -624,7 +715,9 @@
     S = target;
     loadSurvey();
     lastMainRaw = targetRaw;
+    lastSavedSignature = savedStateSignature(S);
     if (targetBlocked) blockedBooks.add(id); else blockedBooks.delete(id);
+    storageOK = !targetBlocked;
     if (opts.persist !== false) {
       try { localStorage.setItem(ACTIVE_KEY, id); } catch (e) { /* ignore */ }
       save();   // 落盘携带的界面偏好（目标记录损坏时自动跳过）
@@ -633,7 +726,8 @@
     detailWord = null;
     if (activeSheet) closeSheet();
     bindSet();
-    applyFilter();
+    restoreListUi(id);
+    applyFilter(false);
     renderStats();
     startSession();
     updateScopeCount();
@@ -650,100 +744,387 @@
     if (!id || id === currentBookId || !bookOf(id) || !BOOKS[id].available) return;
     switchBook(id, {silent: true, persist: false, carry: false});
   }
-  /** 导出 v3：包含全部可用词书 + activeBook；每本书 state 带 dv（数据版本） */
-  function buildExport(){
-    const books = {};
+  const APP_ID = "kaoyan-vocab";
+  const JOURNAL_KEY = "vocab_import_journal_v1";
+
+  /** 导出只读：最新独立熟练键 + 尚未落盘的增删操作；不修改 S。 */
+  function currentExportProficient(){
+    let stored = S.proficient;
+    try {
+      const raw = localStorage.getItem(PROF_KEY);
+      if (raw !== null) stored = normalizeProficientByBook(JSON.parse(raw), currentBook());
+    } catch (e) { /* 损坏/不可用时保留内存名单，collect 会给出警告 */ }
+    return mergePendingProficient(stored, currentBookId);
+  }
+  function exportStateSnapshot(st, book, includePending){
+    return JSON.parse(JSON.stringify({
+      dv: st.dv || book.dataVersion || 1,
+      settings: st.settings || DEF.settings, progress: st.progress || {}, days: st.days || {},
+      stars: st.stars || {}, proficient: includePending ? currentExportProficient() : (st.proficient || {}),
+      timeSec: st.timeSec || 0
+    }));
+  }
+  /**
+   * 只读收集全部词书。当前书用内存快照（可能含尚未落盘的学习进度），
+   * 熟练名单与最新存储及待写入操作合并；其他书只读存储，绝不改动内存。
+   */
+  function collectExportData(){
+    const books = {}, corrupted = [], warnings = [];
     for (const def of BOOK_DEFS) {
-      if (!BOOKS[def.id].available) continue;
-      let st = def.id === currentBookId ? S : getBookState(def.id);
-      if (!st) st = freshState(BOOKS[def.id]);
-      if (def.id !== currentBookId) {
-        try { st.proficient = readBookProficient(BOOKS[def.id], st.proficient); } catch (e) {}
+      const book = BOOKS[def.id];
+      if (!book.available) continue;
+      let raw = null, profRaw = null;
+      try {
+        raw = localStorage.getItem(book.KEY);
+        profRaw = localStorage.getItem(book.PROF_KEY);
+      } catch (e) {
+        if (def.id === currentBookId) {
+          warnings.push({id: def.id, name: book.name, reason: "memory-only"});
+          books[def.id] = exportStateSnapshot(S, book, true);
+        } else {
+          warnings.push({id: def.id, name: book.name, reason: "storage-unavailable"});
+        }
+        continue;
       }
-      books[def.id] = JSON.parse(JSON.stringify({
-        dv: st.dv || BOOKS[def.id].dataVersion || 1,
-        settings: st.settings, progress: st.progress, days: st.days,
-        stars: st.stars || {}, proficient: st.proficient || {}, timeSec: st.timeSec || 0
-      }));
+      if (def.id === currentBookId) {
+        if (raw !== null) {
+          try { normalizeState(JSON.parse(raw), def.id); }
+          catch (err) {
+            corrupted.push({id: def.id, name: book.name, raw: raw, proficient: profRaw, error: err.message});
+            continue;
+          }
+        }
+        books[def.id] = exportStateSnapshot(S, book, true);
+        if (profRaw !== null) {
+          try { normalizeProficientByBook(JSON.parse(profRaw), book); }
+          catch (err) { warnings.push({id: def.id, name: book.name, reason: "proficient-unreadable"}); }
+        }
+        continue;
+      }
+      if (raw === null) {
+        const empty = freshState(book);
+        empty.proficient = mergePendingProficient(empty.proficient, def.id);
+        books[def.id] = exportStateSnapshot(empty, book, false);
+        continue;
+      }
+      let state;
+      try { state = normalizeState(JSON.parse(raw), def.id); }
+      catch (err) {
+        corrupted.push({id: def.id, name: book.name, raw: raw, proficient: profRaw, error: err.message});
+        continue;
+      }
+      if (profRaw !== null) {
+        try { state.proficient = normalizeProficientByBook(JSON.parse(profRaw), book); }
+        catch (err) { warnings.push({id: def.id, name: book.name, reason: "proficient-unreadable"}); }
+      }
+      state.proficient = mergePendingProficient(state.proficient, def.id);
+      books[def.id] = exportStateSnapshot(state, book, false);
+    }
+    return {books: books, corrupted: corrupted, warnings: warnings};
+  }
+  function warningIds(warnings){
+    return warnings.map(w => w.reason === "proficient-unreadable"
+      ? w.name + "（熟练名单无法读取，已使用主记录中的名单）"
+      : w.reason === "memory-only"
+        ? w.name + "（存储不可用，已使用当前内存快照）"
+        : w.name + "（当前浏览器存储不可用，未包含）").join("；");
+  }
+  /** 导出 v3：全部可用词书；任一主记录损坏时拒绝常规导出，避免伪装成空白记录。 */
+  function buildExport(){
+    const data = collectExportData();
+    if (data.corrupted.length) {
+      const error = new Error("有词书的记录无法读取：" + data.corrupted.map(c => c.name).join("、")
+        + "。已停止常规导出，避免把损坏记录导出成空白；请使用救援导出保留原文。");
+      error.code = "EXPORT_CORRUPTED";
+      error.corrupted = data.corrupted;
+      throw error;
+    }
+    const out = {
+      app: APP_ID, version: 3, exportedAt: new Date().toISOString(),
+      activeBook: currentBookId, books: data.books
+    };
+    if (data.warnings.length) out.warnings = data.warnings.map(w => ({id: w.id, name: w.name, reason: w.reason}));
+    return out;
+  }
+  /** 救援导出：正常词书 + 损坏词书的原始文本；该文件明确标记为不可直接导入。 */
+  function buildRescueExport(){
+    const data = collectExportData();
+    return {
+      app: APP_ID, version: 3, exportedAt: new Date().toISOString(),
+      activeBook: currentBookId, rescue: true, books: data.books,
+      damaged: Object.fromEntries(data.corrupted.map(c => [c.id, {
+        name: c.name, state: c.raw, proficient: c.proficient, error: c.error
+      }])),
+      warnings: data.warnings.map(w => ({id: w.id, name: w.name, reason: w.reason}))
+    };
+  }
+
+  function validateBackupEnvelope(o){
+    if (!isRecord(o)) throw new Error("备份内容不是对象");
+    if (o.version === 2 || o.version === 3) {
+      if (o.app !== APP_ID) throw new Error("不是本应用的进度备份（应用标识不匹配）");
+      if (o.rescue) throw new Error("这是救援导出，包含损坏原文，不能直接导入；请先修复或重新导出正常备份");
+      if (!isRecord(o.books)) throw new Error("备份缺少词书记录");
+      return o.version;
+    }
+    if (o.version === undefined || o.version === 1) {
+      if (o.app !== undefined && o.app !== APP_ID) throw new Error("不是本应用的进度备份（应用标识不匹配）");
+      if (isRecord(o.books)) throw new Error("备份版本与内容不一致");
+      return 1;
+    }
+    throw new Error("不支持的备份版本");
+  }
+  function stateHasRecoverableContent(raw, state){
+    const has = o => isRecord(o) && Object.keys(o).length > 0;
+    if (has(raw.progress) || has(raw.stars) || has(raw.proficient)) return true;
+    if (isRecord(raw.days) && Object.values(raw.days).some(d => d && ((d.r || 0) > 0 || (d.n || 0) > 0))) return true;
+    if (nonnegative(raw.timeSec) && raw.timeSec > 0) return true;
+    // 只把显式改过的设置视为可恢复内容；默认设置的空备份仍然拒绝。
+    if (isRecord(raw.settings)) {
+      for (const [key, value] of Object.entries(raw.settings)) {
+        if (JSON.stringify(value) !== JSON.stringify(DEF.settings[key])) return true;
+      }
+    }
+    return !!(state && (Object.keys(state.progress || {}).length || Object.keys(state.stars || {}).length
+      || Object.keys(state.proficient || {}).length));
+  }
+  function backupLearnedCount(state){
+    return Object.values(state.progress || {}).filter(p => Array.isArray(p) && p[4] > 0).length;
+  }
+  function backupMasteredCount(state){
+    return Object.values(state.progress || {}).filter(p => Array.isArray(p) && p[0] >= MASTER).length;
+  }
+  /** 导入前摘要：完整校验但不写入任何存储，用于展示备份时间、各书记录量与替换范围。 */
+  function prepareImportPlan(o){
+    const version = validateBackupEnvelope(o);
+    if (version === 1) {
+      const state = normalizeState(o, "kaoyan");
+      if (!stateHasRecoverableContent(o, state)) throw new Error("备份中没有可恢复的学习记录");
+      return {
+        kind: "legacy", version: 1, exportedAt: null, activeBook: "kaoyan",
+        books: [{id: "kaoyan", name: BOOKS.kaoyan.name, learned: backupLearnedCount(state),
+          mastered: backupMasteredCount(state)}]
+      };
+    }
+    const books = [], seen = new Set();
+    for (const [id, raw] of Object.entries(o.books)) {
+      const book = bookOf(id);
+      if (!book || !book.available || seen.has(id)) continue;
+      seen.add(id);
+      const state = normalizeState(raw, id);
+      books.push({id: id, name: book.name, learned: backupLearnedCount(state),
+        mastered: backupMasteredCount(state), raw: raw});
+    }
+    if (!books.length) throw new Error("备份中没有可用于当前版本的词书记录");
+    if (!books.some(b => stateHasRecoverableContent(b.raw, normalizeState(b.raw, b.id)))) {
+      throw new Error("备份中没有可恢复的学习记录");
     }
     return {
-      app: "kaoyan-vocab", version: 3,
-      exportedAt: new Date().toISOString(),
-      activeBook: currentBookId,
+      kind: "books", version: version,
+      exportedAt: (typeof o.exportedAt === "string" && !Number.isNaN(Date.parse(o.exportedAt))) ? o.exportedAt : null,
+      activeBook: (typeof o.activeBook === "string" && bookOf(o.activeBook) && BOOKS[o.activeBook].available) ? o.activeBook : null,
       books: books
     };
   }
-  /** 导入旧版（v1 平铺）备份：固定按考研书解析，替换考研学习记录、保留考研已有熟练标记 */
-  function importLegacyV1(o){
-    const imported = normalizeState(o, "kaoyan");
-    if (currentBookId === "kaoyan") {
-      // Importing an older backup cannot silently undo permanent manual exclusions.
-      try { syncProficientFromStorage(); } catch (e) {}
-      imported.proficient = Object.assign({}, S.proficient, imported.proficient);
-      S = imported;
-      blockedBooks.delete(currentBookId);
-      const saved = save(true, true);
-      bindSet(); applyFilter(); renderStats(); startSession();
-      if (activeSheet) closeSheet();
-      renderBookList();
-      toast(saved ? "进度已导入（原有熟练标记已保留）" : "进度已导入，但未能保存；请导出备份");
-    } else {
-      // 当前在四/六级：只恢复考研书，不强制切书
-      const existing = getBookState("kaoyan") || freshState(BOOKS.kaoyan);
-      try { existing.proficient = readBookProficient(BOOKS.kaoyan, existing.proficient); } catch (e) {}
-      imported.proficient = Object.assign({}, existing.proficient, imported.proficient);
-      const saved = writeBookState("kaoyan", imported);
-      if (activeSheet) closeSheet();
-      renderBookList();
-      toast(saved
-        ? "考研记录已导入（当前仍在「" + currentBook().name + "」）"
-        : "考研记录已导入，但未能保存；请检查浏览器存储");
+
+  function captureStorageKeys(ids){
+    const keys = {};
+    for (const id of ids) {
+      const book = BOOKS[id];
+      if (!book) continue;
+      keys[book.KEY] = localStorage.getItem(book.KEY);
+      keys[book.PROF_KEY] = localStorage.getItem(book.PROF_KEY);
     }
-    return S;
+    keys[ACTIVE_KEY] = localStorage.getItem(ACTIVE_KEY);
+    return keys;
   }
-  /**
-   * 导入 v2/v3 全量备份：先整份校验，任一非法整份拒绝；逐本合入（保留已有熟练标记），
-   * activeBook 合法则切换。v2（无 dv）按 v1 逐书迁移后再校验；v3 记录带 dv。
-   */
-  function importBooksBackup(o){
-    if (o.version !== 2 && o.version !== 3) throw new Error("不支持的备份版本");
-    const entries = [];
-    for (const [id, raw] of Object.entries(o.books || {})) {
-      const book = bookOf(id);
-      if (!book || !book.available) continue;   // 本版本没有该词书数据 → 跳过，不视为损坏
-      entries.push({id: id, state: normalizeState(raw, id)});   // 任一非法直接抛错，零改动
+  function beginImportJournal(ids){
+    try {
+      if (localStorage.getItem(JOURNAL_KEY)) {
+        throw new Error("发现上次未完成的导入恢复点，请先在页面提示中恢复导入前记录，再重新导入");
+      }
+    } catch (e) {
+      if (e && e.message && e.message.includes("恢复点")) throw e;
+      throw new Error("浏览器存储不可用，导入未开始，现有记录未改动");
     }
+    const originals = captureStorageKeys(ids);
+    try { localStorage.setItem(JOURNAL_KEY, JSON.stringify({at: new Date().toISOString(), keys: originals})); }
+    catch (e) { throw new Error("无法创建导入恢复点（浏览器存储空间不足），导入未开始，现有记录未改动"); }
+    return originals;
+  }
+  function rollbackImportJournal(originals){
+    try {
+      for (const [key, value] of Object.entries(originals)) {
+        if (value === null || value === undefined) localStorage.removeItem(key);
+        else localStorage.setItem(key, value);
+      }
+      localStorage.removeItem(JOURNAL_KEY);
+      return true;
+    } catch (e) { return false; }
+  }
+  function endImportJournal(){
+    try { localStorage.removeItem(JOURNAL_KEY); } catch (e) { /* ignore */ }
+  }
+  function recoverImportJournal(){
+    let journal;
+    try {
+      const raw = localStorage.getItem(JOURNAL_KEY);
+      journal = raw ? JSON.parse(raw) : null;
+      if (!journal || !isRecord(journal.keys)) throw new Error("恢复日志格式不正确");
+      for (const [key, value] of Object.entries(journal.keys)) {
+        if (value === null || value === undefined) localStorage.removeItem(key);
+        else localStorage.setItem(key, value);
+      }
+      localStorage.removeItem(JOURNAL_KEY);
+    } catch (e) {
+      showAlert("导入恢复失败", "恢复日志无法读取或写入：" + (e.message || "存储不可用") + "。请不要继续导入，先导出救援备份。", {kind: "import"});
+      return false;
+    }
+    try {
+      currentBookId = pickActiveBook(localStorage.getItem(ACTIVE_KEY));
+    } catch (e) { /* 保持当前书 */ }
+    const active = currentBook();
+    KEY = active.KEY; PROF_KEY = active.PROF_KEY; SURVEY_KEY = active.SURVEY_KEY;
+    W = active.words; wordIndex = active.wordIndex;
+    load();
+    bindSet(); restoreListUi(currentBookId); applyFilter(false); renderStats(); startSession();
+    updateBar(); renderBookList(); applyBrand();
+    clearAlert("import");
+    toast("已恢复上次导入前的记录");
+    return true;
+  }
+  function importFailureMessage(error, names){
+    return (error && error.message ? error.message : "导入未完成")
+      + (names && names.length ? "（受影响词书：" + names.join("、") + "）" : "");
+  }
+  function importCommittedState(entries, o){
     const failed = [];
     for (const entry of entries) {
       const id = entry.id, state = entry.state;
       if (id === currentBookId) {
-        try { syncProficientFromStorage(); } catch (e) {}
+        try { syncProficientFromStorage(); } catch (e) { /* 保留当前可用名单 */ }
         state.proficient = Object.assign({}, S.proficient, state.proficient);
         S = state;
         blockedBooks.delete(id);
         if (!save(true, true)) failed.push(id);
       } else {
         const existing = getBookState(id) || freshState(BOOKS[id]);
-        try { existing.proficient = readBookProficient(BOOKS[id], existing.proficient); } catch (e) {}
+        try { existing.proficient = readBookProficient(BOOKS[id], existing.proficient); } catch (e) { /* ignore */ }
         state.proficient = Object.assign({}, existing.proficient, state.proficient);
         if (!writeBookState(id, state)) failed.push(id);
       }
     }
+    if (failed.length) throw new Error(importFailureMessage(new Error("导入未能全部保存"), failed.map(id => BOOKS[id].name)));
     const target = (typeof o.activeBook === "string"
       && bookOf(o.activeBook) && BOOKS[o.activeBook].available) ? o.activeBook : null;
-    // 当前书尚未落盘时保留其内存记录，供用户立即导出；失败的目标书也不切入空白记录。
-    if (target && target !== currentBookId && !failed.includes(currentBookId) && !failed.includes(target)) {
-      switchBook(target, {carry: false, silent: true});
-    }
+    if (target && target !== currentBookId) switchBook(target, {carry: false, silent: true});
     else {
-      bindSet(); applyFilter(); renderStats(); startSession(); updateBar();
+      bindSet(); applyFilter(false); renderStats(); startSession(); updateBar();
       if (activeSheet) closeSheet();
       renderBookList();
     }
-    toast(failed.length
-      ? "导入未全部保存（" + failed.map(id => BOOKS[id].name).join("、") + "）；请释放浏览器存储空间后重新导入备份"
-      : "进度已导入（备份中词书的记录已恢复，原有熟练标记已保留）");
+    endImportJournal();
+    toast("进度已导入（备份中词书的记录已恢复，原有熟练标记已保留）");
     return S;
+  }
+  /** 导入旧版（v1 平铺）备份：固定按考研书解析，替换考研学习记录、保留考研已有熟练标记 */
+  function importLegacyV1(o){
+    validateBackupEnvelope(o);
+    const imported = normalizeState(o, "kaoyan");
+    if (!stateHasRecoverableContent(o, imported)) throw new Error("备份中没有可恢复的学习记录");
+    const originals = beginImportJournal(["kaoyan"]);
+    const beforeS = JSON.parse(JSON.stringify(S));
+    const beforeBook = currentBookId;
+    const beforeBlocked = new Set(blockedBooks);
+    const beforeRaw = lastMainRaw;
+    const beforeSig = lastSavedSignature;
+    const beforeStorageOK = storageOK;
+    const beforePending = snapshotPendingProf();
+    try {
+      if (currentBookId === "kaoyan") {
+        // Importing an older backup cannot silently undo permanent manual exclusions.
+        try { syncProficientFromStorage(); } catch (e) { /* keep memory */ }
+        imported.proficient = Object.assign({}, S.proficient, imported.proficient);
+        S = imported;
+        blockedBooks.delete(currentBookId);
+        if (!save(true, true)) throw new Error("考研记录未能保存");
+        bindSet(); applyFilter(false); renderStats(); startSession();
+        if (activeSheet) closeSheet();
+        renderBookList();
+      } else {
+        // 当前在四/六级：只恢复考研书，不强制切书
+        const existing = getBookState("kaoyan") || freshState(BOOKS.kaoyan);
+        try { existing.proficient = readBookProficient(BOOKS.kaoyan, existing.proficient); } catch (e) { /* ignore */ }
+        imported.proficient = Object.assign({}, existing.proficient, imported.proficient);
+        if (!writeBookState("kaoyan", imported)) throw new Error("考研记录未能保存");
+        if (activeSheet) closeSheet();
+        renderBookList();
+      }
+      endImportJournal();
+      toast("进度已导入（原有熟练标记已保留）");
+      return S;
+    } catch (err) {
+      if (rollbackImportJournal(originals)) {
+        S = beforeS; currentBookId = beforeBook;
+        blockedBooks.clear(); beforeBlocked.forEach(id => blockedBooks.add(id));
+        lastMainRaw = beforeRaw; lastSavedSignature = beforeSig;
+        storageOK = beforeStorageOK;
+        restorePendingProf(beforePending);
+        KEY = BOOKS[currentBookId].KEY; PROF_KEY = BOOKS[currentBookId].PROF_KEY;
+        SURVEY_KEY = BOOKS[currentBookId].SURVEY_KEY;
+        W = BOOKS[currentBookId].words; wordIndex = BOOKS[currentBookId].wordIndex;
+        bindSet(); applyFilter(false); renderStats(); startSession(); updateBar(); renderBookList();
+        throw new Error(err.message + "；已回滚到导入前记录");
+      }
+      throw new Error("导入中断且自动回滚失败；恢复日志与损坏原文已保留，请立即导出救援备份");
+    }
+  }
+  /**
+   * 导入 v2/v3 全量备份：先整份校验，任一非法整份拒绝；建立恢复点后逐本合入，
+   * 任一写入失败即整体回滚。activeBook 合法则切换。v2（无 dv）按 v1 逐书迁移后再校验。
+   */
+  function importBooksBackup(o){
+    validateBackupEnvelope(o);
+    const entries = [];
+    let hasContent = false;
+    for (const [id, raw] of Object.entries(o.books)) {
+      const book = bookOf(id);
+      if (!book || !book.available) continue;
+      const state = normalizeState(raw, id);   // 任一非法直接抛错，零改动
+      if (stateHasRecoverableContent(raw, state)) hasContent = true;
+      entries.push({id: id, state: state});
+    }
+    if (!entries.length) throw new Error("备份中没有可用于当前版本的词书记录");
+    if (!hasContent) throw new Error("备份中没有可恢复的学习记录");
+    const originals = beginImportJournal(entries.map(e => e.id));
+    const beforeS = JSON.parse(JSON.stringify(S));
+    const beforeBook = currentBookId;
+    const beforeBlocked = new Set(blockedBooks);
+    const beforeRaw = lastMainRaw;
+    const beforeSig = lastSavedSignature;
+    const beforeStorageOK = storageOK;
+    const beforePending = snapshotPendingProf();
+    try {
+      return importCommittedState(entries, o);
+    } catch (err) {
+      const rolled = rollbackImportJournal(originals);
+      if (rolled) {
+        S = beforeS;
+        if (currentBookId !== beforeBook) {
+          currentBookId = beforeBook;
+          const book = currentBook();
+          KEY = book.KEY; PROF_KEY = book.PROF_KEY; SURVEY_KEY = book.SURVEY_KEY;
+          W = book.words; wordIndex = book.wordIndex;
+        }
+        blockedBooks.clear(); beforeBlocked.forEach(id => blockedBooks.add(id));
+        lastMainRaw = beforeRaw; lastSavedSignature = beforeSig;
+        storageOK = beforeStorageOK;
+        restorePendingProf(beforePending);
+        bindSet(); applyFilter(false); renderStats(); startSession(); updateBar(); renderBookList();
+        throw new Error(err.message + "；已回滚到导入前记录");
+      }
+      throw new Error("导入中断且自动回滚失败；恢复日志与损坏原文已保留，请立即导出救援备份");
+    }
   }
 
 
@@ -774,6 +1155,12 @@
     return S.days[k];
   }
   function st(i){ return S.progress[i]; }
+  /**
+   * 主学习过的判据：p[4] 是主判定时间。特训可为未学词建立 [0,0,0,错次,0]
+   * 占位记录，它只属于错词本，不应算新词额度、应继续按新词入队。
+   */
+  function hasMainProgress(p){ return !!p && p[4] > 0; }
+  function isMainLearned(i){ return hasMainProgress(st(i)); }
   function isMastered(i){ const p = st(i); return p && p[0] >= MASTER; }
   function isProficient(i){ return !!(W[i] && Object.prototype.hasOwnProperty.call(S.proficient, W[i].w)); }
   function proficientCount(){ return Object.keys(S.proficient).length; }
@@ -809,9 +1196,24 @@
     } catch (e) { /* 抽样记录损坏不影响主进度 */ }
     return out;
   }
-  function loadSurvey(){ SURVEY = readSurvey(currentBook()); }
+  function loadSurvey(){
+    SURVEY = readSurvey(currentBook());
+    lastSurvey = Object.assign({}, SURVEY);
+  }
   function saveSurvey(){
-    try { localStorage.setItem(SURVEY_KEY, JSON.stringify(SURVEY)); return true; }
+    try {
+      // storage 事件可能尚未送达；只写本标签修改过的词，保留其它标签的新样本。
+      const merged = readSurvey(currentBook());
+      for (const w of new Set([...Object.keys(lastSurvey), ...Object.keys(SURVEY)])) {
+        if (SURVEY[w] === lastSurvey[w]) continue;
+        if (Object.prototype.hasOwnProperty.call(SURVEY, w)) merged[w] = SURVEY[w];
+        else delete merged[w];
+      }
+      localStorage.setItem(SURVEY_KEY, JSON.stringify(merged));
+      SURVEY = merged;
+      lastSurvey = Object.assign({}, merged);
+      return true;
+    }
     catch (e) { return false; }
   }
   function surveyStats(){
@@ -839,6 +1241,7 @@
   }
   function resetSurvey(){
     SURVEY = {};
+    lastSurvey = {};
     try { localStorage.removeItem(SURVEY_KEY); } catch (e) { /* ignore */ }
     renderSurvey();
   }
@@ -852,34 +1255,47 @@
       if (show) {
         const val = $("#s-survey"), ci = $("#s-survey-ci");
         if (val) val.textContent = stats.n ? surveyPct(stats.rate) : "—";
-        if (ci) ci.textContent = stats.n ? "±" + Math.round(stats.margin * 100) + "%" : "";
+        if (ci) ci.textContent = stats.n ? "95% 区间 " + surveyPct(stats.lo) + "–" + surveyPct(stats.hi) : "";
         chip.title = stats.n
-          ? "随机抽样估计：已抽 " + stats.n + " 词（首次会 " + stats.k + " / 不会 " + stats.missed +
+          ? "历史首次自评样本：已记录 " + stats.n + " 词（首次就会 " + stats.k + " / 不会 " + stats.missed +
             "）；95% 置信区间 " + surveyPct(stats.lo) + "–" + surveyPct(stats.hi) +
-            "。只统计乱序模式下首次作答的新词。"
-          : "乱序模式下每张首次作答的新词都相当于一次随机抽查，背几词后这里显示词书掌握率估计。";
+            "。只含各次乱序学习中首次作答的新词，筛选范围可能已经变化，不代表当前范围或全书掌握率。"
+          : "乱序模式下首次作答的新词会留下自评样本；这里展示历史样本的描述性统计，不代表全书掌握率。";
       }
     }
     const kpis = $("#surveyKpis");
     if (kpis) {
       kpis.innerHTML = stats.n
-        ? [[surveyPct(stats.rate), "掌握率估计"],
+        ? [[surveyPct(stats.rate), "历史首次就会"],
            [surveyPct(stats.lo) + "–" + surveyPct(stats.hi), "95% 置信区间"],
-           [stats.n + " 词", "已抽样本"]]
+           [stats.n + " 词", "历史样本"]]
             .map(([a, b]) => '<div class="kpi"><b>' + a + "</b><span>" + b + "</span></div>").join("")
-        : '<div class="kpi"><b>—</b><span>还没有抽样</span></div>';
+        : '<div class="kpi"><b>—</b><span>还没有历史样本</span></div>';
+    }
+    const gauge = $("#surveyGauge");
+    if (gauge) {
+      const axis = '<div class="sg-axis"><span>0%</span><span>50%</span><span>100%</span></div>';
+      gauge.innerHTML = stats.n
+        ? axis +
+          '<div class="sg-track" role="img" aria-label="历史首次自评比例 ' + surveyPct(stats.rate) +
+            "，95% 置信区间 " + surveyPct(stats.lo) + " 到 " + surveyPct(stats.hi) + '">' +
+            '<i class="sg-band" style="left:' + (stats.lo * 100) + "%;width:" + ((stats.hi - stats.lo) * 100) + '%"></i>' +
+            '<b class="sg-dot" style="left:clamp(6px,' + (stats.rate * 100) + '%,calc(100% - 6px))"></b>' +
+          "</div>" +
+          '<div class="sg-note">实心点 = 样本估计 · 色带 = 95% 置信区间</div>'
+        : axis + '<div class="sg-track sg-empty"></div><div class="sg-note">还没有样本可绘制区间</div>';
     }
     const hint = $("#surveyHint");
     if (hint) {
       const mode = S.settings.order === "shuffle";
       hint.textContent = !stats.n
         ? (mode
-            ? "乱序模式下，随机顺序抽到的新词就是一次随机抽查：首次答「会」记为已掌握。背几词后这里会给出掌握率估计。"
-            : "当前不是乱序模式。切到「乱序」后，首次作答的新词会自动计入随机抽样。")
+            ? "乱序模式首次作答的新词会留下自评样本。这里只描述你实际抽到过的词，样本范围随当时筛选变化，不代表当前范围或全书掌握率。"
+            : "当前不是乱序模式。切到「乱序」后，首次作答的新词才会留下历史自评样本。")
         : (!mode
-            ? "已抽 " + stats.n + " 词，其中 " + stats.k + " 词首次就会。当前不是乱序模式，样本不再增加；切回「乱序」可继续累计。"
-            : "已抽 " + stats.n + " 词，其中 " + stats.k + " 词首次就会、" + stats.missed +
-              " 词不会。样本越多，区间越窄；复习与错词特训不计入。");
+            ? "历史样本：" + stats.n + " 词，其中 " + stats.k + " 词首次就会。当前不是乱序模式，样本不再增加；切回「乱序」可继续累计。"
+            : "历史样本：" + stats.n + " 词，其中 " + stats.k + " 词首次就会、" + stats.missed +
+              " 词不会。这些词来自不同时间的乱序筛选，不能外推为当前范围或全书掌握率；复习与错词特训不计入。");
     }
   }
 
@@ -887,8 +1303,10 @@
   function setProficient(i, value){
     if (storageOK) { try { syncProficientFromStorage(); } catch (e) {} }
     if (!W[i] || isProficient(i) === !!value) return;
+    const word = W[i].w;
     if (value) {
-      S.proficient[W[i].w] = Date.now();
+      S.proficient[word] = Date.now();
+      markProfPending(currentBookId, word, true, S.proficient[word]);
       if (cur === i && phase === "revealed") qi++;
       Q = Q.slice(0, qi).concat(Q.slice(qi).filter(k => k !== i));
       undoStack = [];
@@ -896,19 +1314,21 @@
       if (mainSnap) mainSnap.undoStack = [];
       if (cur === i) nextCard();
     } else {
-      delete S.proficient[W[i].w];
+      delete S.proficient[word];
+      markProfPending(currentBookId, word, false);
       // Keep its previous review schedule. The next session will include it when due.
       undoStack = [];
     }
     const saved = save(true);
-    renderCard(); updateScopeCount(); applyFilter(false); renderStats(); updateBar();
-    toast(saved ? (value ? "已标为熟练，今后不再进入背诵或复习" : "已取消熟练，下组将按原进度安排学习")
+    renderCard(); updateScopeCount(); syncFreqControls(); applyFilter(false); renderStats(); updateBar();
+    toast(saved ? (value ? "已移出背诵与复习；可在词表筛选「熟练」后取消" : "已取消熟练，下组将按原进度安排学习")
       : "熟练状态已更新，但未能保存；请立即导出进度备份");
   }
   function resetProficient(){
+    for (const word of Object.keys(S.proficient)) markProfPending(currentBookId, word, false);
     S.proficient = {};
     const saved = save(true);
-    startSession(); updateScopeCount(); applyFilter(); renderStats(); updateBar();
+    startSession(); updateScopeCount(); syncFreqControls(); applyFilter(); renderStats(); updateBar();
     toast(saved ? "已清空熟练标记，按原进度恢复学习" : "已清空熟练标记，但未能保存；请导出备份");
   }
 
@@ -926,14 +1346,88 @@
       .split(/([A-Za-z]+(?:['’][A-Za-z]+)*)/g)
       .filter(s => s !== "");
   }
-  /** 例句 → 可点词 HTML（英文词包 button，其余原样转义） */
-  function exHtml(text){
+  /** 当前词与词典明确给出的屈折词形；不借助查词回退猜测派生词。 */
+  function exampleWordForms(currentWord){
+    const word = typeof currentWord === "string" ? currentWord : currentWord && currentWord.w;
+    const base = String(word || "").toLowerCase();
+    const entry = typeof currentWord === "string" ? W[wordIndex.get(base)] : currentWord;
+    const forms = new Set(/^[a-z]+$/.test(base) ? [base] : []);
+    for (const field of String(entry && entry.fm || "").split(/[；;]/)) {
+      const match = field.trim().match(/^(?:复数|过去式|过去分词|现在分词|第三人称单数|比较级|最高级)\s+([a-z]+(?:\s*\/\s*[a-z]+)*)$/i);
+      if (match) for (const form of match[1].split("/")) forms.add(form.trim().toLowerCase());
+    }
+    return forms;
+  }
+  /** 例句来源徽标：真题（可跨词书）/ 自编 / 词典。 */
+  function srcBadge(src){
+    const s=String(src||"");
+    if(!s) return "例句";
+    if(s==="自编"||s==="自编例句") return "自编例句";
+    if(s==="词典例句") return "词典例句";
+    return "真题例句 · "+s;
+  }
+  /** 例句 → 可点词 HTML；当前词及其已知词形用 strong 强调，其余原样转义。 */
+  function exHtml(text, currentWord){
+    const forms = exampleWordForms(currentWord);
+    const lemma = String((typeof currentWord === "string" ? currentWord : currentWord && currentWord.w) || "").toLowerCase();
     return exTokens(text).map(part => {
       if (/^[A-Za-z]/.test(part)) {
-        return '<button type="button" class="ex-word" data-exw="' + esc(part) + '">' + esc(part) + "</button>";
+        const current = forms.has(part.toLowerCase());
+        // 例句整体只有一个键盘入口；词本身不再各占一个 Tab 停靠点。
+        return '<span class="ex-word' + (current ? " ex-current" : "") + '" data-exw="' + esc(part) + '" tabindex="-1"'
+          + (current ? ' data-exlemma="' + esc(lemma) + '"' : "") + '>'
+          + (current ? "<strong>" + esc(part) + "</strong>" : esc(part)) + "</span>";
       }
       return esc(part);
     }).join("");
+  }
+  /* 可选义项证据：始终按词书与单词文本读取，不接触学习记录或进度下标。 */
+  function wordSenseEntry(x){
+    const data = window.WORD_SENSES;
+    const object = v => v && typeof v === "object" && !Array.isArray(v);
+    const own = (v, key) => object(v) && Object.prototype.hasOwnProperty.call(v, key);
+    if (!x || typeof x.w !== "string" || !object(data) || data.schemaVersion !== 1
+        || !own(data.books, currentBookId) || !own(data.books[currentBookId], x.w)) return null;
+    const entry = data.books[currentBookId][x.w];
+    if (!object(entry) || !Array.isArray(entry.preferred) || !entry.preferred.length
+        || typeof entry.additional !== "string") return null;
+    for (const sense of entry.preferred) {
+      if (!object(sense) || typeof sense.meaning !== "string" || !sense.meaning.trim()
+          || !Array.isArray(sense.examples) || !sense.examples.length) return null;
+      for (const example of sense.examples) {
+        if (!object(example) || !["source", "quote", "surface"].every(k => typeof example[k] === "string" && example[k].trim())
+            || (example.label !== undefined && typeof example.label !== "string")
+            || !example.quote.replace(/\s+/g, " ").toLowerCase().includes(example.surface.replace(/\s+/g, " ").toLowerCase())) return null;
+      }
+    }
+    return entry;
+  }
+  /** 真题语境义与词典补充分别显示；无有效证据文件时完整降级到原释义。 */
+  function meaningHtml(x, compact = false){
+    const entry = wordSenseEntry(x);
+    if (!entry) {
+      return '<div class="sense-dictionary">' + esc(x.m || "（暂无词典释义，请参考例句）") + '</div>'
+        + '<p class="sense-note">释义已按真题考义整理；例句点词可查义。</p>';
+    }
+    if (compact) {
+      return '<div class="sense-popup">' + entry.preferred.map(s => esc(s.meaning)).join("；") + '</div>'
+        + '<p class="sense-note">本书真题已核对义项优先；原句与其他释义见详情。</p>';
+    }
+    const preferred = entry.preferred.map(sense =>
+      '<li class="sense-item"><div class="sense-meaning">' + esc(sense.meaning) + '</div>'
+      + '<details class="sense-evidence"><summary>查看原句与出处</summary>'
+      + sense.examples.map(example => '<div class="sense-example" data-ex-linked="1">'
+        + '<p class="sense-quote" lang="en" data-ex-linked="1" tabindex="0" role="group" aria-expanded="false" aria-label="例句，左右方向键选词，回车查义">' + exHtml(example.quote, x) + '</p>'
+        + '<p class="sense-source">' + esc(example.label || example.source) + '</p></div>').join("")
+      + '</details></li>'
+    ).join("");
+    const additional = entry.additional.trim()
+      ? '<details class="sense-additional"><summary>其他词典释义</summary>'
+        + '<div class="sense-additional-meaning">' + esc(entry.additional) + '</div>'
+        + '<p class="sense-note">这些释义尚未逐义核验，不代表历年真题未考。</p></details>' : "";
+    return '<div class="sense-block"><p class="sense-label">本书真题已核对义项</p>'
+      + '<ol class="sense-preferred">' + preferred + '</ol>' + additional
+      + '<p class="sense-note">按已核对原句前置，仅覆盖所列语境；尚未穷尽历年全部用法。</p></div>';
   }
   /** 轻量屈折还原后在词库中找词，找不到返回 -1 */
   function lookupExWord(token){
@@ -966,12 +1460,30 @@
     }
     return -1;
   }
-  /** 例句点词浮层 */
+  let exPopReturn = null;
+  function exContainerOf(el){
+    return el && el.closest ? el.closest("[data-ex-linked]") : null;
+  }
+  function setExActive(container, wordEl){
+    if (!container || !container.querySelectorAll) return;
+    const words = Array.from(container.querySelectorAll(".ex-word"));
+    for (const word of words) word.classList.toggle("ex-active", word === wordEl);
+    if (wordEl) {
+      container.setAttribute?.("aria-label", "例句，当前选中 " + (wordEl.getAttribute?.("data-exw") || wordEl.textContent)
+        + "，左右方向键选词，回车查义");
+    }
+  }
+  /** 例句查词浮层：键盘入口在整句，打开后焦点进入浮层，Esc 回到触发词。 */
   function showExPop(token, anchor){
     const pop = $("#exPop");
     if (!pop) return;
-    const i = lookupExWord(token);
+    // 高亮词已由该词条的明确词形生成，直接沿用其原形，支持 took/canned 等变化。
+    const lemmaIndex = typeof anchor?.dataset?.exlemma === "string" ? wordIndex.get(anchor.dataset.exlemma) : undefined;
+    const i = lemmaIndex === undefined ? lookupExWord(token) : lemmaIndex;
     const raw = String(token == null ? "" : token);
+    const trigger = exContainerOf(anchor);
+    exPopReturn = trigger ? {trigger: trigger, word: anchor} : null;
+    if (trigger) trigger.setAttribute?.("aria-expanded", "true");
     if (i < 0) {
       pop.innerHTML =
         '<div class="ex-pop-w">' + esc(raw) + "</div>" +
@@ -982,7 +1494,7 @@
         '<div class="ex-pop-w">' + esc(x.w) +
           (x.ph ? ' <span class="ex-pop-ph">/' + esc(x.ph) + "/</span>" : "") +
         "</div>" +
-        '<div class="ex-pop-m">' + esc(x.m || "（暂无释义）") + "</div>" +
+        '<div class="ex-pop-m">' + meaningHtml(x, true) + "</div>" +
         '<div class="ex-pop-meta">词频 #' + x.r + " · " + x.f + " 次 / " + x.c + " 套卷</div>" +
         '<div class="ex-pop-acts">' +
           '<button type="button" class="btn ghost sm" id="exPopDetail">详情</button>' +
@@ -1002,6 +1514,7 @@
     }
     pop.hidden = false;
     pop.classList.add("on");
+    pop.setAttribute?.("aria-expanded", "true");
     // 就近定位（失败则居中偏下）
     try {
       const r = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : null;
@@ -1024,23 +1537,77 @@
       pop.style.top = "40%";
       pop.style.transform = "translate(-50%, 0)";
     }
+    pop.focus?.({ preventScroll: true });
   }
-  function hideExPop(){
+  function hideExPop(restoreFocus){
     const pop = $("#exPop");
     if (!pop) return;
+    const previous = exPopReturn;
+    exPopReturn = null;
     pop.hidden = true;
     pop.classList.remove("on");
+    pop.setAttribute?.("aria-expanded", "false");
+    if (previous && previous.trigger) previous.trigger.setAttribute?.("aria-expanded", "false");
+    if (restoreFocus && previous && previous.trigger) {
+      setExActive(previous.trigger, previous.word);
+      const target = previous.word && previous.word.isConnected !== false ? previous.word : previous.trigger;
+      target.focus?.({ preventScroll: true });
+    }
   }
   function bindExLookup(root){
     if (!root || root.__exLookupBound) return;
     root.__exLookupBound = true;
     root.addEventListener("click", (e) => {
       const t = e.target;
-      const btn = t && t.closest ? t.closest(".ex-word") : null;
-      if (!btn) return;
+      const wordEl = t && t.closest ? t.closest(".ex-word") : null;
+      if (!wordEl) return;
       e.preventDefault();
       e.stopPropagation();
-      showExPop(btn.getAttribute("data-exw") || btn.textContent, btn);
+      const container = exContainerOf(wordEl);
+      if (container) setExActive(container, wordEl);
+      showExPop(wordEl.getAttribute("data-exw") || wordEl.textContent, wordEl);
+    });
+    root.addEventListener("focusin", (e) => {
+      const container = exContainerOf(e.target);
+      if (!container || (root.contains && !root.contains(container))) return;
+      const wordEl = e.target.closest ? e.target.closest(".ex-word") : null;
+      if (wordEl) setExActive(container, wordEl);
+      else {
+        const first = container.querySelector(".ex-word");
+        if (first && !container.querySelector(".ex-word.ex-active")) setExActive(container, first);
+      }
+    });
+    root.addEventListener("keydown", (e) => {
+      const container = exContainerOf(e.target);
+      if (!container) return;
+      const words = Array.from(container.querySelectorAll ? container.querySelectorAll(".ex-word") : []);
+      if (!words.length) return;
+      const active = container.querySelector(".ex-word.ex-active");
+      let index = words.indexOf(active);
+      if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.key === "Home") index = 0;
+        else if (e.key === "End") index = words.length - 1;
+        else if (index < 0) index = 0;
+        else index = (index + (e.key === "ArrowRight" ? 1 : -1) + words.length) % words.length;
+        setExActive(container, words[index]);
+        words[index].focus?.({ preventScroll: true });
+        return;
+      }
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        e.stopPropagation();
+        const wordEl = active || words[0];
+        setExActive(container, wordEl);
+        showExPop(wordEl.getAttribute("data-exw") || wordEl.textContent, wordEl);
+        return;
+      }
+      if (e.key === "Escape" && !$("#exPop").hidden) {
+        e.preventDefault();
+        e.stopPropagation();
+        hideExPop(true);
+      }
     });
   }
 
@@ -1050,6 +1617,8 @@
     const sysDark = !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
     const dark = (t === "dark") || (t === "auto" && sysDark);
     document.documentElement.dataset.theme = dark ? "dark" : "light";
+    const themeColor = $('meta[name="theme-color"]');
+    themeColor?.setAttribute?.("content", dark ? "#1B1916" : "#F6F3ED");
     $$("#themeSeg button").forEach(b => {
       b.classList.toggle("on", b.dataset.theme === t);
       b.setAttribute?.("aria-pressed", String(b.dataset.theme === t));
@@ -1064,10 +1633,8 @@
   } catch (e) {}
 
   /* ================= 词库筛选 ================= */
-  function inScope(i){
-    const x = W[i], s = S.settings;
-    if (x.f < (s.fmin || 1)) return false;
-    if (s.fmax && x.f > s.fmax) return false;
+  function passBaseFilters(x){
+    const s = S.settings;
     if (s.pmin && x.c < s.pmin) return false;
     if (s.kyOnly && x.ky !== 1) return false;
     const sel = s.pos || [];
@@ -1081,6 +1648,378 @@
       if (!hit) return false;
     }
     return true;
+  }
+  function inScope(i){
+    const x = W[i], s = S.settings;
+    if (x.f < (s.fmin || 1)) return false;
+    if (s.fmax && x.f > s.fmax) return false;
+    return passBaseFilters(x);
+  }
+
+  /* ================= 词频分布曲线 + 双端滑块 ================= */
+  const FREQ_BINS = 20;
+  const FREQ_POS_MAX = 1000;
+  function bookMaxFreq(){
+    let m = 1;
+    for (let i = 0; i < W.length; i++) {
+      const f = W[i].f;
+      if (f > m) m = f;
+    }
+    return m;
+  }
+  /** 对数刻度：1 次在最左，maxF 次在最右 */
+  function freqToPos(f, maxF){
+    maxF = Math.max(1, maxF || 1);
+    if (maxF <= 1) return 0;
+    const v = Math.max(1, Math.min(maxF, +f || 1));
+    return Math.round(Math.log(v) / Math.log(maxF) * FREQ_POS_MAX);
+  }
+  /** 1000 = 不限（仅上界）；下界 1000 = maxF */
+  function posToFreq(pos, maxF, unlimited){
+    pos = Math.max(0, Math.min(FREQ_POS_MAX, Math.round(+pos || 0)));
+    if (unlimited && pos >= FREQ_POS_MAX) return 0;
+    maxF = Math.max(1, maxF || 1);
+    if (maxF <= 1) return 1;
+    return Math.max(1, Math.min(maxF, Math.round(Math.pow(maxF, pos / FREQ_POS_MAX))));
+  }
+  function freqBinLayout(){
+    const maxF = bookMaxFreq();
+    const B = Math.max(1, Math.min(FREQ_BINS, maxF));
+    const bnd = [1];
+    for (let b = 1; b <= B; b++) {
+      bnd[b] = Math.min(maxF, Math.max(bnd[b - 1] + 1, Math.round(Math.pow(maxF, b / B))));
+    }
+    bnd[B] = maxF;
+    return { maxF: maxF, B: B, bnd: bnd };
+  }
+  /** 只按套卷/大纲/词性过滤，不受词频区间影响，拖动滑块时柱形保持稳定 */
+  function freqHistogram(){
+    const layout = freqBinLayout();
+    const bins = new Array(layout.B).fill(0);
+    let total = 0;
+    for (let i = 0; i < W.length; i++) {
+      const x = W[i];
+      if (!passBaseFilters(x)) continue;
+      total++;
+      let b = 0;
+      while (b < layout.B - 1 && x.f >= layout.bnd[b + 1]) b++;
+      bins[b]++;
+    }
+    return {
+      maxF: layout.maxF,
+      total: total,
+      bins: bins.map((count, b) => ({
+        count: count,
+        lo: layout.bnd[b],
+        hi: b === layout.B - 1 ? layout.maxF : layout.bnd[b + 1] - 1
+      }))
+    };
+  }
+  function renderFreqAxis(maxF){
+    const el = $("#freqAxis");
+    if (!el) return;
+    const width = el.clientWidth || 600;
+    const ticks = [1, maxF];
+    const occupied = [];
+    const addTick = f => {
+      if (f < 1 || f > maxF || occupied.some(t => t.f === f)) return;
+      const x = freqToPos(f, maxF) / FREQ_POS_MAX * width;
+      const labelWidth = String(f).length * 7;
+      const left = f === 1 ? 0 : f === maxF ? width - labelWidth : x - labelWidth / 2;
+      const right = left + labelWidth;
+      if (f !== 1 && f !== maxF && occupied.some(t => left < t.right + 10 && right > t.left - 10)) return;
+      occupied.push({f, left, right});
+    };
+    ticks.forEach(addTick);
+    // 优先保留低频端的 2、5 和十进位刻度，窄屏自动略去会重叠的次要标签。
+    [2, 5, 10, 100, 1000, 10000, 20, 50, 200, 500, 2000, 5000].forEach(addTick);
+    const uniq = occupied.map(t => t.f).sort((a, b) => a - b);
+    el.innerHTML = uniq.map((f, i) => {
+      const cls = i === 0 ? "at-start" : (i === uniq.length - 1 ? "at-end" : "");
+      return '<span class="' + cls + '" data-freq="' + f + '" style="left:' + (freqToPos(f, maxF) / 10) + '%">' + f + "</span>";
+    }).join("");
+  }
+  /** 单调三次插值：保留分布走势，不产生高于采样峰值或低于零的过冲。 */
+  function freqCurvePath(points){
+    const slopes = [], tangent = [];
+    for (let i = 0; i < points.length - 1; i++) slopes.push((points[i + 1].y - points[i].y) / (points[i + 1].x - points[i].x));
+    tangent[0] = slopes[0];
+    tangent[points.length - 1] = slopes[slopes.length - 1];
+    for (let i = 1; i < points.length - 1; i++) tangent[i] = slopes[i - 1] * slopes[i] <= 0 ? 0 : (slopes[i - 1] + slopes[i]) / 2;
+    for (let i = 0; i < slopes.length; i++) {
+      if (!slopes[i]) { tangent[i] = tangent[i + 1] = 0; continue; }
+      const a = tangent[i] / slopes[i], b = tangent[i + 1] / slopes[i];
+      const length = Math.hypot(a, b);
+      if (length > 3) { tangent[i] = 3 * a * slopes[i] / length; tangent[i + 1] = 3 * b * slopes[i] / length; }
+    }
+    const round = n => Math.round(n * 100) / 100;
+    let path = "M" + round(points[0].x) + "," + round(points[0].y);
+    for (let i = 0; i < points.length - 1; i++) {
+      const p = points[i], q = points[i + 1], dx = (q.x - p.x) / 3;
+      path += " C" + round(p.x + dx) + "," + round(p.y + tangent[i] * dx) + " " + round(q.x - dx) + "," +
+        round(q.y - tangent[i + 1] * dx) + " " + round(q.x) + "," + round(q.y);
+    }
+    return path;
+  }
+  function renderFreqHistogram(){
+    const el = $("#freqBars");
+    if (!el) return;
+    const h = freqHistogram();
+    // 按真实次数聚合后在 log 坐标上平滑，不把不同宽度的 20 桶原始计数连成伪峰。
+    // 固定 1.45 倍频次的带宽，让四本词书使用相同的平滑尺度。
+    const counts = new Map();
+    for (const word of W) if (passBaseFilters(word)) counts.set(word.f, (counts.get(word.f) || 0) + 1);
+    const samples = Array.from(counts, ([frequency, count]) => ({log: Math.log(frequency), count}));
+    const bandwidth = Math.log(1.45), maxLog = Math.log(h.maxF), resolution = 96;
+    const density = Array.from({length: resolution + 1}, (_, i) => {
+      const log = maxLog * i / resolution;
+      let value = 0;
+      for (const sample of samples) {
+        const distance = (log - sample.log) / bandwidth;
+        if (Math.abs(distance) <= 4) value += sample.count * Math.exp(-distance * distance / 2);
+      }
+      return value;
+    });
+    const peak = Math.max(1, ...density);
+    const points = density.map((value, i) => ({x: FREQ_POS_MAX * i / resolution, y: 160 - value / peak * 140}));
+    const curve = freqCurvePath(points), area = curve + " L1000,160 L0,160 Z";
+    el.innerHTML = '<svg class="freq-curve" viewBox="0 0 1000 160" preserveAspectRatio="none" aria-hidden="true">' +
+      '<defs><linearGradient id="freqCurveGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="currentColor" stop-opacity=".28"/><stop offset="1" stop-color="currentColor" stop-opacity=".04"/></linearGradient>' +
+      '<clipPath id="freqCurveClip" clipPathUnits="userSpaceOnUse"><rect id="freqCurveClipRect" x="0" y="0" width="1000" height="160"/></clipPath></defs>' +
+      '<path class="freq-curve-base-area" d="' + area + '"/><path class="freq-curve-base-line" d="' + curve + '"/>' +
+      '<g clip-path="url(#freqCurveClip)"><path class="freq-curve-selected-area" fill="url(#freqCurveGradient)" d="' + area + '"/><path class="freq-curve-selected-line" d="' + curve + '"/></g></svg>' +
+      (h.total ? "" : '<span class="freq-curve-empty">当前条件下暂无词频分布</span>');
+    el.setAttribute?.("aria-label", "词频分布平滑概览：共 " + h.total + " 词，词频 1 至 " + h.maxF + " 次；精确筛选结果见下方词数");
+    renderFreqAxis(h.maxF);
+    syncFreqControls();
+  }
+  function renderFreqHandleLabels(lo, hi, loPos, hiPos){
+    const low = $("#freqMinLabel"), high = $("#freqMaxLabel"), combined = $("#freqCombinedLabel");
+    if (!low || !high || !combined) return;
+    low.textContent = "≥ " + lo + " 次";
+    high.textContent = hi ? "≤ " + hi + " 次" : "不限";
+    const width = $("#freqTrack")?.clientWidth || 600;
+    const textWidth = el => el.textContent.length * 7 + 16;
+    const merged = (hiPos - loPos) / FREQ_POS_MAX * width < (textWidth(low) + textWidth(high)) / 2 + 12;
+    low.hidden = high.hidden = merged;
+    combined.hidden = !merged;
+    combined.textContent = hi === lo ? "仅 " + lo + " 次" : !hi ? "≥ " + lo + " 次" : lo + "–" + hi + " 次";
+    const place = (el, pos) => {
+      el.style.left = (pos / 10) + "%";
+      el.classList.toggle("at-start", pos / FREQ_POS_MAX * width < textWidth(el) / 2);
+      el.classList.toggle("at-end", (1 - pos / FREQ_POS_MAX) * width < textWidth(el) / 2);
+    };
+    place(low, loPos); place(high, hiPos); place(combined, (loPos + hiPos) / 2);
+  }
+  function refreshFreqPresentation(){
+    if (!$("#v-set")?.classList.contains("on")) return;
+    renderFreqAxis(bookMaxFreq());
+    syncFreqControls();
+  }
+  /** 滑块位置、选中窗口、柱形高亮与实时计数 */
+  function syncFreqControls(){
+    const s = S.settings;
+    const maxF = bookMaxFreq();
+    const loRaw = Math.max(1, s.fmin || 1);
+    const hiRaw = s.fmax || 0;
+    const loPos = loRaw > maxF ? FREQ_POS_MAX : freqToPos(loRaw, maxF);
+    const hiPos = hiRaw ? freqToPos(Math.max(loRaw, Math.min(hiRaw, maxF)), maxF) : FREQ_POS_MAX;
+    const loEl = $("#fminRange"), hiEl = $("#fmaxRange");
+    if (loEl) {
+      loEl.value = String(loPos);
+      loEl.setAttribute?.("aria-valuetext", loRaw + " 次");
+      loEl.setAttribute?.("aria-valuemin", "0");
+      loEl.setAttribute?.("aria-valuemax", String(hiPos));
+    }
+    if (hiEl) {
+      hiEl.value = String(hiPos);
+      hiEl.setAttribute?.("aria-valuetext", hiRaw ? hiRaw + " 次" : "不限");
+      hiEl.setAttribute?.("aria-valuemin", String(loPos));
+      hiEl.setAttribute?.("aria-valuemax", String(FREQ_POS_MAX));
+    }
+    const left = Math.min(100, loPos / 10);
+    const right = Math.min(100, hiPos / 10);
+    const win = $("#freqWin");
+    if (win) {
+      const single = hiRaw === loRaw && loRaw <= maxF;
+      win.style.left = left + "%";
+      win.style.width = Math.max(0, right - left) + "%";
+      win.classList.toggle("single", single);
+      win.hidden = right <= left && !single;
+    }
+    const fill = $("#freqFill");
+    if (fill) {
+      fill.style.left = left + "%";
+      fill.style.width = Math.max(0, right - left) + "%";
+    }
+    renderFreqHandleLabels(loRaw, hiRaw, loPos, hiPos);
+    const clip = $("#freqCurveClipRect");
+    clip?.setAttribute?.("x", String(loPos));
+    clip?.setAttribute?.("width", String(Math.max(0, hiPos - loPos)));
+    let total = 0, inRange = 0, active = 0, proficient = 0;
+    for (let i = 0; i < W.length; i++) {
+      const x = W[i];
+      if (!passBaseFilters(x)) continue;
+      total++;
+      if (x.f < loRaw || (hiRaw && x.f > hiRaw)) continue;
+      inRange++;
+      if (isProficient(i)) proficient++; else active++;
+    }
+    const rangeText = hiRaw === loRaw ? "仅 " + loRaw + " 次" : (loRaw > 1 || hiRaw)
+      ? loRaw + " ～ " + (hiRaw || "不限") + " 次"
+      : "全部词频";
+    const rangeEl = $("#freqRangeNow");
+    if (rangeEl) rangeEl.textContent = rangeText;
+    const metaEl = $("#freqScopeNow");
+    if (metaEl) {
+      metaEl.innerHTML = '<span class="freq-result"><strong>' + active.toLocaleString() + '</strong> 个可背单词</span>' +
+        '<span class="freq-result-note">候选词中有 ' + (total ? Math.round(inRange / total * 100) : 0) + '% 落在此范围' +
+        (proficient ? ' · 已排除 ' + proficient + ' 个熟练词' : '') + '</span>';
+    }
+  }
+  let freqRangeChanged = false;
+  function setFreqActivity(which, dragging){
+    const track = $("#freqTrack");
+    if (!track) return;
+    track.dataset.active = which;
+    if (dragging !== undefined) track.dataset.dragging = String(dragging);
+  }
+  /** 写入精确次数；键盘以实际次数步进，避免低频区多次按键仍无变化。 */
+  function setFreqValue(which, value){
+    const s = S.settings, maxF = bookMaxFreq();
+    const oldMin = s.fmin, oldMax = s.fmax;
+    if (which === "min") {
+      s.fmin = Math.max(1, Math.min(Math.round(value), s.fmax || maxF, maxF));
+    } else {
+      const f = Math.max(Math.min(s.fmin || 1, maxF), Math.min(maxF, Math.round(value)));
+      s.fmax = f >= maxF ? 0 : f;
+    }
+    if (oldMin !== s.fmin || oldMax !== s.fmax) {
+      freqRangeChanged = true;
+      markSettingsEditing();
+    }
+    const minInput = $("#fmin"), maxInput = $("#fmax");
+    if (minInput) minInput.value = s.fmin;
+    if (maxInput) maxInput.value = s.fmax || "";
+    setFreqActivity(which);
+    syncFreqControls();
+    updateScopeCount();
+    syncPresets();
+  }
+  /** 把一个滑块位置换算成实际词频并写入设置 */
+  function setFreqPos(which, pos){
+    const s = S.settings;
+    const maxF = bookMaxFreq();
+    pos = Math.max(0, Math.min(FREQ_POS_MAX, Math.round(+pos || 0)));
+    if (which === "min") {
+      const cap = s.fmax ? freqToPos(Math.min(s.fmax, maxF), maxF) : FREQ_POS_MAX;
+      pos = Math.min(pos, cap);
+      setFreqValue(which, posToFreq(pos, maxF, false));
+    } else {
+      const floor = freqToPos(Math.max(1, Math.min(s.fmin || 1, maxF)), maxF);
+      pos = Math.max(pos, floor);
+      setFreqValue(which, posToFreq(pos, maxF, true) || maxF);
+    }
+  }
+  /** 拖动滑块：先实时更新范围与计数，松手后再重建队列 */
+  function onFreqRangeInput(which){
+    // 部分触摸浏览器在 pointerdown 被阻止后仍派发原生 range 输入。
+    // 重合手柄由方向分派独立控制，原生值只能还原，不能同时改写另一端。
+    if (freqOverlapDrag) { syncFreqControls(); return false; }
+    const el = $(which === "min" ? "#fminRange" : "#fmaxRange");
+    if (el) setFreqPos(which, +el.value);
+    return true;
+  }
+  function onFreqRangeKey(e, which){
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const keys = ["ArrowLeft", "ArrowDown", "ArrowRight", "ArrowUp", "PageDown", "PageUp", "Home", "End"];
+    if (!keys.includes(e.key)) return;
+    e.preventDefault();
+    const maxF = bookMaxFreq(), s = S.settings;
+    const low = which === "min" ? 1 : Math.min(maxF, s.fmin || 1);
+    const high = which === "min" ? (s.fmax || maxF) : maxF;
+    let value = which === "min" ? s.fmin : (s.fmax || maxF);
+    if (e.key === "Home") value = low;
+    else if (e.key === "End") value = high;
+    else {
+      const delta = e.key.startsWith("Page") || e.shiftKey ? 10 : 1;
+      value += ["ArrowLeft", "ArrowDown", "PageDown"].includes(e.key) ? -delta : delta;
+    }
+    setFreqValue(which, Math.max(low, Math.min(high, value)));
+    commitFreqRange();
+  }
+  /** 点击轨道空白处：把最近的一端圆点移过去 */
+  function onFreqTrackClick(e){
+    if (e.button !== undefined && e.button !== 0) return;
+    if (e.target && e.target.closest && e.target.closest("input")) return;
+    const loEl = $("#fminRange"), hiEl = $("#fmaxRange");
+    if (!loEl || !hiEl) return;
+    e.preventDefault();
+    const pos = freqPosFromEvent(e);
+    const lo = +loEl.value, hi = +hiEl.value;
+    const which = Math.abs(hi - lo) <= 1
+      ? (pos < lo ? "min" : "max")
+      : (Math.abs(pos - lo) < Math.abs(pos - hi) ? "min" : "max");
+    setFreqPos(which, pos);
+    $(which === "min" ? "#fminRange" : "#fmaxRange").focus?.({ preventScroll: true });
+    commitFreqRange();
+  }
+  function commitFreqRange(){
+    if (!freqRangeChanged) return;
+    freqRangeChanged = false;
+    onSet();
+    bindSet();
+    applyFilter();
+    renderStats();
+    startSession();
+    markSettingsSaved();
+  }
+  /** 两个手柄重合时原生滑块只有一个能抓住：向右抬高上界、向左降低下界 */
+  let freqOverlapDrag = null;
+  let freqPointerDrag = null;
+  function freqPosFromEvent(e){
+    const bars = $("#freqBars");
+    if (!bars) return 0;
+    const rect = bars.getBoundingClientRect();
+    if (!rect.width) return 0;
+    return Math.max(0, Math.min(FREQ_POS_MAX,
+      Math.round((e.clientX - rect.left) / rect.width * FREQ_POS_MAX)));
+  }
+  function startFreqRangeDrag(e, which){
+    if ((e.button !== undefined && e.button !== 0) || e.isPrimary === false) return;
+    const loEl = $("#fminRange"), hiEl = $("#fmaxRange");
+    if (!loEl || !hiEl) return;
+    freqPointerDrag = { pointerId: e.pointerId, book: currentBookId };
+    setFreqActivity(which, true);
+    window.addEventListener("pointerup", endFreqRangeDrag);
+    window.addEventListener("pointercancel", endFreqRangeDrag);
+    const lo = +loEl.value, hi = +hiEl.value;
+    if (Math.abs(hi - lo) > 12) return;   // 未重合，交给原生滑块
+    e.preventDefault();
+    freqOverlapDrag = { startX: e.clientX, moved: false, which: null };
+    window.addEventListener("pointermove", moveFreqOverlapDrag, { passive: false });
+  }
+  function moveFreqOverlapDrag(e){
+    if (!freqOverlapDrag || (freqPointerDrag && e.pointerId !== freqPointerDrag.pointerId)) return;
+    const dx = e.clientX - freqOverlapDrag.startX;
+    if (!freqOverlapDrag.moved && Math.abs(dx) < 3) return;
+    freqOverlapDrag.moved = true;
+    if (!freqOverlapDrag.which) freqOverlapDrag.which = dx > 0 ? "max" : "min";
+    e.preventDefault();
+    setFreqPos(freqOverlapDrag.which, freqPosFromEvent(e));
+  }
+  function endFreqRangeDrag(e){
+    if (!freqPointerDrag || (e && e.pointerId !== freqPointerDrag.pointerId)) return;
+    const book = freqPointerDrag.book;
+    freqPointerDrag = null;
+    freqOverlapDrag = null;
+    window.removeEventListener("pointermove", moveFreqOverlapDrag);
+    window.removeEventListener("pointerup", endFreqRangeDrag);
+    window.removeEventListener("pointercancel", endFreqRangeDrag);
+    const track = $("#freqTrack");
+    if (track) track.dataset.dragging = "false";
+    if (book === currentBookId) commitFreqRange();
+    else freqRangeChanged = false;
   }
   function orderedPool(){
     const pool = [];
@@ -1099,7 +2038,7 @@
     for (let i = 0; i < W.length; i++) {
       if (!inScope(i) || isProficient(i)) continue;
       const p = st(i);
-      if (!p) fresh.push(i);
+      if (!hasMainProgress(p)) fresh.push(i);
       else if (p[0] < MASTER && p[1] <= now) due.push(i);
     }
     const quota = Math.max(0, S.settings.dailyNew - day().n);
@@ -1125,6 +2064,8 @@
 
   /* ================= 会话状态 ================= */
   let Q = [], qi = 0, rounds = {}, cur = null, answered = 0, rightN = 0;
+  /** 本组初始词数：重考只增加待巩固，不扩大主进度分母。 */
+  let groupTotal = 0;
   let sessionSeed = 1;
   /** verdict: null | true(会) | false(不会) */
   let verdict = null, snap = null, stageBefore = 0;
@@ -1295,7 +2236,7 @@
   const PRINT_SRC_LABEL = { wrong: "错词本", star: "收藏", filter: "筛选结果" };
   function printStatusLabel(i){
     const p = st(i);
-    return isProficient(i) ? "熟练" : isMastered(i) ? "已掌握" : (p ? "第" + p[0] + "档" : "未学");
+    return isProficient(i) ? "熟练" : isMastered(i) ? "已掌握" : (hasMainProgress(p) ? "第" + p[0] + "档" : "未学");
   }
   function printMetaText(wrong, status, star){
     const parts = [];
@@ -1412,6 +2353,7 @@
       }
     }
     Q = mix; qi = 0; rounds = {}; answered = 0; rightN = 0;
+    groupTotal = Q.length;
     undoStack = [];
     nextCard();
     updateBar();
@@ -1428,7 +2370,7 @@
     if (!drillMode) {
       mainSnap = {
         Q: Q.slice(), qi, rounds: Object.assign({}, rounds), cur,
-        answered, rightN, verdict, snap, phase, stageBefore,
+        answered, rightN, groupTotal, verdict, snap, phase, stageBefore,
         undoStack: undoStack.slice(), autoSpoken,
         drillBaseline: {
           wrong: Object.fromEntries(Object.entries(S.progress).map(([i, p]) => [i, p[3]])),
@@ -1438,6 +2380,7 @@
     }
     drillMode = true;
     Q = list; qi = 0; rounds = {}; answered = 0; rightN = 0;
+    groupTotal = Q.length;
     undoStack = [];
     nextCard();
     updateBar();
@@ -1501,6 +2444,7 @@
       rounds = s.rounds;
       answered = s.answered;
       rightN = s.rightN;
+      groupTotal = s.groupTotal || Q.length;
       undoStack = s.undoStack;
       verdict = s.verdict;
       snap = s.snap;
@@ -1547,10 +2491,9 @@
     renderCard();
   }
 
-  function snapshot(i, extraDate){
+  function snapshot(i, extraDates){
     const date = todayStr(), d = day();
-    const dates = [date];
-    if (extraDate && extraDate !== date) dates.push(extraDate);
+    const dates = Array.from(new Set([date].concat(extraDates || [])));
     return {
       prog: st(i) ? st(i).slice() : null,
       survey: (W[i] && Object.prototype.hasOwnProperty.call(SURVEY, W[i].w)) ? SURVEY[W[i].w] : null,
@@ -1581,7 +2524,7 @@
     return ((s.prog && s.prog[3]) || 0) + (s.drillWrongDelta || 0);
   }
   function applySRS(i, known, wrongBefore, hadBefore){
-    const prev = st(i), had = hadBefore === undefined ? !!prev : hadBefore;
+    const prev = st(i), had = hadBefore === undefined ? hasMainProgress(prev) : hadBefore;
     const p = prev || [0,0,0,0,0], now = Date.now();
     const wrong = wrongBefore === undefined ? p[3] : wrongBefore;
     if (known) {
@@ -1605,7 +2548,8 @@
     if (verdict === null) {
       undoStack.push({ type: "judge", i, snap: snapshot(i), answeredBefore: answered, rightBefore: rightN });
       snap = snapshot(i);
-      const firstSample = !snap.prog;   // 未学过的词才是随机样本；复习词有进度，不计入
+      // 抽样独立保存；恢复早期备份后再次遇到同一新词，也不能覆盖首次作答。
+      const firstSample = !hasMainProgress(snap.prog) && snap.survey === null;
       stageBefore = snap.prog ? snap.prog[0] : 0;
       verdict = known;
       answered++;
@@ -1614,12 +2558,20 @@
       if (firstSample) recordSurvey(i, known);
       phase = "revealed";
     } else if (verdict !== known) {
-      undoStack.push({ type: "rejudge", i, snap: snapshot(i, snap.date), originalSnap: snap, prevVerdict: verdict, answeredBefore: answered, rightBefore: rightN });
+      const before = snapshot(i, Object.keys(snap.days));
+      undoStack.push({ type: "rejudge", i, snap: before, originalSnap: snap, prevVerdict: verdict, answeredBefore: answered, rightBefore: rightN });
+      // 后台标签跨午夜时，轮询可能尚未刷新。将新日期的作答前记录补入
+      // 原始基线，让后续改判只保留一次作答，撤销也能完整还原中间日期。
+      for (const [date, record] of Object.entries(before.days)) {
+        if (!Object.prototype.hasOwnProperty.call(snap.days, date)) {
+          snap.days[date] = record ? Object.assign({}, record) : null;
+        }
+      }
       restore(i, snap);
-      apply(i, known, snapshotWrong(snap), !!snap.prog);
+      apply(i, known, snapshotWrong(snap), hasMainProgress(snap.prog));
       rightN += known ? 1 : -1;
       verdict = known;
-      if (!snap.prog) recordSurvey(i, known);   // 改判同步修正样本
+      if (!hasMainProgress(snap.prog) && snap.survey === null) recordSurvey(i, known);   // 只修正本次新增的样本
       phase = "revealed";
     } else {
       return;
@@ -1627,6 +2579,18 @@
     save();
     renderCard();
     updateBar();
+  }
+
+  /** 待巩固词数：已安排/即将安排的重考，不计入本组主进度分母。 */
+  function pendingReinforce(){
+    let n = 0;
+    const seen = new Set();
+    for (let k = qi; k < Q.length; k++) {
+      const i = Q[k];
+      if ((rounds[i] || 0) > 0 && !seen.has(i)) { n++; seen.add(i); }
+    }
+    if (cur != null && verdict === false && (rounds[cur] || 0) < 2 && !seen.has(cur)) n++;
+    return n;
   }
 
   /** 翻页：仅 revealed 阶段允许 */
@@ -1686,6 +2650,7 @@
       cur = u.i;
       save();
       renderCard();
+      updateBar();
       toast(u.type === "judge" ? "已撤销判定" : "已撤销改判");
     } else if (u.type === "next") {
       Q.length = u.queueLengthBefore;
@@ -1761,17 +2726,59 @@
     return h;
   }
 
+  // 使用实际字形宽度适配单行词面，兼顾字体差异、展开双栏与窗口缩放。
+  function fitWord(el){
+    if (!el || !el.clientWidth || typeof window.getComputedStyle !== "function") return;
+    el.style.fontSize = "";
+    const base = parseFloat(window.getComputedStyle(el).fontSize);
+    const available = el.clientWidth;
+    if (!base || !available || el.scrollWidth <= available) return;
+    el.style.fontSize = Math.floor(base * (available - 2) / el.scrollWidth * 100) / 100 + "px";
+  }
+  function fitVisibleWords(){
+    fitWord($("#card .word"));
+    fitWord($("#wordTitle"));
+  }
+
   function renderCard(){
     renderSurvey();
     hideExPop();
     const c = $("#card"), a = $("#acts");
+    const cardWord = currentBookId + ":" + cur;
+    const wordChanged = c.dataset.renderedWord !== cardWord;
+    if (wordChanged) c.scrollTop = 0;
+    c.dataset.renderedWord = cardWord;
+    c.classList.toggle("has-answer", cur !== null && verdict !== null);
+    const oldFocus = document.activeElement;
+    const restoreFocus = oldFocus && (c.contains?.(oldFocus) || a.contains?.(oldFocus));
+    a.classList.toggle("revealed", cur !== null && verdict !== null);
+    const finishRender = () => {
+      fitVisibleWords();
+      const message = cur == null ? "本组学习结束。" : W[cur].w + (verdict === null
+        ? "，请先回忆，再选择会或不会。"
+        : (verdict ? "，已记为会。" : "，已记为不会。") + W[cur].m);
+      c.setAttribute?.("aria-label", cur == null ? "本组学习结果" : "当前单词：" + W[cur].w);
+      const announcement = $("#studyAnnouncement");
+      if (announcement && announcement.textContent !== message) announcement.textContent = message;
+      // 重绘会移除原按钮；键盘操作后把焦点留在学习区，空格仍可继续。
+      if (restoreFocus) {
+        const target = oldFocus.id && $("#" + oldFocus.id);
+        (target || c).focus?.({preventScroll: true});
+      }
+    };
     const d = day();
     $("#s-new").textContent = d.n;
     $("#s-newmax").textContent = S.settings.dailyNew;
     $("#s-rev").textContent = Math.max(0, d.r - d.n);
     const progLabel = $("#s-proglabel");
     if (progLabel) progLabel.textContent = drillMode ? "错词特训" : "本次进度";
-    $("#s-prog").textContent = answered + "/" + Q.length;
+    $("#s-prog").textContent = Math.min(answered, groupTotal) + "/" + groupTotal;
+    const pendingEl = $("#s-pending");
+    if (pendingEl) {
+      const pending = pendingReinforce();
+      pendingEl.textContent = pending ? "待巩固 " + pending + " 次" : "";
+      pendingEl.hidden = !pending;
+    }
     $("#s-acc").textContent = (d.ok + d.no) ? Math.round(d.ok / (d.ok + d.no) * 100) + "%" : "—";
 
     // The configured target is the daily new-word quota, not an invented review target.
@@ -1788,7 +2795,7 @@
 
     if (cur == null) {
       const due = countDue();
-      const freshLeft = orderedPool().some(i => !st(i));
+      const freshLeft = orderedPool().some(i => !hasMainProgress(st(i)));
       const quotaLeft = Math.max(0, S.settings.dailyNew - d.n);
       const completed = answered > 0;
       const drillListN = drillMode ? 0 : wrongWordIndices().length;
@@ -1808,6 +2815,7 @@
         if (undoStack.length) $("#undoBtn").onclick = undo;
         $("#hint").textContent = "";
         renderDrillEntry();
+        finishRender();
         return;
       }
       c.innerHTML =
@@ -1834,6 +2842,7 @@
       if (undoStack.length) $("#undoBtn").onclick = undo;
       $("#hint").textContent = "";
       renderDrillEntry();
+      finishRender();
       return;
     }
 
@@ -1844,37 +2853,36 @@
       '<button type="button" class="star' + (isStar(cur) ? " on" : "") + '" id="star" ' +
       'aria-label="' + (isStar(cur) ? "取消收藏" : "收藏") + '" aria-pressed="' + isStar(cur) + '" title="收藏（' + keyName(K.star) + '）">★</button>';
 
-    let h = '<div class="tagrow">';
+    let h = '<div class="word-face" role="group" aria-label="单词与复习阶段" tabindex="0"><div class="tagrow">';
     h += '<span class="tag">词频 #' + x.r + "</span>";
     h += '<span class="tag">' + x.f + " 次 / " + x.c + " 套卷</span>";
     if (x.ky) h += '<span class="tag ky">' + esc(currentBook().tagLabel) + "</span>";
     h += wordBookTags(x.w);
-    h += '<span class="tag">' + esc(stageLabel(stage)) + "</span>";
     h += "</div>";
-    h += '<div class="word">' + esc(x.w) + "</div>";
+    h += '<div class="word" lang="en">' + esc(x.w) + "</div>";
     if (S.settings.showPh && x.ph) h += '<div class="ph">/' + esc(x.ph) + "/</div>";
     h += '<div class="posline">' + esc(POSN[x.p] || "") + "</div>";
     h += dotsHtml(stage);
-    h += '<button type="button" class="spk" id="spk" aria-label="发音" title="发音（' + keyName(K.speak) + '）">♪</button>';
+    h += '<button type="button" class="spk" id="spk" aria-label="发音" title="发音（' + keyName(K.speak) + '）"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/></svg></button>';
+    h += "</div>";
 
     if (verdict !== null) {
-      h += '<div class="answer">';
-      h += '<div class="mean">' +
-        (x.m
-          ? esc(x.m)
-          : '<span style="color:var(--no)">（词典未收录，请参考下方真题例句）</span>') +
-        "</div>";
+      h += '<div class="answer" role="region" aria-label="释义与例句" tabindex="0"><span class="answer-label">释义与用法</span>';
+      h += '<div class="mean">' + meaningHtml(x) + "</div>";
       if (S.settings.showEx && x.ex) {
-        h += '<div class="ex" data-ex-linked="1">' + exHtml(x.ex) +
-          '<span class="src">— 真题例句 · ' + esc(x.src) + "</span></div>";
+        h += '<div class="ex" data-ex-linked="1" tabindex="0" role="group" aria-expanded="false" aria-label="例句，左右方向键选词，回车查义">' + exHtml(x.ex, x) +
+          '<span class="src">— ' + esc(srcBadge(x.src)) + "</span></div>";
       }
       if (S.settings.showFm && x.fm) h += '<div class="fm">词形：' + esc(x.fm) + "</div>";
       h += "</div>";
     }
 
     c.innerHTML = starBtn + h;
-    c.classList.add("enter");
-    setTimeout(() => c.classList.remove("enter"), 240);
+    if (wordChanged) {
+      c.classList.remove("enter");
+      c.classList.add("enter");
+      setTimeout(() => c.classList.remove("enter"), 240);
+    }
     bindExLookup(c);
 
     $("#spk").onclick = (e) => { e.stopPropagation(); speak(x.w); };
@@ -1897,7 +2905,7 @@
         $("#exitDrillBtn").onclick = exitDrill;
         $("#hint").textContent = "错词特训：「会」减少错次，「不会」增加错次；不改动学习档位";
       } else {
-        $("#hint").textContent = "想好中文意思后按「会」或「不会」；标为「熟练」将永久移出词书";
+        $("#hint").textContent = "想好中文意思后按「会」或「不会」；标为「熟练」会移出背诵与复习，可在词表恢复";
       }
     } else {
       const wasOK = verdict === true;
@@ -1932,6 +2940,7 @@
     }
     $("#markProficient").onclick = () => setProficient(cur, true);
     renderDrillEntry();
+    finishRender();
   }
 
   function countDue(){
@@ -1940,7 +2949,7 @@
     for (let i = 0; i < W.length; i++) {
       if (!inScope(i) || isProficient(i)) continue;
       const p = st(i);
-      if (p && p[0] < MASTER && p[1] <= now) n++;
+      if (hasMainProgress(p) && p[0] < MASTER && p[1] <= now) n++;
     }
     return n;
   }
@@ -1953,7 +2962,7 @@
     let due = 0, upcoming = 0, next = null;
     for (let i = 0; i < W.length; i++) {
       const p = st(i);
-      if (!p || p[0] >= MASTER || isProficient(i) || !inScope(i)) continue;
+      if (!hasMainProgress(p) || p[0] >= MASTER || isProficient(i) || !inScope(i)) continue;
       if (p[1] <= now) due++;
       else {
         if (p[1] <= now + 24 * 60 * 60 * 1000) upcoming++;
@@ -1964,15 +2973,127 @@
   }
   function renderReviewPlan(){
     const plan = reviewPlan(), el = $("#reviewPlan");
-    if (el) el.textContent = "已到期 " + plan.due + " 词 · 接下来 24 小时到期 " + plan.upcoming + " 词。"
-      + (plan.next !== null ? "下次到期：" + formatReviewTime(plan.next) : "当前没有后续复习安排。");
+    if (el) el.innerHTML = '<span class="review-count"><b>' + plan.due + '</b><span>个词已到期</span></span>' +
+      '<span class="review-upcoming">接下来 24 小时到期 ' + plan.upcoming + ' 词</span>' +
+      '<span class="review-next">' + esc(plan.next !== null ? "下次到期：" + formatReviewTime(plan.next) : "当前没有后续复习安排，可继续学习新词。") + "</span>";
     const btn = $("#btnDueList");
-    if (btn) btn.disabled = !plan.due;
+    if (btn) {
+      btn.disabled = !plan.due;
+      btn.textContent = plan.due ? "查看 " + plan.due + " 个到期词" : "暂无到期词";
+      btn.classList.toggle("primary", Boolean(plan.due));
+      btn.classList.toggle("ghost", !plan.due);
+    }
+    const studyBtn = $("#btnStatsStudy");
+    if (studyBtn) {
+      studyBtn.textContent = Object.keys(S.progress || {}).length ? "继续背诵" : "开始背诵";
+      studyBtn.classList.toggle("primary", !plan.due);
+      studyBtn.classList.toggle("ghost", Boolean(plan.due));
+    }
+    const goal = $("#todayGoal");
+    if (goal) {
+      const d = S.days[todayStr()] || {n: 0, r: 0, ok: 0, no: 0};
+      const quota = Math.max(1, S.settings.dailyNew);
+      const pct = Math.min(100, Math.round(d.n / quota * 100));
+      const acc = (d.ok + d.no) ? Math.round(d.ok / (d.ok + d.no) * 100) + "%" : "—";
+      goal.innerHTML = '<div class="tg-head"><span>今日新词</span><b>' + d.n + " / " + quota + "</b></div>" +
+        '<div class="tg-track" role="img" aria-label="今日新词 ' + d.n + " / " + quota + '"><i style="width:' + pct + '%"></i></div>' +
+        '<div class="tg-meta">今日已作答 ' + d.r + " 题 · 正确率 " + acc + "</div>";
+    }
+  }
+  function startOfLocalDay(t){
+    const d = new Date(t);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }
+  /** 未来 N 天的到期词数；今天这一柱包含已到期与今天稍后到期的词 */
+  function dueForecast(days = 14, now = Date.now()){
+    days = Math.max(1, Math.min(31, Math.round(days || 14)));
+    const start = startOfLocalDay(now);
+    const dates = [], labels = [];
+    for (let i = 0; i < days; i++) {
+      const d = new Date(start);
+      d.setDate(d.getDate() + i);
+      dates.push(todayStr(d));
+      labels.push(i === 0 ? "今天" : i === 1 ? "明天"
+        : d.getDate() === 1 ? (d.getMonth() + 1) + "/1" : String(d.getDate()));
+    }
+    const counts = new Array(days).fill(0);
+    let overdue = 0, dueToday = 0, later = 0;
+    for (let i = 0; i < W.length; i++) {
+      if (!inScope(i) || isProficient(i)) continue;
+      const p = st(i);
+      if (!hasMainProgress(p) || p[0] >= MASTER) continue;
+      const due = p[1];
+      const idx = Math.round((startOfLocalDay(due) - start) / 86400000);
+      if (idx <= 0) {
+        counts[0]++;
+        if (due <= now) overdue++; else dueToday++;
+      } else if (idx < days) {
+        counts[idx]++;
+      } else {
+        later++;
+      }
+    }
+    let peak = -1, peakCount = 0;
+    counts.forEach((v, i) => {
+      if (v > peakCount) { peakCount = v; peak = i; }
+    });
+    return {
+      days: days, dates: dates, labels: labels, counts: counts,
+      overdue: overdue, dueToday: dueToday, later: later,
+      peak: peak, peakCount: peakCount,
+      next7: counts.slice(0, 7).reduce((a, b) => a + b, 0),
+      total: counts.reduce((a, b) => a + b, 0)
+    };
+  }
+  const FREQ_TIERS = [
+    { key: "high", label: "高频", range: "≥20 次", min: 20, max: Infinity },
+    { key: "upper", label: "中高频", range: "10–19 次", min: 10, max: 19 },
+    { key: "mid", label: "中频", range: "5–9 次", min: 5, max: 9 },
+    { key: "low", label: "低频", range: "2–4 次", min: 2, max: 4 },
+    { key: "rare", label: "仅 1 次", range: "1 次", min: 1, max: 1 }
+  ];
+  /** 当前背诵范围按真题词频分层的已掌握 / 学习中 / 未学分布 */
+  function frequencyMastery(){
+    const rows = FREQ_TIERS.map(t => ({
+      key: t.key, label: t.label, range: t.range, min: t.min, max: t.max,
+      total: 0, mastered: 0, learning: 0, unseen: 0
+    }));
+    let total = 0, mastered = 0;
+    for (let i = 0; i < W.length; i++) {
+      if (!inScope(i) || isProficient(i)) continue;
+      const x = W[i];
+      let row = null;
+      for (const r of rows) {
+        if (x.f >= r.min && x.f <= r.max) { row = r; break; }
+      }
+      if (!row) continue;
+      row.total++;
+      total++;
+      const p = st(i);
+      if (!hasMainProgress(p)) {
+        row.unseen++;
+      } else if (p[0] >= MASTER) {
+        row.mastered++;
+        mastered++;
+      } else {
+        row.learning++;
+      }
+    }
+    return {
+      rows: rows.filter(r => r.total > 0),
+      total: total,
+      mastered: mastered,
+      rate: total ? mastered / total : 0
+    };
+  }
+  function pctOf(part, whole){
+    return whole ? Math.round(part / whole * 100) : 0;
   }
   function wordReviewLabel(i){
     if (isProficient(i)) return "已标为熟练，不再安排复习";
     const p = st(i);
-    if (!p) return "尚未学习，判定后安排复习";
+    if (!hasMainProgress(p)) return "尚未学习，判定后安排复习";
     if (p[0] >= MASTER) return "已掌握，不再安排复习";
     return "下次复习：" + (p[1] <= Date.now() ? "已到期 · " : "") + formatReviewTime(p[1]);
   }
@@ -1995,6 +3116,49 @@
   /* ================= 词表（虚拟滚动） ================= */
   const RH = 52;
   let filt = [];
+  /** 每本词书独立保留搜索、筛选、滚动位置与活动行；只有主动改筛选才回顶部。 */
+  const listUiByBook = {};
+  let listActiveWord = null;
+  let listActiveAction = "open-word";
+  function listUiFor(id){
+    if (!listUiByBook[id]) {
+      listUiByBook[id] = {
+        q: "", fst: "all", fsc: "scope",
+        scrollTop: 0, activeWord: null, activeAction: "open-word"
+      };
+    }
+    return listUiByBook[id];
+  }
+  function saveListUi(){
+    const ui = listUiFor(currentBookId);
+    if ($("#q")) ui.q = $("#q").value;
+    if ($("#fst")) ui.fst = $("#fst").value || "all";
+    if ($("#fsc")) ui.fsc = $("#fsc").value || "scope";
+    if ($("#listScroll")) ui.scrollTop = $("#listScroll").scrollTop || 0;
+    ui.activeWord = listActiveWord;
+    ui.activeAction = listActiveAction;
+  }
+  function restoreListUi(id){
+    const ui = listUiFor(id);
+    if ($("#q")) $("#q").value = ui.q;
+    if ($("#fst")) $("#fst").value = ui.fst;
+    if ($("#fsc")) $("#fsc").value = ui.fsc;
+    listActiveWord = ui.activeWord;
+    listActiveAction = ui.activeAction || "open-word";
+    if ($("#listScroll")) $("#listScroll").scrollTop = ui.scrollTop || 0;
+  }
+  function listStatusText(i){
+    const p = st(i);
+    return isProficient(i) ? "熟练" : isMastered(i) ? "已掌握" : (hasMainProgress(p) ? "第" + p[0] + "档" : "未学");
+  }
+  function announceListRow(){
+    const el = $("#listAnnouncement");
+    if (!el) return;
+    const pos = listActiveWord == null ? -1 : filt.indexOf(listActiveWord);
+    if (pos < 0) { el.textContent = "词表共 " + filt.length + " 行"; return; }
+    const x = W[filt[pos]];
+    el.textContent = "第 " + (pos + 1) + " 行，共 " + filt.length + " 行；" + x.w + "，" + listStatusText(filt[pos]);
+  }
   function applyFilter(resetScroll = true){
     const q = $("#q").value.trim().toLowerCase();
     const fs = $("#fst").value, sc = $("#fsc").value;
@@ -2011,9 +3175,9 @@
       if (proficient && fs !== "proficient") continue;
       if (fs === "proficient" && !proficient) continue;
       if (fs === "active" && (proficient || isMastered(i))) continue;
-      if (fs === "new" && (p || proficient)) continue;
-      if (fs === "learn" && (proficient || !p || p[0] >= MASTER)) continue;
-      if (fs === "due" && (proficient || !p || p[0] >= MASTER || p[1] > now)) continue;
+      if (fs === "new" && (proficient || hasMainProgress(p))) continue;
+      if (fs === "learn" && (proficient || !hasMainProgress(p) || p[0] >= MASTER)) continue;
+      if (fs === "due" && (proficient || !hasMainProgress(p) || p[0] >= MASTER || p[1] > now)) continue;
       if (fs === "done" && (proficient || !isMastered(i))) continue;
       if (fs === "wrong" && (proficient || !p || p[3] === 0)) continue;
       if (fs === "star" && !isStar(i)) continue;
@@ -2023,35 +3187,175 @@
     filt.sort((a, b) => (fs === "due" ? st(a)[1] - st(b)[1] : 0) || W[a].r - W[b].r);
     $("#listCount").textContent = "共 " + filt.length + " 词"
       + (storageOK ? "" : "　·　当前环境无法保存进度");
+    const empty = $("#listEmpty");
+    if (empty) empty.hidden = filt.length > 0;
+    $("#listWrap").hidden = !filt.length;
     const inner = $("#listInner");
     inner.style.height = (filt.length * RH) + "px";
-    if (resetScroll) $("#listScroll").scrollTop = 0;
-    else $("#listScroll").scrollTop = Math.min($("#listScroll").scrollTop, Math.max(0, filt.length * RH - $("#listScroll").clientHeight));
+    if (resetScroll) {
+      $("#listScroll").scrollTop = 0;
+      listActiveWord = filt.length ? filt[0] : null;
+      listActiveAction = "open-word";
+    } else {
+      $("#listScroll").scrollTop = Math.min($("#listScroll").scrollTop, Math.max(0, filt.length * RH - $("#listScroll").clientHeight));
+      if (listActiveWord == null || filt.indexOf(listActiveWord) < 0) {
+        listActiveWord = filt.length ? filt[0] : null;
+        listActiveAction = "open-word";
+      }
+    }
+    saveListUi();
     renderRows();
     renderDrillEntry();
   }
   function renderRows(){
     const sc = $("#listScroll"), top = sc.scrollTop, h = sc.clientHeight;
+    const inner = $("#listInner"), focused = document.activeElement;
+    const focusAction = focused?.dataset?.openWord !== undefined ? "open-word"
+      : focused?.dataset?.proficient !== undefined ? "proficient" : null;
+    const focusWord = focusAction === "open-word" ? focused.dataset.openWord : focused?.dataset?.proficient;
+    const hasFocus = focusAction && inner.contains?.(focused);
+    if (!filt.length) {
+      if (inner.innerHTML !== "") inner.innerHTML = "";
+      return;
+    }
     const s = Math.max(0, Math.floor(top / RH) - 6);
     const e = Math.min(filt.length, Math.ceil((top + h) / RH) + 6);
+    let activePos = listActiveWord == null ? -1 : filt.indexOf(listActiveWord);
+    if (activePos < s || activePos >= e) activePos = Math.min(filt.length - 1, Math.max(0, s));
+    listActiveWord = filt[activePos];
+    if (!hasFocus) listActiveAction = "open-word";
     let html = "";
     for (let k = s; k < e; k++) {
       const i = filt[k], x = W[i], p = st(i);
+      const active = k === activePos;
       const proficient = isProficient(i);
-      const cls = proficient ? "badge-proficient" : isMastered(i) ? "st2" : (p ? "st1" : "st0");
-      const txt = proficient ? "熟练" : isMastered(i) ? "已掌握" : (p ? "第" + p[0] + "档" : "未学");
-      html += '<div class="row" data-i="' + i + '" style="top:' + (k * RH) + 'px">' +
+      const cls = proficient ? "badge-proficient" : isMastered(i) ? "st2" : (hasMainProgress(p) ? "st1" : "st0");
+      const txt = listStatusText(i);
+      const wordTab = active && listActiveAction === "open-word" ? "0" : "-1";
+      const profTab = active && listActiveAction === "proficient" ? "0" : "-1";
+      html += '<div class="row' + (active ? " row-active" : "") + '" data-i="' + i + '" style="top:' + (k * RH) + 'px">' +
         '<span class="c-rank">#' + x.r + "</span>" +
-        '<button type="button" class="c-word row-word" data-open-word="' + i + '" aria-label="查看 ' + esc(x.w) + ' 详情">' + esc(x.w) + (isStar(i) ? " ★" : "") + "</button>" +
+        '<button type="button" class="c-word row-word" data-open-word="' + i + '" tabindex="' + wordTab + '" aria-label="查看 ' + esc(x.w) + ' 详情">' + esc(x.w) + (isStar(i) ? " ★" : "") + "</button>" +
         '<span class="c-ph">' + esc(x.ph || "") + "</span>" +
         '<span class="c-mean">' + esc(x.m || "—") + "</span>" +
         '<span class="c-st ' + cls + '">' + txt + '</span>' +
-        '<div class="c-actions row-actions"><button type="button" data-proficient="' + i + '" aria-label="' + (proficient ? "取消" : "标为") + '熟练：' + esc(x.w) + '">' + (proficient ? "取消熟练" : "标为熟练") + '</button></div></div>';
+        '<div class="c-actions row-actions"><button type="button" data-proficient="' + i + '" tabindex="' + profTab + '" aria-label="' + (proficient ? "取消" : "标为") + '熟练：' + esc(x.w) + '">' + (proficient ? "取消熟练" : "标为熟练") + '</button></div></div>';
     }
-    $("#listInner").innerHTML = html;
+    if (inner.innerHTML === html) return;
+    inner.innerHTML = html;
+    if (hasFocus) {
+      const target = inner.querySelector?.('[data-' + focusAction + '="' + focusWord + '"]');
+      (target || sc).focus?.({preventScroll: true});
+    }
+  }
+
+  function scrollListRowIntoView(pos){
+    const sc = $("#listScroll");
+    if (!sc) return;
+    const top = pos * RH;
+    if (top < sc.scrollTop) sc.scrollTop = top;
+    else if (top + RH > sc.scrollTop + sc.clientHeight) sc.scrollTop = top + RH - sc.clientHeight;
+  }
+  function focusListRow(pos, action){
+    if (pos < 0 || pos >= filt.length) return false;
+    listActiveWord = filt[pos];
+    listActiveAction = action || "open-word";
+    scrollListRowIntoView(pos);
+    renderRows();
+    const target = $("#listInner")?.querySelector?.('[data-' + listActiveAction + '="' + listActiveWord + '"]');
+    target?.focus?.({ preventScroll: true });
+    announceListRow();
+    saveListUi();
+    return true;
+  }
+  function navigateList(e){
+    const target = e.target;
+    const isWord = target.dataset?.openWord !== undefined;
+    const isProficientButton = target.dataset?.proficient !== undefined;
+    if (!isWord && !isProficientButton) return;
+    const word = +(isWord ? target.dataset.openWord : target.dataset.proficient);
+    const pos = filt.indexOf(word);
+    if (pos < 0) return;
+    listActiveWord = word;
+    listActiveAction = isWord ? "open-word" : "proficient";
+    if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Home" || e.key === "End") {
+      let next = pos;
+      if (e.key === "ArrowDown") next++;
+      else if (e.key === "ArrowUp") next--;
+      else if (e.key === "Home") next = 0;
+      else next = filt.length - 1;
+      if (next < 0 || next >= filt.length) return;
+      e.preventDefault();
+      focusListRow(next, "open-word");
+      return;
+    }
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+      e.preventDefault();
+      focusListRow(pos, e.key === "ArrowRight" ? "proficient" : "open-word");
+      return;
+    }
+    if (e.key === "Tab") {
+      // 行内最多两个停靠点：单词 → 熟练操作 → 离开列表；Shift+Tab 反向。
+      if (!e.shiftKey && isWord) {
+        e.preventDefault();
+        focusListRow(pos, "proficient");
+      } else if (e.shiftKey && isProficientButton) {
+        e.preventDefault();
+        focusListRow(pos, "open-word");
+      }
+    }
   }
 
   /* ================= 统计 ================= */
+  function syncStatsChartHints(){
+    $$("#v-stats .chart-scroll").forEach(scroll => {
+      const hint = scroll.parentElement?.querySelector?.(".chart-mobile-hint");
+      if (hint) hint.hidden = !scroll.clientWidth || scroll.scrollWidth <= scroll.clientWidth + 1;
+    });
+  }
+  function selectStatsPoint(root, selector, hint, point){
+    if (!root || !point) return;
+    const nodes = Array.from(root.querySelectorAll?.(selector) || []);
+    for (const node of nodes) {
+      const selected = node === point;
+      node.setAttribute?.("aria-pressed", String(selected));
+      node.tabIndex = selected ? 0 : -1;
+    }
+    const label = point.dataset.dayLabel || point.dataset.fcLabel || point.dataset.stageLabel
+      || point.getAttribute?.("aria-label") || "";
+    if (hint) hint.textContent = label;
+  }
+  function bindStatsChart(id, selector, hintId, grid){
+    const root = $(id);
+    if (!root) return;
+    const select = e => {
+      const point = e.target.closest?.(selector);
+      if (point && !point.disabled) selectStatsPoint(root, selector, $(hintId), point);
+    };
+    root.addEventListener("click", select);
+    root.addEventListener("focusin", select);
+    root.addEventListener("keydown", e => {
+      const point = e.target.closest?.(selector);
+      if (!point) return;
+      const nodes = Array.from(root.querySelectorAll?.(selector) || []).filter(x => !x.disabled);
+      const current = nodes.indexOf(point);
+      let next = current;
+      if (e.key === "Home") next = 0;
+      else if (e.key === "End") next = nodes.length - 1;
+      else if (e.key === "ArrowLeft") next -= grid ? 7 : 1;
+      else if (e.key === "ArrowRight") next += grid ? 7 : 1;
+      else if (grid && e.key === "ArrowUp") next--;
+      else if (grid && e.key === "ArrowDown") next++;
+      else return;
+      e.preventDefault();
+      const target = nodes[Math.max(0, Math.min(nodes.length - 1, next))];
+      if (target) {
+        selectStatsPoint(root, selector, $(hintId), target);
+        target.focus?.({preventScroll: true});
+        target.scrollIntoView?.({block: "nearest", inline: "nearest"});
+      }
+    });
+  }
   function renderHeatmap(){
     const root = $("#heatmap");
     if (!root) return;
@@ -2076,7 +3380,7 @@
     for (const c of cells) {
       const label = c.date + "：学习 " + c.vol + " 次（新词 " + c.n + "，复习 " + Math.max(0, c.r - c.n) + "）";
       body += '<button type="button" class="hm-cell' + (c.future ? " future" : "") + '" data-level="' + c.level + '"' +
-        (c.future ? " disabled" : ' tabindex="0"') +
+        (c.future ? " disabled" : ' tabindex="' + (c.date === todayStr() ? "0" : "-1") + '" aria-pressed="false"') +
         ' aria-label="' + esc(label) + '" title="' + esc(label) + '"></button>';
     }
     root.innerHTML =
@@ -2085,21 +3389,26 @@
         '<div class="hm-days" aria-hidden="true">' +
           "<span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>" +
         "</div>" +
-        '<div class="hm-grid" role="group" aria-label="近 12 周每日学习量，可用 Tab 聚焦各日格子">' + body + "</div>" +
+        '<div class="hm-grid" role="group" aria-label="近 12 周每日学习量，方向键切换日期">' + body + "</div>" +
       "</div>";
     const tip = $("#heatmapTip");
-    if (tip) tip.textContent = "悬停或聚焦格子查看当日学习量";
-    root.onclick = (e) => hmPeek(e);
+    if (tip) tip.textContent = "选择格子查看当日学习量；方向键可切换日期";
     root.onmouseover = (e) => hmPeek(e);
-    root.onfocusin = (e) => hmPeek(e);
-    root.onmouseleave = () => { const t = $("#heatmapTip"); if (t) t.textContent = "悬停或聚焦格子查看当日学习量"; };
+    root.onmouseleave = () => {
+      const chosen = root.querySelector?.('.hm-cell[aria-pressed="true"]');
+      const t = $("#heatmapTip");
+      if (t) t.textContent = chosen?.getAttribute?.("aria-label") || "选择格子查看当日学习量；方向键可切换日期";
+    };
   }
   function hmPeek(e){
     const tip = $("#heatmapTip");
     if (!tip || !e || !e.target) return;
     const t = e.target;
     const label = (t.getAttribute && (t.getAttribute("title") || t.getAttribute("aria-label"))) || "";
-    if (t.classList && t.classList.contains("hm-cell") && !t.classList.contains("future")) tip.textContent = label;
+    if (t.classList && t.classList.contains("hm-cell") && !t.classList.contains("future")) {
+      tip.textContent = label;
+      if (e.type !== "mouseover") selectStatsPoint($("#heatmap"), ".hm-cell", tip, t);
+    }
   }
 
   function renderDrillEntry(){
@@ -2129,63 +3438,166 @@
     }
   }
 
+  function renderMasteryMeter(tot, mastered, learning){
+    const el = $("#masteryMeter");
+    if (!el) return;
+    const rate = pctOf(mastered, tot);
+    const unseen = Math.max(0, tot - mastered - learning);
+    el.innerHTML = tot
+      ? '<div class="mm-head"><span>当前背诵范围掌握率</span><b>' + rate + '%</b></div>' +
+        '<div class="mm-track" role="img" aria-label="已掌握 ' + mastered + ' 词，学习中 ' + learning + ' 词，未学 ' + unseen + ' 词">' +
+          '<i class="mm-mastered" style="width:' + (mastered / tot * 100) + '%"></i>' +
+          '<i class="mm-learning" style="width:' + (learning / tot * 100) + '%"></i>' +
+        '</div>' +
+        '<div class="mm-meta">已掌握 ' + mastered + ' · 学习中 ' + learning + ' · 未学 ' + unseen + '</div>'
+      : '<p class="chart-hint">当前筛选范围没有可背诵的词，先调整设置页的词库筛选。</p>';
+  }
+  function renderDueForecast(){
+    const el = $("#forecast");
+    if (!el) return;
+    const fc = dueForecast(14);
+    const mx = Math.max(1, ...fc.counts);
+    el.innerHTML = fc.counts.map((v, i) => {
+      const h = v ? Math.max(4, Math.round(v / mx * 100)) : 0;
+      const day = fc.dates[i];
+      const detail = i === 0
+        ? day + "：待复习 " + v + " 词" + (fc.overdue ? "（已到期 " + fc.overdue + "）" : "")
+        : day + "：到期 " + v + " 词";
+      return '<button type="button" class="fc-col' + (i === 0 ? " today" : "") + '" tabindex="' + (i === 0 ? "0" : "-1") + '" aria-pressed="false" aria-describedby="forecastHint" data-fc-label="' + esc(detail) +
+        '" aria-label="' + esc(detail) + '" title="' + esc(detail) + '">' +
+        '<span class="fc-count">' + (v || "") + "</span>" +
+        '<span class="fc-plot"><span class="fc-bar' + (v ? "" : " zero") + '" style="height:' + h + '%"></span></span>' +
+        "<em>" + fc.labels[i] + "</em></button>";
+    }).join("");
+    if (fc.total) {
+      const parts = ["今日待复习 " + fc.counts[0] + " 词" + (fc.overdue ? "（已到期 " + fc.overdue + "）" : "")];
+      parts.push("7 天内（含今天）" + fc.next7);
+      parts.push("14 天内（含今天）" + fc.total);
+      if (fc.later) parts.push("14 天后另有 " + fc.later + " 词");
+      if (fc.peak >= 0) {
+        const pl = fc.peak === 0 ? "今天" : fc.peak === 1 ? "明天" : fc.dates[fc.peak].slice(5).replace("-", "/");
+        parts.push("峰值 " + pl + " · " + fc.peakCount + " 词");
+      }
+      $("#forecastSummary").textContent = parts.join(" · ");
+      $("#forecastHint").textContent = "点击柱形查看日期与到期词数";
+    } else {
+      $("#forecastSummary").textContent = "未来 14 天没有到期复习";
+      $("#forecastHint").textContent = "学完第一批词后，这里会出现未来两周的复习负荷曲线";
+    }
+  }
+  function renderFreqMastery(){
+    const el = $("#freqMastery");
+    if (!el) return;
+    const data = frequencyMastery();
+    const summary = $("#freqMasterySummary");
+    if (!data.total) {
+      el.innerHTML = '<p class="chart-hint">当前筛选范围没有可统计的词。</p>';
+      if (summary) summary.textContent = "";
+      return;
+    }
+    el.innerHTML = data.rows.map(r => {
+      const mp = r.mastered / r.total * 100;
+      const lp = r.learning / r.total * 100;
+      const up = r.unseen / r.total * 100;
+      const label = r.label + "（" + r.range + "）：共 " + r.total + " 词，已掌握 " + r.mastered +
+        "，学习中 " + r.learning + "，未学 " + r.unseen;
+      return '<div class="fm-row">' +
+        '<div class="fm-head"><b>' + r.label + "</b><span>" + r.range + "</span><em>" + r.total +
+          " 词</em><strong>" + pctOf(r.mastered, r.total) + "%</strong></div>" +
+        '<div class="fm-bar" role="img" aria-label="' + esc(label) + '" title="' + esc(label) + '">' +
+          '<i class="fm-mastered" style="width:' + mp + '%"></i>' +
+          '<i class="fm-learning" style="width:' + lp + '%"></i>' +
+          '<i class="fm-unseen" style="width:' + up + '%"></i>' +
+        "</div></div>";
+    }).join("");
+    const parts = ["全范围 " + pctOf(data.mastered, data.total) + "%"];
+    const high = data.rows.find(r => r.key === "high");
+    if (high) parts.push("高频段 " + pctOf(high.mastered, high.total) + "%");
+    const lowRows = data.rows.filter(r => r.key === "low" || r.key === "rare");
+    const lowTotal = lowRows.reduce((n, r) => n + r.total, 0);
+    const lowMastered = lowRows.reduce((n, r) => n + r.mastered, 0);
+    if (lowTotal) parts.push("低频段 " + pctOf(lowMastered, lowTotal) + "%");
+    const weakest = data.rows.slice().sort((a, b) =>
+      a.mastered / a.total - b.mastered / b.total)[0];
+    if (weakest) parts.push("最低：" + weakest.label + " " + pctOf(weakest.mastered, weakest.total) + "%");
+    if (summary) summary.textContent = parts.join(" · ");
+  }
   function renderStats(){
     const tot = inScopeCount(), mas = scopedMasteredCount();
-    let learning = 0, wrong = 0;
+    let learning = 0, wrong = 0, unseen = 0;
     const dist = new Array(MASTER + 1).fill(0);
     for (let i = 0; i < W.length; i++) {
       if (!inScope(i) || isProficient(i)) continue;
       const p = st(i);
-      if (!p) { dist[0]++; continue; }
+      if (p && p[3] > 0) wrong++;
+      if (!hasMainProgress(p)) { unseen++; continue; }
       dist[Math.min(p[0], MASTER)]++;
       if (p[0] < MASTER) learning++;
-      if (p[3] > 0) wrong++;
     }
+    renderMasteryMeter(tot, mas, learning);
     const k = Object.keys(S.days).filter(k => S.days[k].r > 0).sort();
     const okAll = k.reduce((a, d) => a + S.days[d].ok, 0);
     const noAll = k.reduce((a, d) => a + S.days[d].no, 0);
-    $("#kpis").innerHTML = [
-      ["已掌握", mas],
-      ["学习中", learning],
-      ["未学", tot - mas - learning],
-      ["熟练（全词库）", proficientCount()],
-      ["错词", wrong],
-      ["收藏", Object.keys(S.stars || {}).length],
-      ["连续打卡", streak() + " 天"],
-      ["学习天数", k.length],
-      ["累计正确率", (okAll + noAll) ? Math.round(okAll / (okAll + noAll) * 100) + "%" : "—"],
-      ["累计时长", fmtTime(S.timeSec)]
-    ].map(([a, b]) =>
-      '<div class="kpi"><b>' + b + "</b><span>" + a + "</span></div>"
-    ).join("");
+    const kpiHtml = entries => entries.map(([a, b]) => '<div class="kpi"><b>' + b + "</b><span>" + a + "</span></div>").join("");
+    $("#kpis").innerHTML = '<div class="stats-primary-kpis">' + kpiHtml([
+      ["已掌握", mas], ["学习中", learning], ["连续打卡", streak() + " 天"],
+      ["累计正确率", (okAll + noAll) ? Math.round(okAll / (okAll + noAll) * 100) + "%" : "—"]
+    ]) + '</div><div class="stats-secondary-kpis">' + kpiHtml([
+      ["未学", unseen], ["熟练（全词库）", proficientCount()],
+      ["错词", wrong], ["收藏", Object.keys(S.stars || {}).length], ["学习天数", k.length], ["累计时长", fmtTime(S.timeSec)]
+    ]) + "</div>";
 
     $("#stagesHint").textContent = learning + mas === 0
       ? "还没有开始学习 —— 学完第一个词，这里就会出现各档位的分布"
       : "";
-    const mx = Math.max(1, ...dist);
-    $("#stages").innerHTML = dist.map((v, i) =>
-      '<div style="height:' + (v / mx * 100) + '%" title="' + v + '"><i>' + (v || "") + "</i><u>" +
-      (i === MASTER ? "掌握" : i) + "</u></div>"
-    ).join("");
+    const stageUnseen = unseen;
+    const stageDist = dist.slice();
+    const stageSummary = $("#stagesSummary");
+    if (stageSummary) stageSummary.textContent = "已学 " + (learning + mas) + " 词 · 未学 " + stageUnseen + " 词未计入；选择档位查看词数";
+    const mx = Math.max(1, ...stageDist);
+    $("#stages").innerHTML = stageDist.map((v, i) => {
+      const label = (i === MASTER ? "已掌握" : i === 0 ? "重学（第零档）" : "第" + i + "档") + "：" + v + " 词";
+      return '<button type="button" class="chart-bar" tabindex="' + (i === 0 ? "0" : "-1") + '" aria-pressed="false" aria-describedby="stagesHint" data-stage-label="' + esc(label) + '" aria-label="' + esc(label) + '" title="' + esc(label) + '"><span class="stage-plot"><span class="stage-fill" style="height:' + (v ? Math.max(3, v / mx * 100) : 0) + '%"><i>' + (v || "") + '</i></span></span><u>' + (i === MASTER ? "掌握" : i === 0 ? "重学" : i) + "</u></button>";
+    }).join("");
 
     const last = [];
+    let sumN = 0, sumR = 0, sumOk = 0, sumNo = 0;
     for (let d = 13; d >= 0; d--) {
       const t = new Date(); t.setDate(t.getDate() - d);
       const key = todayStr(t);
-      const v = S.days[key] || {n: 0, r: 0};
-      last.push([key, v.r, v.n]);
+      const v = S.days[key] || {n: 0, r: 0, ok: 0, no: 0};
+      last.push({key: key, date: t, n: v.n, r: v.r, ok: v.ok, no: v.no});
+      sumN += v.n; sumR += v.r; sumOk += v.ok; sumNo += v.no;
     }
-    $("#daysHint").textContent = last.every(x => x[1] === 0)
-      ? "最近 14 天还没有学习记录"
+    const dmx = Math.max(1, ...last.map(x => x.r));
+    $("#days").innerHTML = last.map((x, idx) => {
+      const todayCol = idx === last.length - 1;
+      const label = todayCol ? "今天" : idx === last.length - 2 ? "昨天"
+        : x.date.getDate() === 1 ? (x.date.getMonth() + 1) + "/1" : String(x.date.getDate());
+      const h = x.r ? Math.max(3, Math.round(x.r / dmx * 100)) : 0;
+      const nh = x.r ? x.n / x.r * 100 : 0;
+      const rh = x.r ? (x.r - x.n) / x.r * 100 : 0;
+      const acc = (x.ok + x.no) ? Math.round(x.ok / (x.ok + x.no) * 100) + "%" : "—";
+      const detail = x.key + "：新词 " + x.n + " · 复习 " + (x.r - x.n) + " · 正确率 " + acc;
+      return '<button type="button" class="day-col' + (todayCol ? " today" : "") +
+        '" tabindex="' + (todayCol ? "0" : "-1") + '" aria-pressed="false" aria-describedby="daysHint" data-day-label="' + esc(detail) + '" aria-label="' + esc(detail) + '" title="' + esc(detail) + '">' +
+        '<span class="day-plot"><span class="day-bar' + (x.r ? "" : " zero") + '" style="height:' + h + '%">' +
+          (x.n ? '<i class="day-new" style="height:' + nh + '%"></i>' : "") +
+          (x.r - x.n > 0 ? '<i class="day-rev" style="height:' + rh + '%"></i>' : "") +
+        "</span></span><em>" + label + "</em></button>";
+    }).join("");
+    $("#daysSummary").textContent = sumR
+      ? "近 14 天：新词 " + sumN + " · 复习 " + (sumR - sumN) + " · 正确率 " +
+        ((sumOk + sumNo) ? Math.round(sumOk / (sumOk + sumNo) * 100) + "%" : "—")
       : "";
-    const dmx = Math.max(1, ...last.map(x => x[1]));
-    $("#days").innerHTML = last.map(([k2, v, n]) =>
-      '<div style="height:' + (v / dmx * 100) + '%" title="' + k2 + "：新词 " + n + "，复习 " + (v - n) + '"></div>'
-    ).join("");
+    $("#daysHint").textContent = sumR ? "" : "最近 14 天还没有学习记录";
+    renderDueForecast();
+    renderFreqMastery();
     renderHeatmap();
     renderDrillEntry();
     renderReviewPlan();
     renderSurvey();
+    syncStatsChartHints();
   }
 
   /* ================= 打印生词本（界面） ================= */
@@ -2283,7 +3695,60 @@
   }
 
   /* ================= 设置 ================= */
+  function markSettingsEditing(){
+    const el = $("#settingsSaveState");
+    if (!el) return;
+    el.dataset.state = "editing";
+    if (el.textContent !== "调整中 · 松手后保存") el.textContent = "调整中 · 松手后保存";
+  }
+  function markSettingsSaved(){
+    const el = $("#settingsSaveState");
+    if (!el) return;
+    const ok = storageOK && !blockedBooks.has(currentBookId);
+    el.dataset.state = ok ? "saved" : "error";
+    const text = ok ? "已自动保存" : "保存失败，请导出进度备份";
+    if (el.textContent !== text) el.textContent = text;
+  }
+  function updateSettingsSummary(){
+    const el = $("#settingsSummary");
+    if (el) {
+      const order = {freq: "按词频顺序", shuffle: "每组随机打乱", wrong: "错词优先"};
+      el.textContent = currentBook().name + " · 每日 " + S.settings.dailyNew + " 个新词 · " + (order[S.settings.order] || "按词频顺序");
+    }
+    $$("[data-step-target]").forEach(b => {
+      const input = $("#" + b.dataset.stepTarget);
+      if (!input) return;
+      const value = Number(input.value);
+      b.disabled = +b.dataset.stepDir < 0 ? value <= +input.min : value >= +input.max;
+    });
+  }
+  function syncSettingsNav(){
+    if (!$("#v-set")?.classList.contains("on")) return;
+    const main = $("#main");
+    if (!main?.getBoundingClientRect) return;
+    const boundary = main.getBoundingClientRect().top + (window.innerWidth <= 840 ? 100 : 52);
+    let current = "settings-plan";
+    $$(".settings-section").forEach(el => {
+      if (el.getBoundingClientRect?.().top <= boundary) current = el.id;
+    });
+    if (main.scrollHeight && main.scrollTop + main.clientHeight >= main.scrollHeight - 2) current = "settings-rhythm";
+    $$(".settings-nav a").forEach(a => {
+      const on = a.getAttribute?.("href") === "#" + current;
+      const wasOn = a.classList.contains("on");
+      a.classList.toggle("on", on);
+      if (on) a.setAttribute?.("aria-current", "location");
+      else a.removeAttribute?.("aria-current");
+      if (on && !wasOn && window.innerWidth <= 840) {
+        const nav = a.parentElement;
+        if (nav && a.offsetLeft < nav.scrollLeft) nav.scrollLeft = a.offsetLeft;
+        else if (nav && a.offsetLeft + a.offsetWidth > nav.scrollLeft + nav.clientWidth) nav.scrollLeft = a.offsetLeft + a.offsetWidth - nav.clientWidth;
+      }
+    });
+  }
   function bindSet(){
+    const focusBefore = document.activeElement;
+    const focusedPmin = focusBefore?.closest?.("#pminPresets") ? focusBefore.dataset.pmin : null;
+    const focusedPos = focusBefore?.closest?.("#posChips") ? focusBefore.dataset.pos : null;
     const s = S.settings;
     applyBookText();
     $("#dailyNew").value = s.dailyNew;
@@ -2299,14 +3764,20 @@
     $("#showEx").checked = s.showEx;
     $("#showFm").checked = s.showFm;
     $("#autoSpk").checked = s.autoSpk;
+    const singleCharEl = $("#singleCharKeys");
+    if (singleCharEl) singleCharEl.checked = s.singleCharKeys !== false;
     updateScopeCount();
+    renderFreqHistogram();
     renderKeys();
+    updateSettingsSummary();
+    markSettingsSaved();
     $("#curveInfo").innerHTML =
-      "看到单词直接按「会」或「不会」，立刻出答案；记错了按另一个键改判，再按「下一个」翻页。<br>" +
-      "<b>未判定时按空格 / Enter 不会翻页。</b><br>" +
-      "「会」→ 进入下一档；「不会」→ 回到第 0 档，5 分钟后重来，并在本组队尾重考。<br>" +
-      STAGES.map((x, i) => (i + 1) + ". " + x.t).join(" → ") + " → 已掌握<br>" +
-      "走完全部 10 档约需 120 天。";
+      '<div class="rhythm-rules"><p><b>先回忆，再判定</b><span>选择「会」或「不会」后显示释义；未判定时不会翻页。</span></p>' +
+      '<p><b>会，进入下一档</b><span>不会则归零，5 分钟后重来，并在本组队尾重考。可随时改判。</span></p></div>' +
+      '<ol class="rhythm-timeline">' + STAGES.map((x, i) => '<li><span>' + (i + 1) + '</span><b>' + esc(x.t) + '</b></li>').join("") + '</ol>' +
+      '<p class="setting-footnote">完成 10 个间隔档位后进入已掌握，完整周期约 120 天。</p>';
+    if (focusedPmin != null) $('#pminPresets button[data-pmin="' + focusedPmin + '"]')?.focus?.({preventScroll: true});
+    else if (focusedPos != null) $('#posChips button[data-pos="' + focusedPos + '"]')?.focus?.({preventScroll: true});
   }
   function onSet(){
     const before = JSON.stringify([S.settings.dailyNew, S.settings.order, S.settings.fmin, S.settings.fmax, S.settings.pmin, S.settings.kyOnly]);
@@ -2322,16 +3793,24 @@
     S.settings.showEx = $("#showEx").checked;
     S.settings.showFm = $("#showFm").checked;
     S.settings.autoSpk = $("#autoSpk").checked;
+    const singleCharEl = $("#singleCharKeys");
+    if (singleCharEl) S.settings.singleCharKeys = singleCharEl.checked;
     save();
     updateScopeCount();
+    markSettingsSaved();
     if (before !== JSON.stringify([S.settings.dailyNew, S.settings.order, S.settings.fmin, S.settings.fmax, S.settings.pmin, S.settings.kyOnly])) startSession();
   }
   function updateScopeCount(){
     const n = inScopeCount();
-    $("#scopeLabel").textContent = "当前词书 " + n + " 词";
+    $("#scopeLabel").textContent = "背诵范围 " + n + " / " + W.length + " 词";
     const sc = $("#scopeCount");
-    sc.textContent = "当前范围 " + n + " 词 · 熟练已排除";
+    sc.textContent = n.toLocaleString() + " 个单词";
     sc.style.color = n ? "var(--accent)" : "var(--no)";
+    const empty = $("#scopeEmpty");
+    if (empty) empty.hidden = n > 0;
+    const start = $("#btnStartFromSettings");
+    if (start) start.disabled = !n;
+    updateSettingsSummary();
   }
   function syncPresets(){
     const s = S.settings;
@@ -2345,6 +3824,16 @@
       const on = +b.dataset.pmin === (s.pmin || 0);
       b.classList.toggle("on", on);
       b.setAttribute?.("aria-pressed", String(on));
+    });
+    $$("[data-combo]").forEach(b => {
+      const combo = b.dataset.combo;
+      const pos = s.pos || [];
+      const matches = combo === "core" ? s.fmin === 5 && !s.fmax && s.pmin === 3 && !s.kyOnly && !pos.length
+        : combo === "cold" ? s.fmin === 1 && s.fmax === 2 && !s.pmin && !s.kyOnly && !pos.length
+        : combo === "adj" ? s.fmin === 1 && !s.fmax && !s.pmin && !s.kyOnly && pos.length === 1 && pos[0] === "a"
+        : s.fmin === DEF.settings.fmin && s.fmax === DEF.settings.fmax && s.pmin === DEF.settings.pmin && s.kyOnly === DEF.settings.kyOnly && !pos.length;
+      b.classList.toggle("on", matches);
+      b.setAttribute?.("aria-pressed", String(matches));
     });
   }
   function renderPosChips(){
@@ -2363,9 +3852,13 @@
         save();
         startSession();
         renderPosChips();
+        $('#posChips button[data-pos="' + k + '"]')?.focus?.({preventScroll: true});
+        syncPresets();
         updateScopeCount();
+        renderFreqHistogram();
         applyFilter();
         renderStats();
+        markSettingsSaved();
       };
     });
   }
@@ -2381,7 +3874,7 @@
     document.title = book.name + "单词背诵";
     const btn = $("#btnBooks");
     if (btn) {
-      btn.textContent = book.mark;
+      btn.textContent = "词书⌄";
       btn.setAttribute?.("aria-label", "切换词书（当前 " + book.name + "）");
       btn.setAttribute?.("title", "切换词书（当前 " + book.name + "）");
     }
@@ -2392,10 +3885,11 @@
     const setText = (sel, text) => { const el = $(sel); if (el) el.textContent = text; };
     setText("#kyOnlyLabel", book.kyOnlyLabel);
     setText("#kyOnlyDesc", "开启后只背 ECDICT 标注为" + book.tagLabel + "的词");
-    setText("#fRangeDesc", "只背在 " + book.paperCount + " " + book.paperUnit + "里出现次数落在这个区间的词；上限留空 = 不限");
+    setText("#fRangeDesc", "按 " + book.paperCount + " " + book.paperUnit +
+      "的正文词频选择范围。拖动两端手柄，选择这次想背的单词。");
     setText("#pminDesc", "本词书共 " + book.paperCount + " " + book.paperUnit +
       "。跨试卷覆盖可补充词频信息：只在一套卷里反复出现的词，可能与该套卷的主题有关");
-    setText("#fscKy", book.tagLabel + "词");
+    setText("#fscKy", "大纲词");
     const pmin = $("#pmin");
     if (pmin) {
       pmin.max = String(book.paperCount);
@@ -2484,7 +3978,10 @@
         b.classList.remove("cap");
       }
       b.setAttribute?.("aria-label", "修改" + names[a] + "快捷键，当前 " + keyName(K[a]));
+      b.setAttribute?.("aria-pressed", String(rebinding === a));
     });
+    const status = $("#keyBindingStatus");
+    if (status) status.textContent = rebinding ? "正在修改「" + names[rebinding] + "」：按下新键，Esc 取消。" : "选择一个按键后直接按新键，Esc 取消。";
   }
   function captureKey(e){
     const k = (e.key === " " || e.code === "Space") ? " " : (e.key || "");
@@ -2506,6 +4003,7 @@
     renderKeys();
     renderCard();
     toast("已设为 " + keyName(k));
+    markSettingsSaved();
   }
 
   /* ================= 快捷键浮层 ================= */
@@ -2539,12 +4037,14 @@
     $(".top").inert = true;
     const panel = activeSheet.querySelector?.(".sheet-panel");
     if (panel) { panel.tabIndex = -1; panel.focus?.(); }
+    fitVisibleWords();
   }
   function closeSheet(){
     if (!activeSheet) return;
     hideExPop();
     const closedId = activeSheet.id;
     if (closedId === "txtSplitSheet") txtSplitContext = null;
+    if (closedId === "importSheet") pendingImport = null;
     activeSheet.hidden = true;
     activeSheet = null;
     $("#main").inert = false;
@@ -2582,8 +4082,8 @@
       '<span class="tag ' + (isProficient(i) ? "badge-proficient" : "") + '">' + esc(isProficient(i) ? "熟练 · 已移出背诵" : stageLabel(st(i) ? st(i)[0] : 0)) + '</span>' + wordBookTags(x.w) + '</div>' +
       '<p class="storage-note">' + esc(wordReviewLabel(i)) + '</p>' +
       (x.ph ? '<div class="ph">/' + esc(x.ph) + '/</div>' : '') +
-      '<div class="mean">' + esc(x.m) + '</div>' +
-      (x.ex ? '<div class="ex" data-ex-linked="1">' + exHtml(x.ex) + '<span class="src">— 真题例句 · ' + esc(x.src) + '</span></div>' : '') +
+      '<div class="mean">' + meaningHtml(x) + '</div>' +
+      (x.ex ? '<div class="ex" data-ex-linked="1" tabindex="0" role="group" aria-expanded="false" aria-label="例句，左右方向键选词，回车查义">' + exHtml(x.ex, x) + '<span class="src">— ' + esc(srcBadge(x.src)) + '</span></div>' : '') +
       (x.fm ? '<div class="fm">词形：' + esc(x.fm) + '</div>' : '');
     bindExLookup($("#wordDetail"));
     $("#wordActions").innerHTML =
@@ -2593,6 +4093,7 @@
     $("#detailProficient").onclick = () => { setProficient(i, !isProficient(i)); renderWordDetail(); $("#detailProficient").focus?.(); };
     $("#detailStar").onclick = () => { toggleStar(i); applyFilter(false); renderWordDetail(); $("#detailStar").focus?.(); };
     $("#detailSpeak").onclick = () => speak(x.w);
+    fitWord($("#wordTitle"));
   }
   function openWord(i){
     if (!W[i]) return;
@@ -2604,6 +4105,8 @@
   /* ================= 视图 ================= */
   function show(v){
     if (v !== "set" && rebinding) { rebinding = null; renderKeys(); }
+    const wasList = $("#v-list").classList.contains("on");
+    if (wasList && v !== "list") saveListUi();
     // 各视图共用 main 滚动容器；切页时从顶部开始，避免沿用设置页底部的位置。
     if (!$("#v-" + v).classList.contains("on")) $("#main").scrollTop = 0;
     $$(".view").forEach(x => x.classList.remove("on"));
@@ -2614,9 +4117,15 @@
       else b.removeAttribute?.("aria-current");
     });
     $("#main").classList.toggle("wide", v !== "study");
-    if (v === "list") applyFilter();
+    if (v === "study") fitVisibleWords();
+    if (v === "list") {
+      // 首次进入且尚无保存状态时，尊重当前控件值（例如从统计页点「到期词」预设的筛选）。
+      if (!wasList && listUiByBook[currentBookId]) restoreListUi(currentBookId);
+      applyFilter(false);
+      announceListRow();
+    }
     if (v === "stats") renderStats();
-    if (v === "set") bindSet();
+    if (v === "set") { bindSet(); syncSettingsNav(); }
     updateBar();
   }
   function updateBar(){
@@ -2624,7 +4133,7 @@
     const id = v && v.id ? v.id.replace("v-", "") : "study";
     let pct = 0;
     if (id === "study") {
-      pct = Q.length ? Math.round(answered / Q.length * 100) : 0;
+      pct = groupTotal ? Math.round(Math.min(answered, groupTotal) / groupTotal * 100) : 0;
     } else {
       const tot = Math.max(1, inScopeCount());
       pct = Math.round(scopedMasteredCount() / tot * 100);
@@ -2633,7 +4142,7 @@
     if (bar) bar.style.width = pct + "%";
   }
 
-  /* ================= Toast ================= */
+  /* ================= Toast / 持续错误提示 ================= */
   let tt = null;
   function toast(m){
     const t = $("#toast");
@@ -2642,20 +4151,139 @@
     clearTimeout(tt);
     tt = setTimeout(() => t.classList.remove("on"), 2200);
   }
+  function showAlert(title, body, opts){
+    opts = opts || {};
+    const el = $("#appAlert");
+    if (!el) { toast(title + "：" + body); return; }
+    el.dataset.kind = opts.kind || "general";
+    const titleEl = $("#appAlertTitle"), bodyEl = $("#appAlertBody"), actions = $("#appAlertActions");
+    if (titleEl) titleEl.textContent = title;
+    if (bodyEl) bodyEl.textContent = body;
+    if (actions) {
+      actions.innerHTML = "";
+      const add = (label, fn, primary) => {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "btn sm " + (primary ? "primary" : "ghost");
+        b.textContent = label;
+        b.onclick = fn;
+        actions.appendChild(b);
+      };
+      if (opts.recover) add("恢复导入前记录", recoverImportJournal, true);
+      if (opts.rescue) add("救援导出", exportRescueBackup, true);
+      if (opts.export) add("导出备份", exportBackupFile, !opts.rescue && !opts.recover);
+      add("关闭", () => { el.hidden = true; }, false);
+    }
+    el.hidden = false;
+  }
+  function clearAlert(kind){
+    const el = $("#appAlert");
+    if (!el) return;
+    if (kind && el.dataset.kind !== kind) return;
+    el.hidden = true;
+    el.dataset.kind = "";
+  }
+  function downloadJsonFile(name, data){
+    const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove?.();
+    setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+  }
+  function exportBackupFile(){
+    try {
+      const data = buildExport();
+      downloadJsonFile("背词进度_" + todayStr() + ".json", data);
+      if (data.warnings && data.warnings.length) {
+        showAlert("备份已导出，但有提醒", warningIds(data.warnings) + "。当前文件已包含全部可读取的词书。", {kind: "export"});
+      } else {
+        clearAlert("export");
+        toast("进度备份已导出");
+      }
+      return data;
+    } catch (err) {
+      if (err && err.corrupted) {
+        showAlert("无法常规导出", err.message, {kind: "export", rescue: true});
+      } else {
+        showAlert("导出失败", (err && err.message ? err.message : "未知错误") + "。现有记录未改动。", {kind: "export", export: true});
+      }
+      return null;
+    }
+  }
+  function exportRescueBackup(){
+    try {
+      const data = buildRescueExport();
+      downloadJsonFile("背词救援_" + todayStr() + ".json", data);
+      showAlert("救援备份已导出", "文件包含正常词书与损坏词书的原始文本，但不能直接导入。请保留原文件，并在修复或重新导出正常备份前不要重置损坏词书。", {kind: "export"});
+      return data;
+    } catch (err) {
+      showAlert("救援导出失败", (err && err.message ? err.message : "浏览器存储不可用") + "。请尝试复制浏览器存储或更换环境。", {kind: "export"});
+      return null;
+    }
+  }
+
+  /* ================= 导入确认 ================= */
+  let pendingImport = null;
+  function formatBackupTime(iso){
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso || "未记录";
+    const p = n => String(n).padStart(2, "0");
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+  function renderImportPlan(plan){
+    const summary = $("#importSummary");
+    if (summary) {
+      summary.textContent = (plan.version === 1 ? "旧版备份（v1）" : "备份 v" + plan.version)
+        + " · " + (plan.exportedAt ? "导出于 " + formatBackupTime(plan.exportedAt) : "未记录导出时间")
+        + " · 备份时词书：" + (plan.activeBook && BOOKS[plan.activeBook] ? BOOKS[plan.activeBook].name : "未记录");
+    }
+    const list = $("#importBookList");
+    if (list) {
+      list.innerHTML = plan.books.map(b =>
+        '<div class="import-book"><b>' + esc(b.name) + "</b><span>已学 " + b.learned
+        + " 词 · 已掌握 " + b.mastered + " 词 · 将替换本机同名记录</span></div>"
+      ).join("");
+    }
+    const scope = $("#importScopeNote");
+    if (scope) {
+      scope.textContent = "导入会替换上述词书的学习记录、设置、收藏与每日统计；本机已有熟练标记会保留，其他词书不变。"
+        + (plan.kind === "legacy" ? "旧版备份只恢复考研记录。" : "");
+    }
+  }
+  function openImportConfirm(o){
+    try {
+      const plan = prepareImportPlan(o);
+      pendingImport = {data: o, plan: plan};
+      renderImportPlan(plan);
+      openSheet("#importSheet");
+    } catch (err) {
+      pendingImport = null;
+      showAlert("无法导入备份", (err && err.message ? err.message : "文件格式不正确") + "。现有记录未改动。", {kind: "import"});
+    }
+  }
 
   /* ================= 手势 ================= */
   function bindSwipe(){
     const card = $("#card");
-    let x0 = 0, y0 = 0, tracking = false;
+    let x0 = 0, y0 = 0, tracking = false, pointerId = null;
+    const hasSelection = () => Boolean(window.getSelection?.()?.toString());
     card.addEventListener("pointerdown", (e) => {
-      if (e.target.closest("button")) return;
+      tracking = false;
+      // 鼠标拖选单词不能写入判定；只跟踪主触摸或笔尖手势。
+      if (!["touch", "pen"].includes(e.pointerType) || e.isPrimary === false
+          || (e.button != null && e.button !== 0)
+          || e.target.closest("button, input, select, textarea, a") || hasSelection()) return;
       tracking = true;
+      pointerId = e.pointerId;
       x0 = e.clientX;
       y0 = e.clientY;
     });
     card.addEventListener("pointerup", (e) => {
-      if (!tracking) return;
+      if (!tracking || e.pointerId !== pointerId) return;
       tracking = false;
+      if (hasSelection()) return;
       const dx = e.clientX - x0;
       const dy = e.clientY - y0;
       if (Math.abs(dx) < 56 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
@@ -2668,7 +4296,7 @@
 
   /* ================= 全局键盘 ================= */
   document.addEventListener("keydown", (e) => {
-    if (e.repeat || e.isComposing) return;
+    if (e.repeat || e.isComposing || e.defaultPrevented) return;
     if (rebinding) {
       e.preventDefault();
       captureKey(e);
@@ -2677,7 +4305,7 @@
     const pop = $("#exPop");
     if (pop && pop.classList && pop.classList.contains("on") && e.key === "Escape") {
       e.preventDefault();
-      hideExPop();
+      hideExPop(true);
       return;
     }
     const tag = e.target.tagName;
@@ -2686,10 +4314,12 @@
         e.preventDefault();
         closeSheet();
       } else if (e.key === "Tab") {
-        const selector = 'button, input, select, textarea, a[href], [tabindex="0"]';
+        const selector = 'button, input, select, textarea, summary, a[href], [tabindex="0"]';
         const nodes = Array.from(activeSheet.querySelectorAll?.(selector) || [])
           .concat(pop && !pop.hidden ? Array.from(pop.querySelectorAll?.(selector) || []) : [])
-          .filter(x => !x.disabled && !x.hidden);
+          .filter(x => !x.disabled && !x.hidden
+            && !x.closest?.("[hidden], [inert]")
+            && (!x.getClientRects || x.getClientRects().length > 0));
         if (nodes.length) {
           const first = nodes[0], last = nodes[nodes.length - 1];
           if (e.shiftKey && (document.activeElement === first || !nodes.includes(document.activeElement))) { e.preventDefault(); last.focus(); }
@@ -2698,8 +4328,26 @@
       }
       return;
     }
+    // 查词期间只操作浮层，避免熟练、改判、发音或撤销误作用于背后的学习卡。
+    if (pop && !pop.hidden) {
+      if (e.key === "Tab") {
+        const nodes = Array.from(pop.querySelectorAll?.("button, [tabindex='0']") || [])
+          .filter(x => !x.disabled && !x.hidden);
+        nodes.unshift(pop);
+        if (nodes.length) {
+          const first = nodes[0], last = nodes[nodes.length - 1];
+          if (e.shiftKey && (document.activeElement === first || !nodes.includes(document.activeElement))) {
+            e.preventDefault(); last.focus?.();
+          } else if (!e.shiftKey && (document.activeElement === last || !nodes.includes(document.activeElement))) {
+            e.preventDefault(); first.focus?.();
+          }
+        }
+      }
+      return;
+    }
     if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA" || e.target.isContentEditable) return;
-    if (e.key === "?" && !e.ctrlKey && !e.metaKey) {
+    const singleChar = S.settings.singleCharKeys !== false;
+    if (singleChar && e.key === "?" && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       openHelp();
       return;
@@ -2714,28 +4362,28 @@
     if (e.ctrlKey || e.metaKey || e.altKey) return;
 
     if (!$("#v-study").classList.contains("on")) return;
-    if (tag === "BUTTON" && (e.key === "Enter" || e.key === " ")) return;
+    if ((tag === "BUTTON" || tag === "SUMMARY") && (e.key === "Enter" || e.key === " ")) return;
     if (cur == null) return;
 
     const K = S.settings.keys;
-    if (keyMatch(e, K.know)) {
+    if (singleChar && keyMatch(e, K.know)) {
       e.preventDefault();
       judge(true);
-    } else if (keyMatch(e, K.dont)) {
+    } else if (singleChar && keyMatch(e, K.dont)) {
       e.preventDefault();
       judge(false);
-    } else if (keyMatch(e, K.next) || e.key === "Enter") {
+    } else if (e.key === "Enter" || (singleChar && keyMatch(e, K.next))) {
       e.preventDefault();
       tryNext(true);   // 门控：recall 阶段不翻页
-    } else if (keyMatch(e, K.speak)) {
+    } else if (singleChar && keyMatch(e, K.speak)) {
       e.preventDefault();
       speak(W[cur].w);
-    } else if (keyMatch(e, K.star)) {
+    } else if (singleChar && keyMatch(e, K.star)) {
       e.preventDefault();
       toggleStar(cur);
       renderCard();
       toast(isStar(cur) ? "已收藏" : "已取消收藏");
-    } else if (keyMatch(e, K.proficient)) {
+    } else if (singleChar && keyMatch(e, K.proficient)) {
       e.preventDefault();
       setProficient(cur, true);
     } else if (e.key === "ArrowLeft") {
@@ -2754,7 +4402,7 @@
   bindExLookup($("#card"));
   bindExLookup($("#wordDetail"));
   // 鼠标点击按钮后主动移走焦点：按钮保留焦点时空格/回车会先被浏览器原生激活按钮，
-  // 导致点过导航/主题/预设/切书等按钮后无法用空格翻页。
+  // 导致点过导航/主题/预设/切书等按钮后无法用空格翻页（真实浏览器回归）。
   // 只处理指针点击（e.detail>0）；键盘触发的 click 保留焦点，兼容键盘操作。浮层内按钮由 closeSheet 管理。
   document.addEventListener("click", (e) => {
     if (!e.detail) return;
@@ -2769,6 +4417,28 @@
     if (t && (t.closest && (t.closest(".ex-word") || t.closest("#exPop")))) return;
     hideExPop();
   });
+  // 查词浮层固定在视口中；其锚点所在容器一旦滚动，就关闭旧位置的浮层。
+  document.addEventListener("scroll", (e) => {
+    const pop = $("#exPop");
+    if (!pop || pop.hidden || pop === e.target || pop.contains?.(e.target)) return;
+    hideExPop();
+  }, true);
+  window.addEventListener?.("resize", hideExPop);
+  window.addEventListener?.("resize", fitVisibleWords);
+  window.addEventListener?.("resize", refreshFreqPresentation);
+  // 主窗口侧栏变化也会改变可用宽度；字体就绪后重新测量，离线系统字体同样适用。
+  if (typeof window.ResizeObserver === "function") {
+    let lastWidth = 0;
+    const wordResize = new window.ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width;
+      if (width && width !== lastWidth) { lastWidth = width; fitVisibleWords(); refreshFreqPresentation(); }
+    });
+    wordResize.observe($("#main"));
+  }
+  document.fonts?.ready?.then(fitVisibleWords);
+  document.fonts?.addEventListener?.("loadingdone", fitVisibleWords);
+  window.visualViewport?.addEventListener("resize", hideExPop);
+  window.visualViewport?.addEventListener("scroll", hideExPop);
 
   $("#q").addEventListener("input", applyFilter);
   $("#fst").addEventListener("change", () => {
@@ -2778,18 +4448,56 @@
   $("#fsc").addEventListener("change", applyFilter);
   const dueListBtn = $("#btnDueList");
   if (dueListBtn) dueListBtn.onclick = () => {
+    show("list");
     $("#fst").value = "due";
     $("#fsc").value = "scope";
     $("#q").value = "";
-    show("list");
+    applyFilter();
+    const first = $("#listInner")?.querySelector?.('[data-open-word]');
+    (first || $("#listScroll"))?.focus?.({preventScroll: true});
+  };
+  const statsStudyBtn = $("#btnStatsStudy");
+  if (statsStudyBtn) statsStudyBtn.onclick = () => {
+    show("study");
+    $("#card").focus?.({preventScroll: true});
   };
 
-  $("#listScroll").addEventListener("scroll", renderRows);
+  $("#listScroll").addEventListener("scroll", () => { saveListUi(); renderRows(); });
+  $("#listInner").addEventListener("keydown", navigateList);
+  $("#listInner").addEventListener("focusin", (e) => {
+    const t = e.target;
+    if (t?.dataset?.openWord !== undefined) {
+      listActiveWord = +t.dataset.openWord; listActiveAction = "open-word";
+    } else if (t?.dataset?.proficient !== undefined) {
+      listActiveWord = +t.dataset.proficient; listActiveAction = "proficient";
+    } else return;
+    announceListRow(); saveListUi();
+  });
+  bindStatsChart("#days", "[data-day-label]", "#daysHint");
+  bindStatsChart("#forecast", "[data-fc-label]", "#forecastHint");
+  bindStatsChart("#stages", "[data-stage-label]", "#stagesHint");
+  bindStatsChart("#heatmap", ".hm-cell", "#heatmapTip", true);
+  window.addEventListener?.("resize", syncStatsChartHints);
+  const clearFilters = $("#clearListFilters");
+  if (clearFilters) clearFilters.onclick = () => {
+    $("#q").value = "";
+    $("#fst").value = "all";
+    $("#fsc").value = "all";
+    applyFilter();
+    $("#q").focus?.({preventScroll: true});
+  };
   $("#listInner").addEventListener("click", (e) => {
     const action = e.target.closest("[data-proficient]");
-    if (action) { const i = +action.dataset.proficient; setProficient(i, !isProficient(i)); return; }
+    if (action) {
+      const i = +action.dataset.proficient;
+      listActiveWord = i; listActiveAction = "proficient";
+      setProficient(i, !isProficient(i));
+      return;
+    }
     const r = e.target.closest(".row");
     if (!r) return;
+    listActiveWord = +r.dataset.i; listActiveAction = "open-word";
+    announceListRow();
     openWord(+r.dataset.i);
   });
 
@@ -2797,6 +4505,7 @@
     b.onclick = () => {
       $("#fmin").value = b.dataset.fmin;
       $("#fmax").value = b.dataset.fmax || "";
+      if (b.dataset.pmin !== undefined) $("#pmin").value = b.dataset.pmin;
       onSet(); bindSet(); applyFilter(); renderStats();
       toast("已设为 " + b.textContent);
     };
@@ -2819,8 +4528,10 @@
   }
   $$("[data-combo]").forEach(b => {
     b.onclick = () => {
+      const moveFocus = b.closest?.("#scopeEmpty") && document.activeElement === b;
       applyComboFilters(b.dataset.combo);
       save(); bindSet(); applyFilter(); renderStats(); startSession();
+      if (moveFocus) $("#btnStartFromSettings")?.focus?.({preventScroll: true});
       toast("已应用：" + b.textContent);
     };
   });
@@ -2829,24 +4540,60 @@
       S.settings.theme = b.dataset.theme;
       save(); applyTheme();
       toast("主题：" + b.textContent);
+      markSettingsSaved();
     };
   });
-  ["dailyNew","order","fmin","fmax","pmin","kyOnly","showPh","showEx","showFm","autoSpk"].forEach(id => {
-    const el = $("#" + id);
-    if (el) el.addEventListener("change", () => {
-      onSet(); bindSet(); applyFilter(); renderStats(); renderCard();
-    });
+  function applySettingsControl(){
+    onSet(); bindSet(); applyFilter(); renderStats(); renderCard();
+  }
+  $$("[data-step-target]").forEach(b => {
+    b.onclick = () => {
+      const input = $("#" + b.dataset.stepTarget);
+      if (!input) return;
+      const fallback = b.dataset.stepTarget === "dailyNew" ? 30 : 0;
+      const value = input.value === "" ? fallback : Number(input.value);
+      input.value = Math.max(+input.min, Math.min(+input.max, value + +b.dataset.stepDir * (+input.step || 1)));
+      applySettingsControl();
+    };
   });
+  const startFromSettings = $("#btnStartFromSettings");
+  if (startFromSettings) startFromSettings.onclick = () => show("study");
+  $$(".settings-nav a").forEach(a => {
+    a.onclick = (e) => {
+      const target = $(a.getAttribute("href"));
+      if (!target) return;
+      e.preventDefault();
+      target.scrollIntoView?.({block: "start", behavior: "auto"});
+      target.tabIndex = -1;
+      target.focus?.({preventScroll: true});
+      syncSettingsNav();
+    };
+  });
+  let settingsNavFrame = false;
+  $("#main").addEventListener("scroll", () => {
+    if (settingsNavFrame || !$("#v-set")?.classList.contains("on")) return;
+    settingsNavFrame = true;
+    const schedule = window.requestAnimationFrame || ((fn) => fn());
+    schedule(() => { settingsNavFrame = false; syncSettingsNav(); });
+  }, {passive: true});
+  ["dailyNew","order","fmin","fmax","pmin","kyOnly","showPh","showEx","showFm","autoSpk","singleCharKeys"].forEach(id => {
+    const el = $("#" + id);
+    if (el) el.addEventListener("change", applySettingsControl);
+  });
+  [["fminRange", "min"], ["fmaxRange", "max"]].forEach(([id, which]) => {
+    const el = $("#" + id);
+    if (!el) return;
+    el.addEventListener("input", () => onFreqRangeInput(which));
+    el.addEventListener("change", () => { if (onFreqRangeInput(which) !== false) commitFreqRange(); });
+    el.addEventListener("keydown", e => onFreqRangeKey(e, which));
+    el.addEventListener("focus", () => setFreqActivity(which));
+    el.addEventListener("blur", () => commitFreqRange());
+    el.addEventListener("pointerdown", e => startFreqRangeDrag(e, which));
+  });
+  const freqTrackEl = $("#freqTrack");
+  if (freqTrackEl) freqTrackEl.addEventListener("pointerdown", onFreqTrackClick);
 
-  $("#exp").onclick = () => {
-    const data = buildExport();   // v3：全部可用词书 + 当前书（带 dv）
-    const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "背词进度_" + todayStr() + ".json";
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 3000);
-  };
+  $("#exp").onclick = () => exportBackupFile();
   const exportBookTxtBtn = $("#btnExportBookTxt");
   if (exportBookTxtBtn) exportBookTxtBtn.onclick = () => exportWordBookTxt("scope");
   const exportListTxtBtn = $("#btnExportListTxt");
@@ -2883,40 +4630,56 @@
   if (doPrintEl) doPrintEl.onclick = () => { renderPrintBook(); window.print?.(); };
   $$("#printSheet [data-print-close]").forEach(el => { el.onclick = closeSheet; });
   $("#imp").onclick = () => $("#file").click();
-  /** 兼容 v1（平铺，按考研书）与 v2（books 分书全量备份）；返回当前书 state */
+  /** 兼容 v1（平铺，按考研书）与 v2/v3（books 分书全量备份）；返回当前书 state */
   function importState(o){
-    if (isRecord(o) && isRecord(o.books)) {
-      if (o.version !== 2 && o.version !== 3) throw new Error("不支持的备份版本");
-      return importBooksBackup(o);   // v2 无 dv → 按 v1 逐书迁移；v3 直接按 dv 校验
-    }
+    if (isRecord(o) && (o.version === 2 || o.version === 3)) return importBooksBackup(o);
     return importLegacyV1(o);
   }
   $("#file").onchange = (e) => {
     const f = e.target.files[0];
     if (!f) return;
-    if (f.size > 10 * 1024 * 1024) { toast("备份文件过大，请选择本应用导出的 JSON 进度文件"); e.target.value = ""; return; }
+    if (f.size > 10 * 1024 * 1024) {
+      showAlert("备份文件过大", "请选择本应用导出的 JSON 进度文件（不超过 10 MB）。现有记录未改动。", {kind: "import"});
+      e.target.value = "";
+      return;
+    }
     const r = new FileReader();
     r.onload = () => {
-      try {
-        const o = JSON.parse(r.result);
-        importState(o);
-      } catch (err) {
-        toast("文件格式不正确，现有进度未改变");
+      let o;
+      try { o = JSON.parse(r.result); }
+      catch (err) {
+        showAlert("文件格式不正确", "无法解析为 JSON。现有进度未改变，请确认选择的是本应用导出的备份。", {kind: "import"});
+        return;
       }
+      openImportConfirm(o);
     };
-    r.onerror = () => toast("文件读取失败，请重新选择备份文件");
+    r.onerror = () => showAlert("文件读取失败", "请重新选择备份文件。现有进度未改变。", {kind: "import"});
     r.readAsText(f);
     e.target.value = "";
   };
+  $$("#importSheet [data-import-close]").forEach(el => { el.onclick = () => { pendingImport = null; closeSheet(); }; });
+  const importConfirmBtn = $("#importConfirm");
+  if (importConfirmBtn) importConfirmBtn.onclick = () => {
+    if (!pendingImport) return;
+    const data = pendingImport.data;
+    pendingImport = null;
+    closeSheet();
+    try {
+      importState(data);
+      clearAlert("import");
+    } catch (err) {
+      showAlert("导入失败", (err && err.message ? err.message : "备份无法导入") + "。现有记录已保留。", {kind: "import", export: true});
+    }
+  };
   $("#rst").onclick = () => {
     const name = currentBook().name;
-    if (confirm("确定清空「" + name + "」的全部学习进度、熟练标记、收藏、抽样统计与设置？此操作只影响当前词书，且不可撤销。请先导出备份。")) {
+    if (confirm("确定重置「" + name + "」的学习记录、熟练标记、收藏、抽样统计与设置？此操作只影响当前词书（不是全部词书），且不可撤销。请先导出备份。")) {
       S = freshState(currentBook());
       resetSurvey();
       blockedBooks.delete(currentBookId);
       const saved = save(true, true);
       bindSet(); applyFilter(); renderStats(); startSession(); updateBar(); renderBookList();
-      toast(saved ? "已重置「" + name + "」的全部记录" : "已重置，但未能保存；请检查浏览器存储");
+      toast(saved ? "已重置「" + name + "」的当前词书记录" : "已重置，但未能保存；请检查浏览器存储");
     }
   };
   $("#resetProficient").onclick = () => {
@@ -2961,8 +4724,17 @@
   }
 
   if (!storageOK || blockedBooks.has(currentBookId)) {
-    toast("已有记录无法读取，已暂停保存；请导入备份或手动重置");
+    showAlert("已有记录无法读取", "受影响词书：" + currentBook().name
+      + "。原因：" + (loadError || "记录格式无法读取")
+      + "。已暂停写入以避免覆盖原文件；可导入备份恢复、使用救援导出保留原文，或在统计页显式重置当前词书。",
+      {kind: "save", recover: false, export: true, rescue: true});
   }
+  try {
+    if (localStorage.getItem(JOURNAL_KEY)) {
+      showAlert("发现未完成的导入", "上次导入可能在中途中断。可恢复到导入前记录；恢复前不要继续导入或重置词书。",
+        {kind: "import", recover: true});
+    }
+  } catch (e) { /* 存储不可用时已有保存失败提示 */ }
 
   applyBrand();
   bindSwipe();
@@ -2970,8 +4742,25 @@
   renderStats();
   updateBar();
 
-  // 到期词轮询
+  /**
+   * 统一恢复入口：跨天、从后台回来、统计页停留跨日都走这里。
+   * 只刷新额度/到期/图表，不重建当前卡、判定、特训与撤销历史。
+   */
+  let lastDay = todayStr();
+  function refreshForResume(){
+    const today = todayStr();
+    const dayChanged = today !== lastDay;
+    if (dayChanged) lastDay = today;
+    if ($("#v-study").classList.contains("on") && (dayChanged || cur == null)) renderCard();
+    renderReviewPlan();
+    if ($("#v-stats").classList.contains("on")) renderStats();
+    if ($("#v-list").classList.contains("on") && $("#fst").value === "due") applyFilter(false);
+    updateBar();
+  }
+
+  // 到期词轮询：未开始新组时补显示到期词；跨天只刷新现场数据
   setInterval(() => {
+    if (todayStr() !== lastDay) { refreshForResume(); return; }
     if (cur == null && countDue() > 0) renderCard();
     renderReviewPlan();
     if ($("#v-list").classList.contains("on") && $("#fst").value === "due") applyFilter(false);
@@ -2986,15 +4775,16 @@
     }
   }, 15000);
 
-  // 跨天刷新
-  let lastDay = todayStr();
+  // 后台标签跨天兜底：保留正在学习的卡片与撤销栈
   setInterval(() => {
-    const t = todayStr();
-    if (t !== lastDay) {
-      lastDay = t;
-      startSession();
-    }
+    if (todayStr() !== lastDay) refreshForResume();
   }, 60000);
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "hidden") refreshForResume();
+  });
+  window.addEventListener?.("pageshow", refreshForResume);
+  window.addEventListener?.("focus", refreshForResume);
 
   window.addEventListener?.("storage", (e) => {
     if (e.key === ACTIVE_KEY) { followActiveBook(); return; }
@@ -3009,6 +4799,8 @@
     for (const id of Object.keys(BOOKS)) {
       if (e.key === BOOKS[id].KEY || e.key === BOOKS[id].PROF_KEY) { owner = id; break; }
     }
+    // localStorage.clear() 的事件 key 为 null，也必须清除本页旧状态，避免再次写回复活。
+    if (e.key === null) { owner = currentBookId; loadSurvey(); }
     if (!owner) return;
     if (owner !== currentBookId) {
       // 别的书被别人更新：本标签只刷新词书列表统计，不切换
@@ -3017,17 +4809,19 @@
     }
     try {
       const raw = localStorage.getItem(KEY);
-      const candidate = raw ? normalizeState(JSON.parse(raw), currentBookId) : S;
+      const candidate = raw !== null ? normalizeState(JSON.parse(raw), currentBookId) : freshState(currentBook());
       const proficientRaw = localStorage.getItem(PROF_KEY);
       if (proficientRaw !== null) candidate.proficient = normalizeProficientByBook(JSON.parse(proficientRaw), currentBook());
       const signature = s => JSON.stringify([s.settings, s.progress, s.days, s.stars, s.proficient]);
       if (signature(candidate) === signature(S) && !Q.slice(qi).some(i => !!candidate.proficient[W[i].w])) {
         S.timeSec = Math.max(S.timeSec, candidate.timeSec);
         lastMainRaw = raw;
+        lastSavedSignature = savedStateSignature(S);
         return;
       }
       S = candidate;
       lastMainRaw = raw;
+      lastSavedSignature = savedStateSignature(S);
       storageOK = true;
       blockedBooks.delete(currentBookId);
       if (activeSheet) closeSheet();
@@ -3046,9 +4840,14 @@
     get answered() { return answered; },
     get drillMode() { return drillMode; },
     judge, tryNext, undo, startSession, nextCard,
+    buildExport, buildRescueExport, prepareImportPlan, recoverImportJournal,
+    hasMainProgress, isMainLearned, pendingReinforce,
+    getGroupTotal: () => groupTotal,
+    getListActiveWord: () => listActiveWord,
     applyComboFilters,
+    freqToPos, posToFreq, freqHistogram, renderFreqHistogram, syncFreqControls,
     inScope, inScopeCount, masteredCount, scopedMasteredCount, countDue, buildQueue,
-    reviewPlan, wordReviewLabel,
+    reviewPlan, wordReviewLabel, dueForecast, frequencyMastery,
     isProficient, setProficient, resetProficient, proficientCount,
     normalizeState, importState, applyFilter, show, openWord, closeSheet,
     wrongWordIndices, applyDrill, startDrill, exitDrill,
@@ -3060,8 +4859,9 @@
     heatLevel, heatmapData,
     wilsonInterval, surveyStats, getSurveyStats: () => surveyStats(),
     resetSurvey, getSurvey: () => JSON.parse(JSON.stringify(SURVEY)),
-    exTokens, exHtml, lookupExWord, showExPop, hideExPop,
+    exTokens, exHtml, meaningHtml, lookupExWord, showExPop, hideExPop,
     getStorageOK: () => storageOK && !blockedBooks.has(currentBookId),
+    getStorageAlert: () => $("#appAlert")?.hidden === false ? ($("#appAlertBody")?.textContent || "") : "",
     getS: () => S, getW: () => W,
     // —— 多词书钩子（契约 4.5） ——
     getBook: () => currentBookId,

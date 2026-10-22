@@ -1,0 +1,1771 @@
+{
+  "date": "2026-10-21",
+  "policy": "仅删除明确残片/错形重复/纯专名/非英语片段；不删基础词、低频正常词或多义词；本轮不以简单副词可推导为由删除。",
+  "counts": {
+    "kaoyan": 57,
+    "cet4": 6,
+    "cet6": 11
+  },
+  "certain": [
+    {
+      "book": "kaoyan",
+      "index": 728,
+      "word": "para",
+      "category": "abbr",
+      "reason": "题目中的段落定位缩写 Para.，不是独立背诵词",
+      "target": null,
+      "meaning": "n. 段落",
+      "frequency": 27,
+      "paperCount": 21,
+      "evidence": [
+        {
+          "path": "_work/wordfreq/raw/en1_2010.txt",
+          "line": 161,
+          "detail": "28. The word \"about-face\" (Line 1, Para. 3) most probably means____"
+        },
+        {
+          "path": "_work/wordfreq/raw/en1_2012.txt",
+          "line": 155,
+          "detail": "26. The phrase \"reneging on\" (Line 3, Para. 1) is closest in meaning to____"
+        },
+        {
+          "path": "_work/wordfreq/raw/en1_2013.txt",
+          "line": 131,
+          "detail": "23. The word \"indictment\" (Line 3, Para. 2) is closest in meaning to ____"
+        },
+        {
+          "path": "_work/wordfreq/raw/en1_2014.txt",
+          "line": 124,
+          "detail": "22. The phrase \"to sign on\" (Line 3, Para. 2) most probably means____"
+        },
+        {
+          "path": "_work/wordfreq/raw/en1_2015.txt",
+          "line": 194,
+          "detail": "32. The phrase \"flagged up\" (Para. 2) is the closest in meaning to____"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 1539,
+      "word": "straitford",
+      "category": "entity",
+      "reason": "特定情报分析公司名称与网址",
+      "target": null,
+      "meaning": "n. 斯特雷特福德（美国私人情报分析公司）",
+      "frequency": 12,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：n. 斯特雷特福德（美国私人情报分析公司）；例句：Many of its predictions are available online at www.straitford.com."
+        },
+        {
+          "path": "_work/wordfreq/raw/old_2003.txt",
+          "line": 115,
+          "detail": "Among the firms making the biggest splash in the new world is Straitford, Inc., a private intelligence-analysis firm based in Austin, Texas. Straitford makes money by selling the results of spying (covering nations from Ch"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 2111,
+      "word": "com",
+      "category": "fragment",
+      "reason": "域名 .com 后缀被拆成普通词",
+      "target": null,
+      "meaning": "n. 互联网商业域名后缀, 公司（缩写）",
+      "frequency": 7,
+      "paperCount": 7,
+      "evidence": [
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：n. 互联网商业域名后缀, 公司（缩写）；例句：Amazon.com received one for its \"one-click\" online payment system."
+        },
+        {
+          "path": "_work/wordfreq/raw/en1_2010.txt",
+          "line": 146,
+          "detail": "cade, thousands of patents have been granted for what are called business methods. Amazon.com received one for its \"one-click\" online payment system. Merrill Lynch got legal protection for an asset allocation strategy. One inventor patented a "
+        },
+        {
+          "path": "_work/wordfreq/raw/en1_2012.txt",
+          "line": 257,
+          "detail": "[ B ] Applications like tumblr.com, which allow users to combine pictures, words and other media in creative ways and then share them, have the potential to add stickiness by amusing, "
+        },
+        {
+          "path": "_work/wordfreq/raw/en1_2019.txt",
+          "line": 220,
+          "detail": "y typically have physical stores in whatever state a purchase is being shipped to. Amazon.com, with its network of warehouses, also collects sales tax in every state that charges it, though third-party sellers who use the site don't have to."
+        },
+        {
+          "path": "_work/wordfreq/raw/en2_2010.txt",
+          "line": 270,
+          "detail": " spending a confusing year in the late 1990s selling insurance. He'd been through the dot-com boom and burst and, desperate for a job, signed on with a Boulder agency."
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 2508,
+      "word": "de",
+      "category": "foreign_fragment",
+      "reason": "de facto / 拉丁名句或外语姓名中的连接成分，非独立英语词义",
+      "target": null,
+      "meaning": "pref. 表示脱、离、否定, 冠于姓氏前的贵族标记",
+      "frequency": 6,
+      "paperCount": 4,
+      "evidence": [
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：pref. 表示脱、离、否定, 冠于姓氏前的贵族标记；例句：Issues arise, however, when developers attempt to create large-scale short-term rental facilities—de facto hotels—to bypass taxes and regulations."
+        },
+        {
+          "path": "_work/wordfreq/raw/en1_2023.txt",
+          "line": 154,
+          "detail": "rise, however, when developers attempt to create large-scale short-term rental facilities—de facto hotels—to bypass taxes and regulations. \"I think the question is, shouldn't a developer who's really building a hotel, but disguising it as not"
+        },
+        {
+          "path": "_work/wordfreq/raw/en2_2012.txt",
+          "line": 242,
+          "detail": "ng the exemplary lives of great men. In 1337, Petrarch began work on his rambling writing De Viris Illustribus – On Famous Men, highlighting the virtus (or virtue) of classical heroes. Petrarch celebrated their greatness in conquering fortune"
+        },
+        {
+          "path": "_work/wordfreq/raw/en2_2025.txt",
+          "line": 216,
+          "detail": "widened and made into one of the main trade roads across the island, known at the time as de Heere Straat, or Gentlemen's Street. Following the British assumption of control in New York, the street was renamed Broadway. Notably, Broadway stan"
+        },
+        {
+          "path": "_work/wordfreq/raw/old_2005.txt",
+          "line": 114,
+          "detail": "pable of this finely developed sense of grievance. But a study by Sarah Brosnan and Frans de Waal of Emory University in Atlanta, Georgia, which has just been published in Nature, suggests that it is all too monkey, as well."
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 2975,
+      "word": "vos",
+      "category": "entity",
+      "reason": "Marilyn vos Savant 人名组成部分",
+      "target": null,
+      "meaning": "n. （人名用字，见 vos Savant）",
+      "frequency": 5,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：n. （人名用字，见 vos Savant）；例句：Superhigh scores like vos Savant's are no longer possible, because scoring is now based on a statistical population distribution among age peers, rather than simply dividing the mental age by the chronological age and multiplying by."
+        },
+        {
+          "path": "_work/wordfreq/raw/old_2007.txt",
+          "line": 145,
+          "detail": "nt Parade has featured a column called \"Ask Marilyn.\" People are invited to query Marilyn vos Savant, who at age 10 had tested at a mental level of someone about 23 years old; that gave her an IQ of 228 – the highest score ever recorded. IQ te"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 3392,
+      "word": "alloparente",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 alloparent 已在本词书（下标 5394），无须重复背诵",
+      "target": "alloparent",
+      "meaning": "n. 异亲（代为抚育幼崽的非父母个体）",
+      "frequency": 4,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "alloparente → alloparent；该文件说明依据46套原文表面形式和本地词典核对"
+        },
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：n. 异亲（代为抚育幼崽的非父母个体）；例句：The residents help to look after the children, an arrangement akin to alloparenting."
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 4184,
+      "word": "bestselle",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 bestseller 已在本词书（下标 5521），无须重复背诵",
+      "target": "bestseller",
+      "meaning": "vi. 畅销, 成为畅销书",
+      "frequency": 2,
+      "paperCount": 2,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "bestselle → bestseller；该文件说明依据46套原文表面形式和本地词典核对"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 4194,
+      "word": "blogge",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 blog 已在本词书（下标 3848），无须重复背诵",
+      "target": "blog",
+      "meaning": "vi. 写博客, 写网志；n. 博客, 网志",
+      "frequency": 2,
+      "paperCount": 2,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "blogge → blog；该文件说明依据46套原文表面形式和本地词典核对"
+        },
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：vi. 写博客, 写网志；n. 博客, 网志；例句：He's feeling positive, but he'll carry on blogging – not about eating as cheaply as you can – \"there are so many people in a much worse state, with barely any money to spend on food\" – but eating well on a budget."
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 4258,
+      "word": "complie",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 comply 已在本词书（下标 2424），无须重复背诵",
+      "target": "comply",
+      "meaning": "vi. 顺从, 遵守, 依从",
+      "frequency": 2,
+      "paperCount": 2,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "complie → comply；该文件说明依据46套原文表面形式和本地词典核对"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 4606,
+      "word": "modifie",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 modify 已在本词书（下标 1815），无须重复背诵",
+      "target": "modify",
+      "meaning": "vt. 修改, 更改, 修饰；vi. 被修改",
+      "frequency": 2,
+      "paperCount": 2,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "modifie → modify；该文件说明依据46套原文表面形式和本地词典核对"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 4733,
+      "word": "quo",
+      "category": "foreign_fragment",
+      "reason": "固定短语 status quo 的后半，不应单独释为“现状”",
+      "target": null,
+      "meaning": "n. 现状（常构成 status quo）",
+      "frequency": 2,
+      "paperCount": 2,
+      "evidence": [
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：n. 现状（常构成 status quo）；例句：They could cement the status quo of peer-reviewed research."
+        },
+        {
+          "path": "_work/wordfreq/raw/en1_2014.txt",
+          "line": 178,
+          "detail": "rt the achievement-based system of peer-review-led research. They could cement the status quo of peer-reviewed research. They do not fund peer-reviewed research. They perpetuate the myth of the lone genius."
+        },
+        {
+          "path": "_work/wordfreq/raw/en1_2018.txt",
+          "line": 211,
+          "detail": "gress – insisting that whatever else happens to the Postal Service, aspects of the status quo they depend on get protected. This is why repeated attempts at reform legislation have failed in recent years, leaving the Postal Service unable to p"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 4785,
+      "word": "satisfie",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 satisfy 已在本词书（下标 1363），无须重复背诵",
+      "target": "satisfy",
+      "meaning": "vt. 满足, 使满意（satisfy 的残缺词形）",
+      "frequency": 2,
+      "paperCount": 2,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "satisfie → satisfy；该文件说明依据46套原文表面形式和本地词典核对"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 4917,
+      "word": "uncontrolle",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 uncontrolled 已在本词书（下标 7865），无须重复背诵",
+      "target": "uncontrolled",
+      "meaning": "a. 不受控制的, 不受抑制的（uncontrolled 的残缺词形）",
+      "frequency": 2,
+      "paperCount": 2,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "uncontrolle → uncontrolled；该文件说明依据46套原文表面形式和本地词典核对"
+        },
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：a. 不受控制的, 不受抑制的（uncontrolled 的残缺词形）；例句：That doesn't mean lying down and becoming fooled, or letting foreign corporations run uncontrolled."
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 4951,
+      "word": "versa",
+      "category": "foreign_fragment",
+      "reason": "固定短语 vice versa 的后半，不应单独当英语副词背诵",
+      "target": null,
+      "meaning": "adv. 反之亦然（vice versa）",
+      "frequency": 2,
+      "paperCount": 2,
+      "evidence": [
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：adv. 反之亦然（vice versa）；例句：As science and technology progressed, and divided into more sub-disciplines, the centre was simultaneously looking to a time when leading researchers could also be artists, writers and poets, and vice versa."
+        },
+        {
+          "path": "_work/wordfreq/raw/en1_2022.txt",
+          "line": 187,
+          "detail": "ing to a time when leading researchers could also be artists, writers and poets, and vice versa."
+        },
+        {
+          "path": "_work/wordfreq/raw/en2_2019.txt",
+          "line": 121,
+          "detail": " shortfall by experiencing more guilt, which can rein in their nastier impulses. And vice versa: High sympathy can substitute for low guilt."
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 5061,
+      "word": "der",
+      "category": "foreign_fragment",
+      "reason": "德荷人名 van der Rohe 的外语连接词",
+      "target": null,
+      "meaning": "art. 的（德语冠词）；prep. 冠于德荷姓氏前",
+      "frequency": 2,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/wordfreq/raw/en2_2011.txt",
+          "line": 183,
+          "detail": " \"less is more\" was actually first popularized by a German, the architect Ludwig Mies van der Rohe, who like other people associated with the Bauhaus, a school of design, emigrated to the United States before World War II and took up posts at "
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 5163,
+      "word": "maste",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 master 已在本词书（下标 1841），无须重复背诵",
+      "target": "master",
+      "meaning": "n. 主人, 雇主, 硕士, 大师（master 的残缺词形）",
+      "frequency": 2,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "maste → master；该文件说明依据46套原文表面形式和本地词典核对"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 5307,
+      "word": "wellbee",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 wellbeing 已在本词书（下标 2223），无须重复背诵",
+      "target": "wellbeing",
+      "meaning": "n. 健康, 幸福, 福利（wellbeing 的残缺词形）",
+      "frequency": 2,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "wellbee → wellbeing；该文件说明依据46套原文表面形式和本地词典核对"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 5334,
+      "word": "acqui",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 acquire 已在本词书（下标 1317），无须重复背诵",
+      "target": "acquire",
+      "meaning": "vt. 获得, 学到（acquire 的残缺词形）",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "acqui → acquire；该文件说明依据46套原文表面形式和本地词典核对"
+        },
+        {
+          "path": "_work/wordfreq/raw/en2_2021.txt",
+          "line": 180,
+          "detail": "res in its own products. Their teams of engineers stayed on, making them two of the many \"acqui-hires\" that the biggest companies have used to feed their great hunger for tech talent."
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 5469,
+      "word": "aude",
+      "category": "foreign_fragment",
+      "reason": "拉丁语引文 sapere aude 的片段，被误释为音频设备缩写",
+      "target": null,
+      "meaning": "abbr. 音频设备",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/wordfreq/raw/en1_2020.txt",
+          "line": 273,
+          "detail": " to understand what information we already knew were captured by the Latin phrase 'sapere aude' or 'dare to know', after Immanuel Kant used it in his essay \"An Answer to the Question: What is Enlightenment?\" It was the purpose and responsibilit"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 5479,
+      "word": "avant",
+      "category": "foreign_fragment",
+      "reason": "avant-garde 被连字符拆分的前半",
+      "target": null,
+      "meaning": "a. 先锋派的, 激进的",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/wordfreq/raw/en1_2022.txt",
+          "line": 117,
+          "detail": "ally important objects. The variety of plastic objects at risk is dizzying: early radios, avant-garde sculptures, celluloid animation stills from Disney films, the first artificial heart."
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 5726,
+      "word": "commentsn",
+      "category": "typo",
+      "reason": "原卷面 commentsn 的排印/抽取错误，正常 comment 条目已存在",
+      "target": null,
+      "meaning": "n. 评论, 注解, 意见(comment的复数)",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/wordfreq/raw/old_1998.txt",
+          "line": 215,
+          "detail": "2. Give your commentsn."
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 5892,
+      "word": "dello",
+      "category": "foreign_fragment",
+      "reason": "Ferrovie dello Stato Italiane 机构名中的意大利语成分",
+      "target": null,
+      "meaning": "n. 德罗（意大利语专名用词，如意大利国家铁路）",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：n. 德罗（意大利语专名用词，如意大利国家铁路）；例句：Ferrovie dello Stato Italiane, the publicly controlled group that owns train operator Trenitalia and the national train network RFI, said 23 percent of all high-speed trains it operated were late in 2023."
+        },
+        {
+          "path": "_work/wordfreq/raw/en2_2026.txt",
+          "line": 182,
+          "detail": "increasingly frequent with train delays now a fixture in Italian media coverage. Ferrovie dello Stato Italiane, the publicly controlled group that owns train operator Trenitalia and the national train network RFI, said 23 percent of all high-spe"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 5932,
+      "word": "di",
+      "category": "foreign_fragment",
+      "reason": "意大利语引文 uccelli di passaggio 中的连接词",
+      "target": null,
+      "meaning": "prep. （意大利语）的；n. （化学）二, 双",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：prep. （意大利语）的；n. （化学）二, 双；例句：They even had an affectionate nickname, \"uccelli di passaggio,\" birds of passage."
+        },
+        {
+          "path": "_work/wordfreq/raw/en2_2013.txt",
+          "line": 146,
+          "detail": ", eventually returned to Italy for good. They even had an affectionate nickname, \"uccelli di passaggio,\" birds of passage."
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 5933,
+      "word": "diabete",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 diabetes 已在本词书（下标 5934），无须重复背诵",
+      "target": "diabetes",
+      "meaning": "n. 糖尿病",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "diabete → diabetes；该文件说明依据46套原文表面形式和本地词典核对"
+        },
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：n. 糖尿病；例句：Worse, when policies like the national obesity strategy are scrapped, taxpayers are left with the heavy price tag of treating the illnesses, like diabetes, that result."
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 6067,
+      "word": "ebay",
+      "category": "entity",
+      "reason": "特定购物平台专有名称",
+      "target": null,
+      "meaning": "n. 易趣网（在线购物平台）",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：n. 易趣网（在线购物平台）；例句：Sellers that use eBay and Etsy, which provide platforms for smaller sellers, also haven't been collecting sales tax nationwide."
+        },
+        {
+          "path": "_work/wordfreq/raw/en1_2019.txt",
+          "line": 221,
+          "detail": "d charging sales taxes when they ship to addresses outside those states. Sellers that use eBay and Etsy, which provide platforms for smaller sellers, also haven't been collecting sales tax nationwide. Under the ruling Thursday, states can pass "
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 6178,
+      "word": "f",
+      "category": "nonword",
+      "reason": "原文 fest 被错误还原成单字母 f；已有 form_issues.json hard 结论",
+      "target": null,
+      "meaning": "n. 字母 F, （成绩）不及格等级, （物理）法拉",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/verify_multi_paper/lemma/form_issues.json",
+          "detail": {
+            "word": "f",
+            "issue": "nonword",
+            "suggested": null,
+            "severity": "hard",
+            "verdict": "删除（不影响 txt：c=1）",
+            "evidence": [
+              "单字母词条，来自表层形 fest 的错误还原",
+              "f 不是英语词条",
+              "自动规则命中：lemma 不是表层形 [('fest', 1)] 的任何规则还原形"
+            ],
+            "in_txt": false
+          }
+        },
+        {
+          "path": "_work/wordfreq/raw/en1_2010.txt",
+          "line": 247,
+          "detail": "[ F ]  For example, wholesale food and drink sales came to $268 billion in France, Germany, Italy, Spain, and the United Kingdom in 2000 – more than 40 p"
+        },
+        {
+          "path": "_work/wordfreq/raw/en1_2011.txt",
+          "line": 246,
+          "detail": "[ F ]  The key to reforming higher education, concludes Mr. Menand, is to alter the way in which \"the producers of knowledge are produced\". Otherwise, ac"
+        },
+        {
+          "path": "_work/wordfreq/raw/en1_2012.txt",
+          "line": 261,
+          "detail": "[ F ] One reason for the persistence of this pyramid of production is that for the past half-century, much of the world's media culture has been defined "
+        },
+        {
+          "path": "_work/wordfreq/raw/en1_2013.txt",
+          "line": 261,
+          "detail": "[ F ] Despite these factors, many social scientists seem reluctant to tackle such problems. And in Europe, some are up in arms over a proposal to drop a "
+        },
+        {
+          "path": "_work/wordfreq/raw/en1_2014.txt",
+          "line": 247,
+          "detail": "[ F ]  Most archaeological sites, however, are discovered by archaeologists who have set out to look for them. Such searches can take years. British arch"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 6181,
+      "word": "facto",
+      "category": "foreign_fragment",
+      "reason": "固定短语 de facto 的后半",
+      "target": null,
+      "meaning": "a. 事实上的, 实际上的（常用于 de facto）",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：a. 事实上的, 实际上的（常用于 de facto）；例句：Issues arise, however, when developers attempt to create large-scale short-term rental facilities—de facto hotels—to bypass taxes and regulations."
+        },
+        {
+          "path": "_work/wordfreq/raw/en1_2023.txt",
+          "line": 154,
+          "detail": "e, however, when developers attempt to create large-scale short-term rental facilities—de facto hotels—to bypass taxes and regulations. \"I think the question is, shouldn't a developer who's really building a hotel, but disguising it as not a hot"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 6197,
+      "word": "farth",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 far 已在本词书（下标 164），无须重复背诵",
+      "target": "far",
+      "meaning": "adv. 更远地（far 比较级的残缺词形，常作 farther/farthest）",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "farth → far；该文件说明依据46套原文表面形式和本地词典核对"
+        },
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：adv. 更远地（far 比较级的残缺词形，常作 farther/farthest）；例句：But even more important, it was the farthest that scientists had been able to look into the past, for what they were seeing were the patterns and structures that existed 15 billion years ago."
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 6261,
+      "word": "foresighte",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 foresight 已在本词书（下标 6260），无须重复背诵",
+      "target": "foresight",
+      "meaning": "a. 有远见的, 有先见之明的；n. 远见, 深谋远虑",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "foresighte → foresight；该文件说明依据46套原文表面形式和本地词典核对"
+        },
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：a. 有远见的, 有先见之明的；n. 远见, 深谋远虑；例句：The move turned out to be foresighted."
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 6277,
+      "word": "franca",
+      "category": "foreign_fragment",
+      "reason": "固定短语 lingua franca 的后半",
+      "target": null,
+      "meaning": "n. 通用语, 混合语, 交际语",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/wordfreq/raw/en2_2015.txt",
+          "line": 181,
+          "detail": "Even in traditional offices, \"the lingua franca of corporate America has gotten much more emotional and much more right-brained than it was 20 years ago,\" said Harvard Business School professor Nan"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 6306,
+      "word": "garde",
+      "category": "foreign_fragment",
+      "reason": "avant-garde 被连字符拆分的后半，词库误释为姓氏",
+      "target": null,
+      "meaning": "n. 加尔达（姓氏）",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/wordfreq/raw/en1_2022.txt",
+          "line": 117,
+          "detail": "mportant objects. The variety of plastic objects at risk is dizzying: early radios, avant-garde sculptures, celluloid animation stills from Disney films, the first artificial heart."
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 6339,
+      "word": "goode",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 good 已在本词书（下标 14），无须重复背诵",
+      "target": "good",
+      "meaning": "n. 古德（姓氏）",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "goode → good；该文件说明依据46套原文表面形式和本地词典核对"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 6346,
+      "word": "graf",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 grave 已在本词书（下标 4447），无须重复背诵",
+      "target": "grave",
+      "meaning": "n. 伯爵（德国、奥地利贵族头衔）",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "graf → grave；该文件说明依据46套原文表面形式和本地词典核对"
+        },
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：n. 伯爵（德国、奥地利贵族头衔）；例句：Lots of Americans bought that nonsense, and over three decades, some 10 million smokers went to early graves."
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 6405,
+      "word": "hearte",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 heart 已在本词书（下标 821），无须重复背诵",
+      "target": "heart",
+      "meaning": "n. 心, 心脏, 内心",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "hearte → heart；该文件说明依据46套原文表面形式和本地词典核对"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 6582,
+      "word": "inputte",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 input 已在本词书（下标 4511），无须重复背诵",
+      "target": "input",
+      "meaning": "n. 输入, 输入信息；vt. 输入（数据）",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "inputte → input；该文件说明依据46套原文表面形式和本地词典核对"
+        },
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：n. 输入, 输入信息；vt. 输入（数据）；例句：It gains Microsoft broad rights to the data inputted or outputted by any user — rights to use this data in any way it sees fit; it can even share it with third parties."
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 6632,
+      "word": "ipads",
+      "category": "entity",
+      "reason": "iPad 品牌/产品名的复数",
+      "target": null,
+      "meaning": "n. 苹果平板电脑, 平板电脑",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：n. 苹果平板电脑, 平板电脑；例句：In the early 2010s, a wide range of businesses started processing purchases with iPads and other digital payment systems."
+        },
+        {
+          "path": "_work/wordfreq/raw/en2_2025.txt",
+          "line": 116,
+          "detail": "um wage. In the early 2010s, a wide range of businesses started processing purchases with iPads and other digital payment systems. These systems often prompted customers to tip for services that were not previously tipped."
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 6641,
+      "word": "itunes",
+      "category": "entity",
+      "reason": "苹果音乐软件专有名称",
+      "target": null,
+      "meaning": "n. 苹果公司音乐播放软件",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：n. 苹果公司音乐播放软件；例句：All I have to do is to go to my CD shelf, or boot up my computer and download still more recorded music from iTunes."
+        },
+        {
+          "path": "_work/wordfreq/raw/en1_2011.txt",
+          "line": 117,
+          "detail": " to go to my CD shelf, or boot up my computer and download still more recorded music from iTunes."
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 6660,
+      "word": "justifie",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 justify 已在本词书（下标 999），无须重复背诵",
+      "target": "justify",
+      "meaning": "vt. 证明…正当, 为…辩护",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "justifie → justify；该文件说明依据46套原文表面形式和本地词典核对"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 6661,
+      "word": "karvan",
+      "category": "foreign_fragment",
+      "reason": "原文明示 Persian words karvan，英语 caravan 已收录",
+      "target": null,
+      "meaning": "n. 商队, 旅行队, 结伴旅行的人群",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/wordfreq/raw/en1_2023.txt",
+          "line": 6,
+          "detail": "The word \"caravanserai\" is a  __3__  of the Persian words \"karvan\", which means a group of travellers or a caravan, and \"saray\", a palace or enclosed building. The term caravan was used to  __4__  groups of people w"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 6719,
+      "word": "lingua",
+      "category": "foreign_fragment",
+      "reason": "固定短语 lingua franca 的前半，原文只作为整体短语出现",
+      "target": null,
+      "meaning": "n. 舌, 语言",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/wordfreq/raw/en2_2015.txt",
+          "line": 181,
+          "detail": "Even in traditional offices, \"the lingua franca of corporate America has gotten much more emotional and much more right-brained than it was 20 years ago,\" said Harvard Business School profes"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 6761,
+      "word": "manif",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 manifest 已在本词书（下标 3084），无须重复背诵",
+      "target": "manifest",
+      "meaning": "a. 明显的, 显然的；vt. 显示, 表明；n. 货物清单, 载货单",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "manif → manifest；该文件说明依据46套原文表面形式和本地词典核对"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 6865,
+      "word": "mori",
+      "category": "foreign_fragment",
+      "reason": "拉丁语固定引文 Memento mori 的片段",
+      "target": null,
+      "meaning": "n. 死亡, 必死性（拉丁语「勿忘你终有一死」中的词）",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：n. 死亡, 必死性（拉丁语「勿忘你终有一死」中的词）；例句：Today, surrounded by promises of easy happiness, we need art to tell us, as religion once did, Memento mori: remember that you will die, that everything ends, and that happiness comes not in denying this but in living with it."
+        },
+        {
+          "path": "_work/wordfreq/raw/old_2006.txt",
+          "line": 214,
+          "detail": "nded by promises of easy happiness, we need art to tell us, as religion once did, Memento mori: remember that you will die, that everything ends, and that happiness comes not in denying this but in living with it. It's a message even more bitte"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 7063,
+      "word": "passaggio",
+      "category": "foreign_fragment",
+      "reason": "意大利语引文 uccelli di passaggio 的片段",
+      "target": null,
+      "meaning": "n. 通道, 迁徙（意大利语，见 uccelli di passaggio）",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：n. 通道, 迁徙（意大利语，见 uccelli di passaggio）；例句：They even had an affectionate nickname, \"uccelli di passaggio,\" birds of passage."
+        },
+        {
+          "path": "_work/wordfreq/raw/en2_2013.txt",
+          "line": 146,
+          "detail": "ventually returned to Italy for good. They even had an affectionate nickname, \"uccelli di passaggio,\" birds of passage."
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 7113,
+      "word": "piko",
+      "category": "foreign_fragment",
+      "reason": "夏威夷语文化专称，原文随文解释，非通用英语词",
+      "target": null,
+      "meaning": "n. 脐, 中心（夏威夷语）",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：n. 脐, 中心（夏威夷语）；例句：At issue is the TMT's planned location on Mauna Kea, a dormant volcano worshiped by some Hawaiians as the piko, that connects the Hawaiian Islands to the heavens."
+        },
+        {
+          "path": "_work/wordfreq/raw/en1_2017.txt",
+          "line": 149,
+          "detail": "TMT's planned location on Mauna Kea, a dormant volcano worshiped by some Hawaiians as the piko, that connects the Hawaiian Islands to the heavens. But Mauna Kea is also home to some of the world's most powerful telescopes. Resting in the Pacifi"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 7121,
+      "word": "plateaue",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 plateau 已在本词书（下标 4682），无须重复背诵",
+      "target": "plateau",
+      "meaning": "n. 高原, 稳定水平；vi. 达到平稳",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "plateaue → plateau；该文件说明依据46套原文表面形式和本地词典核对"
+        },
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：n. 高原, 稳定水平；vi. 达到平稳；例句：This brought them good results until 2012, when their growth plateaued."
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 7350,
+      "word": "remedie",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 remedy 已在本词书（下标 4762），无须重复背诵",
+      "target": "remedy",
+      "meaning": "n. 补救(办法), 治疗法, 药物；vt. 补救, 纠正, 治疗",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "remedie → remedy；该文件说明依据46套原文表面形式和本地词典核对"
+        },
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：n. 补救(办法), 治疗法, 药物；vt. 补救, 纠正, 治疗；例句：By the time a problem has been addressed and remedied it may have vanished in the marketplace, to be replaced by new abuses of power."
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 7357,
+      "word": "renowne",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 renowned 已在本词书（下标 7358），无须重复背诵",
+      "target": "renowned",
+      "meaning": "a. 著名的, 享有声誉的",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "renowne → renowned；该文件说明依据46套原文表面形式和本地词典核对"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 7442,
+      "word": "sapere",
+      "category": "foreign_fragment",
+      "reason": "原文明确称 Latin phrase sapere aude，不是独立英语词",
+      "target": null,
+      "meaning": "v. （拉丁）知道, 有智慧",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/wordfreq/raw/en1_2020.txt",
+          "line": 273,
+          "detail": "dge and to understand what information we already knew were captured by the Latin phrase 'sapere aude' or 'dare to know', after Immanuel Kant used it in his essay \"An Answer to the Question: What is Enlightenment?\" It was the purpose and responsi"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 7443,
+      "word": "sapiens",
+      "category": "foreign_fragment",
+      "reason": "拉丁生物学种名 Homo sapiens 被拆分的后半",
+      "target": null,
+      "meaning": "a. （拉丁）智人的",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/wordfreq/raw/en1_2013.txt",
+          "line": 182,
+          "detail": "ellent chance of surviving for tens, if not hundreds, of thousands of years. Look up Homo sapiens in the \"Red List\" of threatened species of the International Union for the Conservation of Nature (IUCN) and you will read: \"Listed as Least Concern "
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 7444,
+      "word": "saray",
+      "category": "foreign_fragment",
+      "reason": "原文明示 Persian words saray（a palace），非独立英语词",
+      "target": null,
+      "meaning": "n. （波斯语）宫殿, 围合的建筑",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/wordfreq/raw/en1_2023.txt",
+          "line": 6,
+          "detail": "_3__  of the Persian words \"karvan\", which means a group of travellers or a caravan, and \"saray\", a palace or enclosed building. The term caravan was used to  __4__  groups of people who travelled together across the ancient network for safety r"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 7490,
+      "word": "sens",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 sense 已在本词书（下标 296），无须重复背诵",
+      "target": "sense",
+      "meaning": "n. 感觉, 感官",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "sens → sense；该文件说明依据46套原文表面形式和本地词典核对"
+        },
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：n. 感觉, 感官；例句：With the smell of coffee and fresh bread floating in the air, stalls bursting with colourful vegetables and tempting cheeses, and the buzz of friendly chats, farmers' markets are a feast for the senses."
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 7702,
+      "word": "suppresse",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 suppress 已在本词书（下标 2141），无须重复背诵",
+      "target": "suppress",
+      "meaning": "vt. 镇压, 抑制, 禁止, 查禁",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "suppresse → suppress；该文件说明依据46套原文表面形式和本地词典核对"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 7734,
+      "word": "talente",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 talent 已在本词书（下标 1252），无须重复背诵",
+      "target": "talent",
+      "meaning": "n. 人才, 天赋（talent 的残缺词形）",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "talente → talent；该文件说明依据46套原文表面形式和本地词典核对"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 7842,
+      "word": "uccelli",
+      "category": "foreign_fragment",
+      "reason": "意大利语引文 uccelli di passaggio 的片段，原文已有英语解释 birds of passage",
+      "target": null,
+      "meaning": "n. 鸟（意大利语，见 uccelli di passaggio 候鸟）",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：n. 鸟（意大利语，见 uccelli di passaggio 候鸟）；例句：They even had an affectionate nickname, \"uccelli di passaggio,\" birds of passage."
+        },
+        {
+          "path": "_work/wordfreq/raw/en2_2013.txt",
+          "line": 146,
+          "detail": " example, eventually returned to Italy for good. They even had an affectionate nickname, \"uccelli di passaggio,\" birds of passage."
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 7991,
+      "word": "vanishe",
+      "category": "bad_lemma_duplicate",
+      "reason": "已验证的 spaCy 残缺词形；正确词 vanish 已在本词书（下标 2494），无须重复背诵",
+      "target": "vanish",
+      "meaning": "vi. 消失, 不见, 不复存在",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/vocab/spelling-fixes.json",
+          "detail": "vanishe → vanish；该文件说明依据46套原文表面形式和本地词典核对"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 8014,
+      "word": "virtus",
+      "category": "foreign_fragment",
+      "reason": "拉丁词 virtus，原文明示对应英语 virtue",
+      "target": null,
+      "meaning": "n. 美德, 德行, 勇气（拉丁语）",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：n. 美德, 德行, 勇气（拉丁语）；例句：In 1337, Petrarch began work on his rambling writing De Viris Illustribus – On Famous Men, highlighting the virtus (or virtue) of classical heroes."
+        },
+        {
+          "path": "_work/wordfreq/raw/en2_2012.txt",
+          "line": 242,
+          "detail": "began work on his rambling writing De Viris Illustribus – On Famous Men, highlighting the virtus (or virtue) of classical heroes. Petrarch celebrated their greatness in conquering fortune and rising to the top. This was the biographical tradition"
+        }
+      ]
+    },
+    {
+      "book": "kaoyan",
+      "index": 8090,
+      "word": "www",
+      "category": "fragment",
+      "reason": "网址 www.straitford.com 中的前缀",
+      "target": null,
+      "meaning": "n. 万维网（World Wide Web）",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "js/words-data.js",
+          "detail": "当前条目释义：n. 万维网（World Wide Web）；例句：Many of its predictions are available online at www.straitford.com."
+        },
+        {
+          "path": "_work/wordfreq/raw/old_2003.txt",
+          "line": 115,
+          "detail": "gy-services firm McDermott International. Many of its predictions are available online at www.straitford.com."
+        }
+      ]
+    },
+    {
+      "book": "cet4",
+      "index": 2776,
+      "word": "para",
+      "category": "abbr",
+      "reason": "Para. 段落定位缩写；当前释义“帕拉”与原文不符",
+      "target": null,
+      "meaning": "帕拉",
+      "frequency": 6,
+      "paperCount": 5,
+      "evidence": [
+        {
+          "path": "js/cet-words-data.js",
+          "detail": "当前条目释义：帕拉；例句：What does \"cultural metabolism\" (Line 1, Para. 3) refer to?"
+        },
+        {
+          "path": "_work/cet/raw/cet4_2016_06_s3.txt",
+          "line": 203,
+          "detail": "53. What does \"cultural metabolism\" (Line 1, Para. 3) refer to?"
+        },
+        {
+          "path": "_work/cet/raw/cet4_2016_12_s2.txt",
+          "line": 288,
+          "detail": "Para.7)?"
+        },
+        {
+          "path": "_work/cet/raw/cet4_2017_06_s2.txt",
+          "line": 336,
+          "detail": "54. The idea of \"a marathon\" (Line 2, Para. 5) illustrates the popular belief that quitting smoking"
+        },
+        {
+          "path": "_work/cet/raw/cet4_2020_12_s1.txt",
+          "line": 321,
+          "detail": "50. What does the author mean by a cultural shift (Line 2, Para. 6)?"
+        }
+      ]
+    },
+    {
+      "book": "cet4",
+      "index": 2860,
+      "word": "de",
+      "category": "foreign_fragment",
+      "reason": "Van de Rijt 姓名成分，当前化学释义与原文不符",
+      "target": null,
+      "meaning": "非对映体过量；铥(69号元素铥的别名,1916年Eder离得的假想元素)",
+      "frequency": 6,
+      "paperCount": 3,
+      "evidence": [
+        {
+          "path": "js/cet-words-data.js",
+          "detail": "当前条目释义：非对映体过量；铥(69号元素铥的别名,1916年Eder离得的假想元素)；例句：Van de Rijt said he's not convinced that losing out gives people a psychological boost; It may yet be a selection effect."
+        },
+        {
+          "path": "_work/cet/raw/cet4_2018_12_s2.txt",
+          "line": 165,
+          "detail": "the shop windows of Patisserie de la Rue de la Paix. By 1814, people crowded outside the bakery, straining for a glimpse of"
+        },
+        {
+          "path": "_work/cet/raw/cet4_2021_06_s3.txt",
+          "line": 103,
+          "detail": "H) Utrecht University sociologist Arnout van de Rijt was the lead author on the 2018 paper showing the"
+        },
+        {
+          "path": "_work/cet/raw/cet4_2023_06_s3.txt",
+          "line": 199,
+          "detail": ")of Rio de Janiero."
+        }
+      ]
+    },
+    {
+      "book": "cet4",
+      "index": 3853,
+      "word": "ken",
+      "category": "ocr_or_entity",
+      "reason": "3 处分别为人名 Ken 与 bespo ken 的 OCR 拆分，无“知识范围”用法",
+      "target": null,
+      "meaning": "n. 视野范围, 知识范围, 见地",
+      "frequency": 3,
+      "paperCount": 3,
+      "evidence": [
+        {
+          "path": "js/cet-words-data.js",
+          "detail": "当前条目释义：n. 视野范围, 知识范围, 见地；例句：Both the conversation and the questions will bespo ken only once."
+        },
+        {
+          "path": "_work/cet/raw/cet4_2016_06_s3.txt",
+          "line": 171,
+          "detail": "the sunrise, have a break to have the largest meal, and then you'd go back to work,\" says Ken"
+        },
+        {
+          "path": "_work/cet/raw/cet4_2018_06_s1.txt",
+          "line": 47,
+          "detail": "ken only once. After you hear a question, you must choose the best answer from the four"
+        },
+        {
+          "path": "_work/cet/raw/cet4_2020_12_s2.txt",
+          "line": 200,
+          "detail": "be tech entrepreneurs but who must work multiple jobs to stay afloat. It's Ken Outlaw, a welder in"
+        }
+      ]
+    },
+    {
+      "book": "cet4",
+      "index": 5279,
+      "word": "amp",
+      "category": "html_entity",
+      "reason": "Harland &amp; Wolff 的 HTML 实体碎片，不是安培",
+      "target": null,
+      "meaning": "n. 安培",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "js/cet-words-data.js",
+          "detail": "当前条目释义：n. 安培；例句：The Olympic class ships were built by the Harland &amp; Wolff ship makers in Northern Ireland for the White Star Line company."
+        },
+        {
+          "path": "_work/cet/raw/cet4_2018_06_s2.txt",
+          "line": 312,
+          "detail": ") ocean ships back in the day. The Olympic class ships were built by the Harland &amp;"
+        }
+      ]
+    },
+    {
+      "book": "cet4",
+      "index": 5819,
+      "word": "ere",
+      "category": "ocr",
+      "reason": "ref ere nee（reference）被拆分所得",
+      "target": null,
+      "meaning": "conj. 在...以前, 毋宁；prep. 在...以前, 毋宁",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "js/cet-words-data.js",
+          "detail": "当前条目释义：conj. 在...以前, 毋宁；prep. 在...以前, 毋宁；例句：The statement given below is for your ref ere nee ."
+        },
+        {
+          "path": "_work/cet/raw/cet4_2021_06_s3.txt",
+          "line": 5,
+          "detail": "violence ? \". The statement given below is for your ref ere nee . You should write at least 120 words but no more"
+        }
+      ]
+    },
+    {
+      "book": "cet4",
+      "index": 6346,
+      "word": "nee",
+      "category": "ocr",
+      "reason": "ref ere nee（reference）被拆分所得，并非娘家姓",
+      "target": null,
+      "meaning": "adv. 娘家姓",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "js/cet-words-data.js",
+          "detail": "当前条目释义：adv. 娘家姓；例句：The statement given below is for your ref ere nee ."
+        },
+        {
+          "path": "_work/cet/raw/cet4_2021_06_s3.txt",
+          "line": 5,
+          "detail": "violence ? \". The statement given below is for your ref ere nee . You should write at least 120 words but no more"
+        }
+      ]
+    },
+    {
+      "book": "cet6",
+      "index": 2593,
+      "word": "de",
+      "category": "foreign_fragment",
+      "reason": "de facto 固定短语中的连接成分，当前化学释义与原文不符",
+      "target": null,
+      "meaning": "非对映体过量；铥(69号元素铥的别名,1916年Eder离得的假想元素)",
+      "frequency": 9,
+      "paperCount": 7,
+      "evidence": [
+        {
+          "path": "js/cet-words-data.js",
+          "detail": "当前条目释义：非对映体过量；铥(69号元素铥的别名,1916年Eder离得的假想元素)；例句：Among other facts of life utterly ignored by many advocates of de facto amnesty( )is that the free international movement of people is different from free international trade in goods."
+        },
+        {
+          "path": "_work/cet/raw/cet6_2013_12_s3.txt",
+          "line": 219,
+          "detail": "Cyrano de Bergerac in 1649. Cyrano was dead and buried for a good three centuries before the first manned rockets started"
+        },
+        {
+          "path": "_work/cet/raw/cet6_2014_06_s3.txt",
+          "line": 347,
+          "detail": "Among other facts of life utterly ignored by many advocates of de facto amnesty( )is that the free"
+        },
+        {
+          "path": "_work/cet/raw/cet6_2016_06_s1.txt",
+          "line": 228,
+          "detail": "declaration from this gathering, the first of a sequence which would lead to the Rio de Janeiro"
+        },
+        {
+          "path": "_work/cet/raw/cet6_2021_06_s2.txt",
+          "line": 269,
+          "detail": "held at the Hotel de Ville, and works of art that sustained smoke damage were being taken to the"
+        }
+      ]
+    },
+    {
+      "book": "cet6",
+      "index": 2957,
+      "word": "para",
+      "category": "abbr",
+      "reason": "Para. 段落定位缩写；当前释义“帕拉”与原文不符",
+      "target": null,
+      "meaning": "帕拉",
+      "frequency": 7,
+      "paperCount": 7,
+      "evidence": [
+        {
+          "path": "js/cet-words-data.js",
+          "detail": "当前条目释义：帕拉；例句：What can be expected of \"this tough-love teaching style\" (Lines 8-9, Para. 5)?"
+        },
+        {
+          "path": "_work/cet/raw/cet6_2013_12_s2.txt",
+          "line": 356,
+          "detail": "What can be expected of \"this tough-love teaching style\" (Lines 8-9, Para. 5)?"
+        },
+        {
+          "path": "_work/cet/raw/cet6_2015_06_s3.txt",
+          "line": 432,
+          "detail": "53. We can infer from Paragraph 5 that \"policy interventions\"(Line 1, Para. 4) refers"
+        },
+        {
+          "path": "_work/cet/raw/cet6_2016_06_s1.txt",
+          "line": 349,
+          "detail": "for the last ten or twelve years\"(Lines 4 - 5, Para.1)?"
+        },
+        {
+          "path": "_work/cet/raw/cet6_2016_06_s2.txt",
+          "line": 409,
+          "detail": "50. What does Kevin Wilhelm imply by saying \"It's kind of a Wild West\" (Line 3, Para. 11)?"
+        }
+      ]
+    },
+    {
+      "book": "cet6",
+      "index": 5070,
+      "word": "quo",
+      "category": "foreign_fragment",
+      "reason": "status quo 固定短语后半，当前释义“[古]说”不符",
+      "target": null,
+      "meaning": "vt. [古]说",
+      "frequency": 3,
+      "paperCount": 2,
+      "evidence": [
+        {
+          "path": "js/cet-words-data.js",
+          "detail": "当前条目释义：vt. [古]说；例句：On this Martin Luther King Day and beyond, let's commit to working together to disrupt the status quo."
+        },
+        {
+          "path": "_work/cet/raw/cet6_2018_06_s3.txt",
+          "line": 79,
+          "detail": "ue-when they are tired of making choices-they have a tendency to choose to go with status quo ( ),\"he says.\"But the status quo can be problematic. since a change in the course of action can sometimes be important and lead to a positive outcome"
+        },
+        {
+          "path": "_work/cet/raw/cet6_2025_12_s1.txt",
+          "line": 475,
+          "detail": "disrupt the status quo. Let's continue to build a better, more inclusive nation; and in"
+        }
+      ]
+    },
+    {
+      "book": "cet6",
+      "index": 5367,
+      "word": "cit",
+      "category": "ocr",
+      "reason": "2 份扫描文本中的随机乱码，不是加州理工学院词义",
+      "target": null,
+      "meaning": "加利福尼亚工学院",
+      "frequency": 2,
+      "paperCount": 2,
+      "evidence": [
+        {
+          "path": "_work/cet/raw/cet6_2019_12_s1.txt",
+          "line": 421,
+          "detail": "cit-=.F iE«,t¦ J§=!f.,J,a.tl*J \u0002Jix3>$\u0005 , z.J§"
+        },
+        {
+          "path": "_work/cet/raw/cet6_2019_12_s3.txt",
+          "line": 317,
+          "detail": "cit-=.F iE«,t¦ J§=!f.,J,a.tl*J \u0002Jix3>$\u0005 , z.J§"
+        }
+      ]
+    },
+    {
+      "book": "cet6",
+      "index": 5500,
+      "word": "facto",
+      "category": "foreign_fragment",
+      "reason": "de facto 固定短语后半",
+      "target": null,
+      "meaning": "实际上, 事实上",
+      "frequency": 2,
+      "paperCount": 2,
+      "evidence": [
+        {
+          "path": "js/cet-words-data.js",
+          "detail": "当前条目释义：实际上, 事实上；例句：Among other facts of life utterly ignored by many advocates of de facto amnesty( )is that the free international movement of people is different from free international trade in goods."
+        },
+        {
+          "path": "_work/cet/raw/cet6_2014_06_s3.txt",
+          "line": 347,
+          "detail": "Among other facts of life utterly ignored by many advocates of de facto amnesty( )is that the free"
+        },
+        {
+          "path": "_work/cet/raw/cet6_2022_09_s1.txt",
+          "line": 255,
+          "detail": "economy, even if English has become the de facto ( )language of business."
+        }
+      ]
+    },
+    {
+      "book": "cet6",
+      "index": 6062,
+      "word": "versa",
+      "category": "foreign_fragment",
+      "reason": "vice versa 固定短语后半",
+      "target": null,
+      "meaning": "a. 反的",
+      "frequency": 2,
+      "paperCount": 2,
+      "evidence": [
+        {
+          "path": "js/cet-words-data.js",
+          "detail": "当前条目释义：a. 反的；例句：As interest rates go up, bond prices fall, and versa( )."
+        },
+        {
+          "path": "_work/cet/raw/cet6_2014_06_s1.txt",
+          "line": 181,
+          "detail": "rates go up, bond prices fall, and versa( ). Thus, like all investments, bonds have a degree of risk."
+        },
+        {
+          "path": "_work/cet/raw/cet6_2024_12_s3.txt",
+          "line": 165,
+          "detail": "right hemisphere controls the left side of the body and vice versa. And scientists have long known, thanks to the"
+        }
+      ]
+    },
+    {
+      "book": "cet6",
+      "index": 6523,
+      "word": "alam",
+      "category": "ocr",
+      "reason": "alarm 被拆成 alam g，误匹配为姓氏",
+      "target": null,
+      "meaning": "n. 阿拉姆（姓氏）",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/cet/raw/cet6_2016_06_s2.txt",
+          "line": 247,
+          "detail": "to keep secret from their parents, rarely is it anything more alam g than a diary or off-color ("
+        }
+      ]
+    },
+    {
+      "book": "cet6",
+      "index": 7154,
+      "word": "ere",
+      "category": "ocr",
+      "reason": "Th ere（There）被拆分所得",
+      "target": null,
+      "meaning": "conj. 在...以前, 毋宁；prep. 在...以前, 毋宁",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "js/cet-words-data.js",
+          "detail": "当前条目释义：conj. 在...以前, 毋宁；prep. 在...以前, 毋宁；例句：Section C Section C D1rect10ns : Th ere are 2 passages in this section."
+        },
+        {
+          "path": "_work/cet/raw/cet6_2016_06_s3.txt",
+          "line": 214,
+          "detail": "D1rect10ns : Th ere are 2 passages in this section. Each passage is followed by some questions or"
+        }
+      ]
+    },
+    {
+      "book": "cet6",
+      "index": 7597,
+      "word": "itunes",
+      "category": "entity",
+      "reason": "苹果音乐软件专有名称",
+      "target": null,
+      "meaning": "n. 苹果公司最热门音乐软件（苹果公司开发的与iPod搭配的在电脑上使用的音乐播放器和音乐管理器）",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "js/cet-words-data.js",
+          "detail": "当前条目释义：n. 苹果公司最热门音乐软件（苹果公司开发的与iPod搭配的在电脑上使用的音乐播放器和音乐管理器）；例句：The music service This Is My Jam helps people navigate the tens of millions of tracks now available instantly via Spotify and iTunes."
+        },
+        {
+          "path": "_work/cet/raw/cet6_2013_12_s1.txt",
+          "line": 270,
+          "detail": "instantly via Spotify and iTunes. Users pick their favourite song of the week to share with others. They only get to"
+        }
+      ]
+    },
+    {
+      "book": "cet6",
+      "index": 7848,
+      "word": "nee",
+      "category": "ocr",
+      "reason": "performance 被误写/拆成 perfom nee，不是娘家姓",
+      "target": null,
+      "meaning": "adv. 娘家姓",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "js/cet-words-data.js",
+          "detail": "当前条目释义：adv. 娘家姓；例句：What is chiefly responsible for the undesirable perfom nee of inner-city schools? 52.What is chiefly responsible for the undesirable performance of inner-city schools?"
+        },
+        {
+          "path": "_work/cet/raw/cet6_2016_06_s2.txt",
+          "line": 453,
+          "detail": "52. What is chiefly responsible for the undesirable perfom nee of inner-city schools?"
+        }
+      ]
+    },
+    {
+      "book": "cet6",
+      "index": 8543,
+      "word": "ta",
+      "category": "ocr",
+      "reason": "扫描文本乱码中的 tA 片段，不是谢谢的感叹词",
+      "target": null,
+      "meaning": "interj. 谢谢",
+      "frequency": 1,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "_work/cet/raw/cet6_2021_12_s1.txt",
+          "line": 446,
+          "detail": "± o 1%2 4 9Jl, tA-k1⁄2hl*1, Jt~~~~*~~-ff-~o~~~~T1⁄4m• ~-k~"
+        }
+      ]
+    }
+  ],
+  "optional": [
+    {
+      "book": "cet6",
+      "index": 2596,
+      "word": "ft",
+      "category": "abbr_or_ocr",
+      "reason": "常见计量单位缩写，在阅读中有明确意义，本轮保留",
+      "target": null,
+      "meaning": "n. 英尺",
+      "frequency": 9,
+      "paperCount": 7,
+      "evidence": [
+        {
+          "path": "js/cet-words-data.js",
+          "detail": "当前条目释义：n. 英尺；例句：Grazing herds stimulate microbial (,{;ft ± 4h al.] ) activity in the soil, helping to capture water and separate carbon."
+        },
+        {
+          "path": "_work/cet/raw/cet6_2017_06_s1.txt",
+          "line": 431,
+          "detail": "ĭ , q:i 00 ::t ɛ a<J Im ::kfͧ Ai; ͨ q:i ͩ ͪ $'.&, r 00 ft o"
+        },
+        {
+          "path": "_work/cet/raw/cet6_2017_06_s3.txt",
+          "line": 308,
+          "detail": "࡫_7i: , ft!!.ffJ89if$w:i?Cfil1:1gJLilliZ.JftAOOil1fim a"
+        },
+        {
+          "path": "_work/cet/raw/cet6_2017_12_s2.txt",
+          "line": 468,
+          "detail": "( _g, ;ft.س ;.\\ a'-J) dream, and yet now we can perform almost any office-based task from any location in"
+        },
+        {
+          "path": "_work/cet/raw/cet6_2017_12_s3.txt",
+          "line": 376,
+          "detail": "rnf i'M j¥j JJ!tl Jg\" rM w]¥j Jt1\" a 7fPJ u i'M ft Jg :it flt.w~ mt ill!. , tE qt IN X 1t qt$ a IHJt:it flt."
+        }
+      ],
+      "recommendation": "keep"
+    },
+    {
+      "book": "cet6",
+      "index": 3825,
+      "word": "pm",
+      "category": "abbr",
+      "reason": "常见时间缩写，语料为5 pm等，应保留并将释义改为“下午（post meridiem）”",
+      "target": null,
+      "meaning": "出纳员, 军需官",
+      "frequency": 5,
+      "paperCount": 3,
+      "evidence": [
+        {
+          "path": "js/cet-words-data.js",
+          "detail": "当前条目释义：出纳员, 军需官；例句：We \"stop\" work sometimes at 5 pm, but then we spend the night wrestling with solutions to work problems, talking about our work over dinner, and falling asleep thinking about how much work we'll do tomorrow."
+        },
+        {
+          "path": "_work/cet/raw/cet6_2018_12_s3.txt",
+          "line": 82,
+          "detail": "just because work stops, it doesn't mean we are recovering. We \"stop\" work sometimes at 5 pm, but then we"
+        },
+        {
+          "path": "_work/cet/raw/cet6_2021_06_s2.txt",
+          "line": 212,
+          "detail": "at 6:20 pm on Monday evening but no fire was found. The second alert was sounded at 6:43 pm, and"
+        },
+        {
+          "path": "_work/cet/raw/cet6_2024_12_s2.txt",
+          "line": 97,
+          "detail": "C) Drinking it after 2 pm."
+        }
+      ],
+      "recommendation": "keep_correct_meaning"
+    },
+    {
+      "book": "cet6",
+      "index": 6254,
+      "word": "km",
+      "category": "abbr",
+      "reason": "常见计量单位缩写，在阅读中有明确意义，本轮保留",
+      "target": null,
+      "meaning": "千米, 公里",
+      "frequency": 2,
+      "paperCount": 1,
+      "evidence": [
+        {
+          "path": "js/cet-words-data.js",
+          "detail": "当前条目释义：千米, 公里；例句：That is one intervention about every 8,047 km of autonomous driving."
+        },
+        {
+          "path": "_work/cet/raw/cet6_2019_06_s3.txt",
+          "line": 308,
+          "detail": "330 km, and required human intervention 124 times. That is one intervention about every 8,047 km of"
+        }
+      ],
+      "recommendation": "keep"
+    }
+  ]
+}
