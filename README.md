@@ -4,6 +4,8 @@
 
 **打开 `index.html`**（多文件新版，支持本地静态服务或直接双击；可安装为 PWA 离线使用）。
 
+**在线使用（免安装）**：<https://xiangjiawei1234-prog.github.io/kaoyan-vocab/> —— 浏览器直接打开就能背；在浏览器菜单选「安装应用 / 添加到主屏幕」后可离线使用。
+
 - **四本词书，自选背诵**（顶部「词书」入口切换，进度/熟练/收藏/统计各书独立）：
   - 考研英语 **7,997 词**，基于 46 套考研真题词频
   - 英语四级 **7,168 词**，基于 80 套四级真题（2014–2026）词频
@@ -61,6 +63,8 @@ node --max-old-space-size=512 scripts/verify.mjs
 - 词库数组顺序就是进度主键：新增词只能追加到末尾；删除必须 bump `dataVersion` 并记录 `removed/removedWords/previousWordCount` 迁移。
 - 修改 `js/`、`css/` 或 `index.html` 后，必须同步 bump `sw.js` 的 `CACHE` 与资源 `?v=`，否则 PWA 会继续读旧缓存。
 
-## 仓库
+## 仓库与在线版
 
-git 管理；仓库只保留网页、词库、文档与轻量测试，不再包含真题 PDF/语料、生成流水线或独立小工具。回退：`git log --oneline`、`git checkout <commit> -- <path>`。
+- **在线使用**：<https://xiangjiawei1234-prog.github.io/kaoyan-vocab/>（GitHub Pages，推送 `main` 后自动更新）
+- **下载离线包**：[Releases](https://github.com/xiangjiawei1234-prog/kaoyan-vocab/releases) 里的 `kaoyan-vocab-*.zip`，解压双击 `index.html` 即可
+- git 管理；仓库只保留网页、词库、文档与轻量测试，不再包含真题 PDF/语料、生成流水线或独立小工具。回退：`git log --oneline`、`git checkout <commit> -- <path>`。
