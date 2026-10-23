@@ -6,6 +6,10 @@
 
 ## 文件结构
 
+2026-10-23继续批次补充：空页“开始等待到期”只授予当前页面的内存资格，不伪造已完成组、不写学习/备份。`emptyMainPage()` / `emptyWaitActive()` 与原22状态机共用闲置、倒计时、预算、暂停、租约和最新存储复核；刷新、切书、退出或切到其它主视图清资格。从等待启动的首判前返回准确叫“返回等待页”。0张空组不冻结旧范围，等待使用当前保存设置；真正进行中的组继续遵守08冻结契约。
+
+暂停键在显式写入和自动启动前读取最新表；未落盘的本页增删由内存pending层覆盖，成功写后清除。save/storage权威更新对原空页采取相同裁决，不直接开组。真实输入立即取消倒计时；浏览器布局产生的滚动锚点scroll不会被误认为用户交互。实现与验收见 `js/test-autoresume.mjs` 与 `tests/browser/check-empty-wait.mjs`。
+
 ```
 index.html                    四视图：背诵 / 词表 / 统计 / 设置
 css/app.css                   设计令牌、组件、响应式、深浅主题、打印
@@ -55,7 +59,7 @@ scripts/wordbook-*.json       数据清理 / 修复证据
 - 单日复习上限：每书 `settings.dailyReviewCap`（0 = 不限，1–1000；新用户默认 100，旧记录缺字段按 0 不限解释）与台账 `state.reviewDay = {d:"YYYY-MM-DD", used}`（按书、按本地日期；跨天或 `refreshForResume()` 时归为 `{今日,0}`）。计入「主流程复习判定次数」：判定前 `hasMainProgress` 为真的到期复习与组内重考；不计新词首次学习、错词特训与改判，撤销回滚对应次数。剩余预算 = `cap === 0 ? Infinity : max(0, cap - used)`；降低上限只把剩余预算置零，不回滚已学，也不重排 `p[1]`。
 - 复习暂停态是**派生状态**（`settings.dailyReviewCap` + `state.reviewDay` + 当前到期量实时计算，不持久化；刷新/切书/跨天后重算）：`used >= cap` 且仍有到期时显示背诵页 `#capPause`，保留未答位置、待巩固与改判/撤销，不截断队列、不把未答卡标完成、不批量改到期时间。背诵统计条 `#s-rev` / `#s-revmax` 显示今日复习已用 / 上限（不限显示「不限」），统计页 `#reviewCapLine` 显示今日已用 / 上限、可继续复习与仍待复习；`#capPauseExtra` 承载 23 批临时加量入口。
 - 临时加量（23）：每书 `state.extraDay = {d:"YYYY-MM-DD", extra}`（按本地日期；跨天或 `refreshForResume()` 归零，同日刷新、切书返回、同日重开组不丢），`effectiveNewTarget() = settings.dailyNew + extraDay.extra`（总目标 ≤ 500；`settings.dailyNew` 本身不变）。完成页 `#extraNewRow` 与复习暂停页 `#capPauseExtra` 内的加量入口（再学 10 / 20 / 自定义 1–100，默认 10）只写 `extraDay.extra`，不写 progress、不直接加 `n`；随后以 `kind:"extra"` 纯新词子组进入（复用特训 `mainSnap` 模式保留主组现场，退出后回原组；子组产生的进度与日统计不因返回或撤销原组而丢失）。候选不足时如实显示「仅剩 N 词」并按实际数量加量；同一加量动作重复提交只生效一次；不提高复习上限，新词后续重考仍受当日预算约束；撤销首次判定回退已学数但不撤回已授予额度。UI 上 `#s-newmax` 显示有效目标、`#todayGoal` 摘要显示「计划 N + 临时 M」。
-- 分组与积压保护（07）：每书 `settings.groupSize`（1–100，默认 30；旧记录缺字段=30）只表示一次 `startSession()` 的主卡数量，**不是**每日上限；`settings.backlogGuard`（默认 true）控制积压保护。`buildQueue()` 拆成完整池 `{duePool, freshPool}`（不切片），`startSession()` 按「到期优先 + 剩余新词额度」取 `groupSize` 条；未取走的 `duePool` 仍保持到期。组尾/完成页显示「本组完成 X/Y · 剩余到期 Z」：`#groupFooter`（role=status，内含 `#groupFooterText` + 隐藏按钮 `#nextGroupBtn`「继续下一组」/`#returnMainGroup`「返回原组」），外层 `#groupStatus` 由 CSS `:has(> :not([hidden]))` 自动显隐，app.js 只切内部 hidden。积压保护条件 = `backlogGuard && cap > 0 && countDue() > reviewCapLeft()`：不自动补新词，显示 `#backlogNotice`（`#backlogNoticeText` 说明超出量）+ `#learnNewAnyway`「仍学今日计划内新词」→ `kind:"newOnly"` 纯新词子组（只消耗 `dailyNew` 剩余额度、不提高复习上限，复用 `mainSnap` 保留主组现场，退出回原组；子组内不出现暂停/加量嵌套入口）。`kind:"extra"` 临时加量是另一条路径，不要求计划完成、不受积压保护影响；重考仍受「最多 2 轮」与当日复习预算约束，熟练词排除，错词特训独立。应用内 `groupInfo` 暴露本组完成 X/Y、剩余到期 Z、是否有下一组。
+- 分组与积压保护（07）：每书 `settings.groupSize`（1–100，默认 30；旧记录缺字段=30）只表示一次 `startSession()` 的主卡数量，**不是**每日上限；`settings.backlogGuard`（默认 true）控制积压保护。`buildQueue()` 拆成完整池 `{duePool, freshPool}`（不切片），`startSession()` 按「到期优先 + 剩余新词额度」取 `groupSize` 条；未取走的 `duePool` 仍保持到期。组尾/完成页显示「本组完成 X/Y · 剩余到期 Z」：`#groupFooter`（role=status，内含 `#groupFooterText` 与子组按钮 `#returnMainGroup`「返回原组」；主组唯一继续入口是完成页 `#again`），外层 `#groupStatus` 由 CSS `:has(> :not([hidden]))` 自动显隐，app.js 只切内部 hidden。积压保护条件 = `backlogGuard && cap > 0 && countDue() > reviewCapLeft()`：不自动补新词，显示 `#backlogNotice`（`#backlogNoticeText` 说明超出量）+ `#learnNewAnyway`「仍学今日计划内新词」→ `kind:"newOnly"` 纯新词子组（只消耗 `dailyNew` 剩余额度、不提高复习上限，复用 `mainSnap` 保留主组现场，退出回原组；子组内不出现暂停/加量嵌套入口）。`kind:"extra"` 临时加量是另一条路径，不要求计划完成、不受积压保护影响；重考仍受「最多 2 轮」与当日复习预算约束，熟练词排除，错词特训独立。应用内 `groupInfo` 暴露本组完成 X/Y、剩余到期 Z、是否有下一组。
 
 ## 学习状态机
 
@@ -170,11 +174,11 @@ idle --(可见完成页 + 连续 idleMs 无有效交互)--> waiting --(candidate
 ## 测试与验收
 
 ```bash
-node --max-old-space-size=512 scripts/verify.mjs   # 汇总（当前 37 项）
+node --max-old-space-size=512 scripts/verify.mjs   # 汇总（当前 38 项）
 node js/test-app.mjs                               # 门控与核心逻辑（162 断言，含第 19 节首屏/统计结构）
 node js/test-lifecycle.mjs                         # 08 设置与当前组生命周期
 node js/test-defaults.mjs                          # 21 统一默认值与旧记录兼容
-node js/test-autoresume.mjs                        # 22 完成页挂机自动续背（141 断言，含今天暂停持久化）
+node js/test-autoresume.mjs                        # 22 完成页挂机自动续背（含今天暂停、便捷预设、部分预算与开组前同步）
 node js/test-senses.mjs                            # 10 语境义接线/渲染/回退/四书隔离（117 断言）
 node js/test-senses-data.mjs                       # 10 WORD_SENSES 数据契约（11 断言）
 node js/test-resume-session.mjs                    # 15 刷新恢复/签名/失效/08 裁决/D-15-01（143 断言）

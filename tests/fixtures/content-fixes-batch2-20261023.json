@@ -1,0 +1,1147 @@
+{
+  "description": "内容第二批：20高优先主音标+已确认词性/释义/词形，内容源仍为交付JS。",
+  "baseline": {
+    "kaoyan": {
+      "words": 7997,
+      "dv": 3,
+      "missingPh": 389,
+      "indexHash": "501577d74614f2c993d47d037d05b56d914df7e9257684742ded62d9844bb13a",
+      "posIndexHash": "3692b4bb6165850d17f483e4de0ea18c1a3507b588610ade02f27d3ec3744966"
+    },
+    "cet4": {
+      "words": 7168,
+      "dv": 4,
+      "missingPh": 293,
+      "indexHash": "677b9b764aa95d83368e541e4b487cf5e1608cfd30c530bb1e3434a83fcf5f2f",
+      "posIndexHash": "86f1f0cacde7c89e72e563165590887b81233eaa3365bc34039859efe36f89d5"
+    },
+    "cet6": {
+      "words": 8821,
+      "dv": 4,
+      "missingPh": 454,
+      "indexHash": "39ece5556c836563a79046f574dff2edf13c2c3a6c04378b8fc924cfa1a90ac9",
+      "posIndexHash": "86ebc238119341c1eee017d319e7bef8ed22a7ca3bc367eb3220b60f35cab7d7"
+    },
+    "combined": {
+      "words": 12083,
+      "dv": 2,
+      "missingPh": 807,
+      "indexHash": "f8f9e2c0366d8a704949356967479fab01f0bdbafdd160a2b4c688ca2bcbf45c",
+      "posIndexHash": "9984e796240d134920ea6cff2b1bcf5fb9d2a26473a6d7656c4dda5241f232c3"
+    }
+  },
+  "phonetics": {
+    "homelessness": {
+      "phonetic": "ˈhəʊmləsnəs",
+      "url": "https://www.oxfordlearnersdictionaries.com/definition/english/homelessness",
+      "source": "Oxford Advanced Learner’s Dictionary，British 首列主读音",
+      "rawIPA": "/ˈhəʊmləsnəs/"
+    },
+    "recycling": {
+      "phonetic": "ˌriːˈsaɪklɪŋ",
+      "url": "https://www.oxfordlearnersdictionaries.com/definition/english/recycling",
+      "source": "Oxford Advanced Learner’s Dictionary，British 首列主读音",
+      "rawIPA": "/ˌriːˈsaɪklɪŋ/"
+    },
+    "theatre": {
+      "phonetic": "ˈθɪətə(r)",
+      "url": "https://www.oxfordlearnersdictionaries.com/definition/english/theatre",
+      "source": "Oxford Advanced Learner’s Dictionary，British 首列主读音",
+      "rawIPA": "/ˈθɪətə(r)/"
+    },
+    "download": {
+      "phonetic": "ˌdaʊnˈləʊd",
+      "url": "https://www.oxfordlearnersdictionaries.com/definition/english/download_1",
+      "source": "Oxford Advanced Learner’s Dictionary，British 首列主读音",
+      "rawIPA": "/ˌdaʊnˈləʊd/"
+    },
+    "ebike": {
+      "phonetic": "ˈiːbaɪk",
+      "url": "https://www.oxfordlearnersdictionaries.com/definition/english/e-bike",
+      "source": "Oxford Advanced Learner’s Dictionary，British 首列主读音",
+      "rawIPA": "/ˈiː baɪk/"
+    },
+    "positively": {
+      "phonetic": "ˈpɒzətɪvli",
+      "url": "https://www.oxfordlearnersdictionaries.com/definition/english/positively",
+      "source": "Oxford Advanced Learner’s Dictionary，British 首列主读音",
+      "rawIPA": "/ˈpɒzətɪvli/"
+    },
+    "blog": {
+      "phonetic": "blɒɡ",
+      "url": "https://www.oxfordlearnersdictionaries.com/definition/english/blog_1",
+      "source": "Oxford Advanced Learner’s Dictionary，British 首列主读音",
+      "rawIPA": "/blɒɡ/"
+    },
+    "coworker": {
+      "phonetic": "ˈkəʊwɜːkə(r)",
+      "url": "https://www.oxfordlearnersdictionaries.com/definition/english/co-worker",
+      "source": "Oxford Advanced Learner’s Dictionary，British 首列主读音",
+      "rawIPA": "/ˈkəʊ wɜːkə(r)/"
+    },
+    "craftsmanship": {
+      "phonetic": "ˈkrɑːftsmənʃɪp",
+      "url": "https://www.oxfordlearnersdictionaries.com/definition/english/craftsmanship",
+      "source": "Oxford Advanced Learner’s Dictionary，British 首列主读音",
+      "rawIPA": "/ˈkrɑːftsmənʃɪp/"
+    },
+    "stressful": {
+      "phonetic": "ˈstresfl",
+      "url": "https://www.oxfordlearnersdictionaries.com/definition/english/stressful",
+      "source": "Oxford Advanced Learner’s Dictionary，British 首列主读音",
+      "rawIPA": "/ˈstresfl/"
+    },
+    "confusing": {
+      "phonetic": "kənˈfjuːzɪŋ",
+      "url": "https://www.oxfordlearnersdictionaries.com/definition/english/confusing",
+      "source": "Oxford Advanced Learner’s Dictionary，British 首列主读音",
+      "rawIPA": "/kənˈfjuːzɪŋ/"
+    },
+    "environmentally": {
+      "phonetic": "ɪnˌvaɪrənˈmentəli",
+      "url": "https://www.oxfordlearnersdictionaries.com/definition/english/environmentally",
+      "source": "Oxford Advanced Learner’s Dictionary，British 首列主读音",
+      "rawIPA": "/ɪnˌvaɪrənˈmentəli/"
+    },
+    "freshman": {
+      "phonetic": "ˈfreʃmən",
+      "url": "https://www.oxfordlearnersdictionaries.com/definition/english/freshman",
+      "source": "Oxford Advanced Learner’s Dictionary，British 首列主读音",
+      "rawIPA": "/ˈfreʃmən/"
+    },
+    "graffiti": {
+      "phonetic": "ɡrəˈfiːti",
+      "url": "https://www.oxfordlearnersdictionaries.com/definition/english/graffiti",
+      "source": "Oxford Advanced Learner’s Dictionary，British 首列主读音",
+      "rawIPA": "/ɡrəˈfiːti/"
+    },
+    "routinely": {
+      "phonetic": "ruːˈtiːnli",
+      "url": "https://www.oxfordlearnersdictionaries.com/definition/english/routinely",
+      "source": "Oxford Advanced Learner’s Dictionary，British 首列主读音",
+      "rawIPA": "/ruːˈtiːnli/"
+    },
+    "unrelated": {
+      "phonetic": "ˌʌnrɪˈleɪtɪd",
+      "url": "https://www.oxfordlearnersdictionaries.com/definition/english/unrelated",
+      "source": "Oxford Advanced Learner’s Dictionary，British 首列主读音",
+      "rawIPA": "/ˌʌnrɪˈleɪtɪd/"
+    },
+    "bored": {
+      "phonetic": "bɔːd",
+      "url": "https://www.oxfordlearnersdictionaries.com/definition/english/bored",
+      "source": "Oxford Advanced Learner’s Dictionary，British 首列主读音",
+      "rawIPA": "/bɔːd/"
+    },
+    "politically": {
+      "phonetic": "pəˈlɪtɪkli",
+      "url": "https://www.oxfordlearnersdictionaries.com/definition/english/politically",
+      "source": "Oxford Advanced Learner’s Dictionary，British 首列主读音",
+      "rawIPA": "/pəˈlɪtɪkli/"
+    },
+    "adversely": {
+      "phonetic": "ˈædvɜːsli",
+      "url": "https://www.oxfordlearnersdictionaries.com/definition/english/adversely",
+      "source": "Oxford Advanced Learner’s Dictionary，British 首列主读音",
+      "rawIPA": "/ˈædvɜːsli/"
+    },
+    "importantly": {
+      "phonetic": "ɪmˈpɔːtntli",
+      "url": "https://www.oxfordlearnersdictionaries.com/definition/english/importantly",
+      "source": "Oxford Advanced Learner’s Dictionary，British 首列主读音",
+      "rawIPA": "/ɪmˈpɔːtntli/"
+    }
+  },
+  "semanticCorrections": {
+    "re": {
+      "3": 4,
+      "10": ""
+    },
+    "microelectronic": {
+      "1": "ˌmaɪkrəʊɪˌlekˈtrɒnɪk",
+      "2": "a. 微电子的, 微电子技术的",
+      "3": 2
+    },
+    "integrated": {
+      "2": "a. 综合的, 整合的, 协调的, 集成的；v. 使合并, 使融入"
+    },
+    "homelessness": {
+      "3": 0
+    },
+    "graffiti": {
+      "3": 0
+    },
+    "odd": {
+      "3": 2
+    },
+    "pediatric": {
+      "3": 2
+    },
+    "motive": {
+      "3": 0
+    }
+  },
+  "expectedPosIndexHashes": {
+    "kaoyan": "b6b38214733c645e88a2a0fadb5ba677b77433e010f4177b76da8ba95c80fdbe",
+    "cet4": "df4f2df75228c7528ba13e906925f53587fd5e985eb2a84aa8f911fe9b0dd83e",
+    "cet6": "7b4da024d37cf94450ecb9d0852acd74f43d685711a8115089b6cd57b5bb0841",
+    "combined": "92b0f46e85a53b501db22dae11aed6cccdec2a9e413488f4bb98d9ae33b402f0"
+  },
+  "microEvidence": {
+    "url": "https://www.oxfordlearnersdictionaries.com/definition/english/microelectronic",
+    "rawIPA": "/ˌmaɪkrəʊɪˌlekˈtrɒnɪk/"
+  },
+  "confirmedBadExamples": [
+    "In a move that has intellectual-property lawyers abuzz, the U.S.",
+    "The crash was a major reason the U.S.",
+    "But the one thing we know for sure is that with each advance in globalization and the I.",
+    "Designed by Supervising Architect of the Treasury, Alfred B.",
+    "Supreme Court Justice Sandra Day O'Connor is in her 70s, and former surgeon general C.",
+    "During this decade new forms of entertainment, commerce, research, and communication became commonplace in the U.",
+    "In a 2020 study, researchers at the U.",
+    "The moves in China coincide with accelerating efforts in the U.",
+    "In an email statement from the state's Office of Customer Focused Government, which is examining the possibility of outsourcing, spokeswoman Michelle R.",
+    "It would continue because of noncooperation from the U.",
+    "In one study, they were given matrixes and had to find two numbers that added up to.",
+    "If all of a university's alumni (.U.",
+    "The key role of the logistics industry.",
+    "Tailoring their expectations to the company's long-term goal.",
+    "Factories are being digitised, filled with new sensors and new computers to make them quicker, more 27, and more efficient.",
+    "Companies soon discovered that work could be done at home and 35 online, so a whole new class of telecommuters began to earn a living from home offices unshaven and wearing pajamas.",
+    "Based on their results, the team concludes that the ideas, values and decision-making biases of men are overrepresented in the editorial positions of the most recognized academic journals in psychology and ncuroscicncc.",
+    "It brings texters' closer to each other.",
+    "Advocate B. amount C. confirmed D. crazy E. definite F.",
+    "You should write your answer on Answer Sheet 2.,, (river basin).",
+    "You should write your answer on Answer Sheet 2., (river basin ) (delta) 20%.",
+    "You should write your answer on Answer Sheet 2., (etiquette), \" \"(mutually exchanging courtesies),.",
+    "You should write your answer on Answer Sheet 2 (Karez), (seep into),, (evaporation),.",
+    "You should write your answer on Answer Sheet 2.,, (feudal),.",
+    "I don't think the heyday ($ has passed, says D.",
+    "After you hear a question,you must choose the best answer from the four choices marked A), B),C)and D).Then mark the corresponding leer on AnSWer Sheet 1 with a single line B), C) and D).",
+    "Airbus has a futuristic modular {ffl #-A.",
+    "Section C Passages Passage One As interdependent beings we cannot thrive independent of others.",
+    "You should write your answer on Answer Sheet 2., (timberwork) (rammed earth construction),: (pagoda).",
+    "You should write your answer on Answer Sheet 2., (sundials ).",
+    "(Once large issuers convert together, the chip costs should drop. [E] Multiply $3 by the more than 5 billion magstripe credit and prepaid cards in circulation in the U.S.",
+    "We have everything to gain by encouraging them to explore the world beyond their immediate experience and to prepare themselves for their tum at shaping that world. prepare themselves for their turn at shaping that world.",
+    "The resulting steel appears to achieve a combination of strength and toughness that is to that of modem steels that are very rich in alloy content and, therefore, very expensive.",
+    "It generally lasts for several years. 24.A.",
+    "He asked different people for their opinions. 22.A.",
+    "When to start the make-up session. 11.A.",
+    "Make a brief self-introduction on the phone. 13.A.",
+    "Preparing for the filming on Monday morning. 10.A.",
+    "It is vital to the future of humanity C.",
+    "They rob kids of the chance to cultivate their courage D.",
+    "Classical music aims to evolve, build audiences without alienating old guard A.",
+    "Pryor offered this example: \"Even if I'm an incredible attorney, if I don't make partner in the same pacing as one of my colleagues, clearly that means I'm a failure.\" G.",
+    "Too much effort and he'd begin to sweat, which, he was told, would only increase the risk of hypothermia B.",
+    "Such findings, he says, suggest that \"this network can be called on to process and store the kind of information taught in school potentially giving students access to a range of untapped mental powers.\" J.",
+    "But then they come up with some very snooty thing that makes you crazy. M."
+  ],
+  "repairedExamples": [
+    {
+      "book": "kaoyan",
+      "index": 206,
+      "word": "move",
+      "source": "自编",
+      "family": "R2-01"
+    },
+    {
+      "book": "kaoyan",
+      "index": 659,
+      "word": "lawyer",
+      "source": "自编",
+      "family": "R2-01"
+    },
+    {
+      "book": "kaoyan",
+      "index": 5286,
+      "word": "abuzz",
+      "source": "自编",
+      "family": "R2-01"
+    },
+    {
+      "book": "combined",
+      "index": 246,
+      "word": "move",
+      "source": "自编",
+      "family": "R2-01"
+    },
+    {
+      "book": "combined",
+      "index": 1422,
+      "word": "lawyer",
+      "source": "自编",
+      "family": "R2-01"
+    },
+    {
+      "book": "combined",
+      "index": 8877,
+      "word": "abuzz",
+      "source": "自编",
+      "family": "R2-01"
+    },
+    {
+      "book": "kaoyan",
+      "index": 1745,
+      "word": "crash",
+      "source": "自编",
+      "family": "R2-02"
+    },
+    {
+      "book": "combined",
+      "index": 2028,
+      "word": "crash",
+      "source": "自编",
+      "family": "R2-02"
+    },
+    {
+      "book": "kaoyan",
+      "index": 2534,
+      "word": "globalization",
+      "source": "自编",
+      "family": "R2-03"
+    },
+    {
+      "book": "combined",
+      "index": 3810,
+      "word": "globalization",
+      "source": "自编",
+      "family": "R2-03"
+    },
+    {
+      "book": "kaoyan",
+      "index": 4831,
+      "word": "supervising",
+      "source": "自编",
+      "family": "R2-04"
+    },
+    {
+      "book": "combined",
+      "index": 8274,
+      "word": "supervising",
+      "source": "自编",
+      "family": "R2-04"
+    },
+    {
+      "book": "kaoyan",
+      "index": 7608,
+      "word": "surgeon",
+      "source": "自编",
+      "family": "R2-05"
+    },
+    {
+      "book": "combined",
+      "index": 6343,
+      "word": "surgeon",
+      "source": "自编",
+      "family": "R2-05"
+    },
+    {
+      "book": "cet4",
+      "index": 4042,
+      "word": "commerce",
+      "source": "自编",
+      "family": "R2-06"
+    },
+    {
+      "book": "cet4",
+      "index": 4358,
+      "word": "commonplace",
+      "source": "自编",
+      "family": "R2-06"
+    },
+    {
+      "book": "combined",
+      "index": 5589,
+      "word": "commonplace",
+      "source": "自编",
+      "family": "R2-06"
+    },
+    {
+      "book": "cet6",
+      "index": 35,
+      "word": "study",
+      "source": "自编",
+      "family": "R2-07"
+    },
+    {
+      "book": "cet6",
+      "index": 94,
+      "word": "researcher",
+      "source": "自编",
+      "family": "R2-07"
+    },
+    {
+      "book": "cet6",
+      "index": 5348,
+      "word": "coincide",
+      "source": "自编",
+      "family": "R2-08"
+    },
+    {
+      "book": "cet6",
+      "index": 6371,
+      "word": "spokeswoman",
+      "source": "自编",
+      "family": "R2-09"
+    },
+    {
+      "book": "cet6",
+      "index": 7834,
+      "word": "noncooperation",
+      "source": "自编",
+      "family": "R2-10"
+    },
+    {
+      "book": "combined",
+      "index": 10682,
+      "word": "noncooperation",
+      "source": "自编",
+      "family": "R2-10"
+    },
+    {
+      "book": "cet4",
+      "index": 5090,
+      "word": "matrix",
+      "source": "自编",
+      "family": "R2-11"
+    },
+    {
+      "book": "combined",
+      "index": 8654,
+      "word": "matrix",
+      "source": "自编",
+      "family": "R2-11"
+    },
+    {
+      "book": "cet6",
+      "index": 2340,
+      "word": "alumnus",
+      "source": "自编",
+      "family": "R2-12"
+    },
+    {
+      "book": "combined",
+      "index": 3862,
+      "word": "alumnus",
+      "source": "自编",
+      "family": "R2-12"
+    },
+    {
+      "book": "kaoyan",
+      "index": 6659,
+      "word": "logistic",
+      "source": "自编",
+      "family": "R2-13"
+    },
+    {
+      "book": "cet6",
+      "index": 3804,
+      "word": "logistic",
+      "source": "自编",
+      "family": "R2-13"
+    },
+    {
+      "book": "combined",
+      "index": 4058,
+      "word": "logistic",
+      "source": "自编",
+      "family": "R2-13"
+    },
+    {
+      "book": "cet6",
+      "index": 5961,
+      "word": "tailor",
+      "source": "自编",
+      "family": "R2-14"
+    },
+    {
+      "book": "cet6",
+      "index": 8502,
+      "word": "tailoring",
+      "source": "自编",
+      "family": "R2-14"
+    },
+    {
+      "book": "combined",
+      "index": 11599,
+      "word": "tailoring",
+      "source": "自编",
+      "family": "R2-14"
+    },
+    {
+      "book": "cet4",
+      "index": 5669,
+      "word": "digitise",
+      "source": "自编",
+      "family": "R2-15"
+    },
+    {
+      "book": "combined",
+      "index": 9565,
+      "word": "digitise",
+      "source": "自编",
+      "family": "R2-15"
+    },
+    {
+      "book": "cet4",
+      "index": 6407,
+      "word": "pajama",
+      "source": "自编",
+      "family": "R2-16"
+    },
+    {
+      "book": "cet4",
+      "index": 6899,
+      "word": "telecommuter",
+      "source": "自编",
+      "family": "R2-16"
+    },
+    {
+      "book": "cet4",
+      "index": 7049,
+      "word": "unshaven",
+      "source": "自编",
+      "family": "R2-16"
+    },
+    {
+      "book": "combined",
+      "index": 10825,
+      "word": "pajama",
+      "source": "自编",
+      "family": "R2-16"
+    },
+    {
+      "book": "combined",
+      "index": 11617,
+      "word": "telecommuter",
+      "source": "自编",
+      "family": "R2-16"
+    },
+    {
+      "book": "combined",
+      "index": 11891,
+      "word": "unshaven",
+      "source": "自编",
+      "family": "R2-16"
+    },
+    {
+      "book": "cet6",
+      "index": 7919,
+      "word": "overrepresent",
+      "source": "自编",
+      "family": "R2-17"
+    },
+    {
+      "book": "combined",
+      "index": 10794,
+      "word": "overrepresent",
+      "source": "自编",
+      "family": "R2-17"
+    },
+    {
+      "book": "cet6",
+      "index": 5202,
+      "word": "texter",
+      "source": "自编",
+      "family": "R2-18"
+    },
+    {
+      "book": "cet4",
+      "index": 4392,
+      "word": "definite",
+      "source": "自编",
+      "family": "R2-19"
+    },
+    {
+      "book": "combined",
+      "index": 6605,
+      "word": "definite",
+      "source": "自编",
+      "family": "R2-19"
+    },
+    {
+      "book": "cet4",
+      "index": 3249,
+      "word": "basin",
+      "source": "自编",
+      "family": "R2-20"
+    },
+    {
+      "book": "combined",
+      "index": 5390,
+      "word": "basin",
+      "source": "自编",
+      "family": "R2-20"
+    },
+    {
+      "book": "cet4",
+      "index": 4395,
+      "word": "delta",
+      "source": "自编",
+      "family": "R2-21"
+    },
+    {
+      "book": "combined",
+      "index": 7590,
+      "word": "delta",
+      "source": "自编",
+      "family": "R2-21"
+    },
+    {
+      "book": "cet4",
+      "index": 5567,
+      "word": "courtesy",
+      "source": "自编",
+      "family": "R2-22"
+    },
+    {
+      "book": "combined",
+      "index": 7557,
+      "word": "courtesy",
+      "source": "自编",
+      "family": "R2-22"
+    },
+    {
+      "book": "cet4",
+      "index": 5794,
+      "word": "evaporation",
+      "source": "自编",
+      "family": "R2-23"
+    },
+    {
+      "book": "cet4",
+      "index": 6713,
+      "word": "seep",
+      "source": "自编",
+      "family": "R2-23"
+    },
+    {
+      "book": "combined",
+      "index": 7673,
+      "word": "evaporation",
+      "source": "自编",
+      "family": "R2-23"
+    },
+    {
+      "book": "combined",
+      "index": 8200,
+      "word": "seep",
+      "source": "自编",
+      "family": "R2-23"
+    },
+    {
+      "book": "cet4",
+      "index": 5837,
+      "word": "feudal",
+      "source": "自编",
+      "family": "R2-24"
+    },
+    {
+      "book": "combined",
+      "index": 9844,
+      "word": "feudal",
+      "source": "自编",
+      "family": "R2-24"
+    },
+    {
+      "book": "cet4",
+      "index": 5985,
+      "word": "heyday",
+      "source": "自编",
+      "family": "R2-25"
+    },
+    {
+      "book": "combined",
+      "index": 10101,
+      "word": "heyday",
+      "source": "自编",
+      "family": "R2-25"
+    },
+    {
+      "book": "cet6",
+      "index": 4016,
+      "word": "leer",
+      "source": "自编",
+      "family": "R2-26"
+    },
+    {
+      "book": "combined",
+      "index": 6029,
+      "word": "leer",
+      "source": "自编",
+      "family": "R2-26"
+    },
+    {
+      "book": "cet6",
+      "index": 4978,
+      "word": "futuristic",
+      "source": "自编",
+      "family": "R2-27"
+    },
+    {
+      "book": "cet6",
+      "index": 6251,
+      "word": "modular",
+      "source": "自编",
+      "family": "R2-27"
+    },
+    {
+      "book": "combined",
+      "index": 8664,
+      "word": "modular",
+      "source": "自编",
+      "family": "R2-27"
+    },
+    {
+      "book": "cet6",
+      "index": 7527,
+      "word": "interdependent",
+      "source": "自编",
+      "family": "R2-28"
+    },
+    {
+      "book": "combined",
+      "index": 10313,
+      "word": "interdependent",
+      "source": "自编",
+      "family": "R2-28"
+    },
+    {
+      "book": "cet6",
+      "index": 7934,
+      "word": "pagoda",
+      "source": "自编",
+      "family": "R2-29"
+    },
+    {
+      "book": "cet6",
+      "index": 8560,
+      "word": "timberwork",
+      "source": "自编",
+      "family": "R2-29"
+    },
+    {
+      "book": "combined",
+      "index": 10819,
+      "word": "pagoda",
+      "source": "自编",
+      "family": "R2-29"
+    },
+    {
+      "book": "combined",
+      "index": 11664,
+      "word": "timberwork",
+      "source": "自编",
+      "family": "R2-29"
+    },
+    {
+      "book": "cet6",
+      "index": 8475,
+      "word": "sundial",
+      "source": "自编",
+      "family": "R2-30"
+    },
+    {
+      "book": "combined",
+      "index": 11563,
+      "word": "sundial",
+      "source": "自编",
+      "family": "R2-30"
+    },
+    {
+      "book": "cet6",
+      "index": 8054,
+      "word": "prepay",
+      "source": "自编",
+      "family": "R2-31"
+    },
+    {
+      "book": "combined",
+      "index": 10976,
+      "word": "prepay",
+      "source": "自编",
+      "family": "R2-31"
+    },
+    {
+      "book": "cet6",
+      "index": 8332,
+      "word": "shaping",
+      "source": "自编",
+      "family": "R2-32"
+    },
+    {
+      "book": "combined",
+      "index": 11342,
+      "word": "shaping",
+      "source": "自编",
+      "family": "R2-32"
+    },
+    {
+      "book": "cet6",
+      "index": 1923,
+      "word": "combination",
+      "source": "自编",
+      "family": "R2-33"
+    },
+    {
+      "book": "cet6",
+      "index": 5206,
+      "word": "toughness",
+      "source": "自编",
+      "family": "R2-33"
+    },
+    {
+      "book": "cet6",
+      "index": 6506,
+      "word": "alloy",
+      "source": "自编",
+      "family": "R2-33"
+    },
+    {
+      "book": "combined",
+      "index": 8935,
+      "word": "alloy",
+      "source": "自编",
+      "family": "R2-33"
+    },
+    {
+      "book": "cet4",
+      "index": 150,
+      "word": "last",
+      "source": "自编",
+      "family": "R2-34"
+    },
+    {
+      "book": "cet4",
+      "index": 779,
+      "word": "opinion",
+      "source": "自编",
+      "family": "R2-35"
+    },
+    {
+      "book": "cet4",
+      "index": 1736,
+      "word": "session",
+      "source": "自编",
+      "family": "R2-36"
+    },
+    {
+      "book": "cet4",
+      "index": 2918,
+      "word": "brief",
+      "source": "自编",
+      "family": "R2-37"
+    },
+    {
+      "book": "cet4",
+      "index": 5840,
+      "word": "filming",
+      "source": "自编",
+      "family": "R2-38"
+    },
+    {
+      "book": "combined",
+      "index": 9851,
+      "word": "filming",
+      "source": "自编",
+      "family": "R2-38"
+    },
+    {
+      "book": "cet6",
+      "index": 991,
+      "word": "humanity",
+      "source": "自编",
+      "family": "R2-39"
+    },
+    {
+      "book": "cet6",
+      "index": 3657,
+      "word": "courage",
+      "source": "自编",
+      "family": "R2-40"
+    },
+    {
+      "book": "cet6",
+      "index": 4149,
+      "word": "alienate",
+      "source": "自编",
+      "family": "R2-41"
+    },
+    {
+      "book": "combined",
+      "index": 6185,
+      "word": "alienate",
+      "source": "自编",
+      "family": "R2-41"
+    },
+    {
+      "book": "cet6",
+      "index": 5271,
+      "word": "attorney",
+      "source": "自编",
+      "family": "R2-42"
+    },
+    {
+      "book": "cet6",
+      "index": 7931,
+      "word": "pacing",
+      "source": "自编",
+      "family": "R2-42"
+    },
+    {
+      "book": "combined",
+      "index": 10814,
+      "word": "pacing",
+      "source": "自编",
+      "family": "R2-42"
+    },
+    {
+      "book": "cet6",
+      "index": 5955,
+      "word": "sweat",
+      "source": "自编",
+      "family": "R2-43"
+    },
+    {
+      "book": "cet6",
+      "index": 7410,
+      "word": "hypothermia",
+      "source": "自编",
+      "family": "R2-43"
+    },
+    {
+      "book": "combined",
+      "index": 10170,
+      "word": "hypothermia",
+      "source": "自编",
+      "family": "R2-43"
+    },
+    {
+      "book": "cet6",
+      "index": 6026,
+      "word": "untapped",
+      "source": "自编",
+      "family": "R2-44"
+    },
+    {
+      "book": "combined",
+      "index": 8378,
+      "word": "untapped",
+      "source": "自编",
+      "family": "R2-44"
+    },
+    {
+      "book": "cet6",
+      "index": 8383,
+      "word": "snooty",
+      "source": "自编",
+      "family": "R2-45"
+    },
+    {
+      "book": "combined",
+      "index": 11416,
+      "word": "snooty",
+      "source": "自编",
+      "family": "R2-45"
+    }
+  ],
+  "reviewSource": "tests/fixtures/content-review-20261023-round2.json",
+  "targetedAssociations": [
+    {
+      "word": "odd",
+      "book": "cet4",
+      "index": 1536,
+      "oldExample": "In fact, vaguely-stated possibilities of winning a prize were more effective than options with hard odds included.",
+      "oldSource": "四级 2016.12",
+      "newExample": "It seemed odd to leave the room without saying goodbye.",
+      "newSource": "自编",
+      "oldPos": 0,
+      "newPos": 2,
+      "reason": "原句odds为概率名词，不是形容词odd的屈折；Oxford明确odd adjective。",
+      "evidenceUrls": [
+        "https://www.oxfordlearnersdictionaries.com/definition/english/odd",
+        "https://www.oxfordlearnersdictionaries.com/definition/english/odds"
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 1536,
+          "word": "odd",
+          "example": "It seemed odd to leave the room without saying goodbye.",
+          "source": "自编"
+        }
+      ],
+      "unchangedOriginalReferences": [
+        {
+          "book": "cet4",
+          "index": 7135,
+          "word": "winning",
+          "source": "四级 2016.12",
+          "example": "In fact, vaguely-stated possibilities of winning a prize were more effective than options with hard odds included."
+        },
+        {
+          "book": "combined",
+          "index": 12046,
+          "word": "winning",
+          "source": "四级 2016.12",
+          "example": "In fact, vaguely-stated possibilities of winning a prize were more effective than options with hard odds included."
+        }
+      ]
+    },
+    {
+      "word": "motif",
+      "book": "cet6",
+      "index": 4035,
+      "oldExample": "But what most students and parents don't realize is that schools have hidden motives for offering early decision.",
+      "oldSource": "六级 2015.06",
+      "newExample": "The rug has a simple floral motif.",
+      "newSource": "自编",
+      "oldPos": 0,
+      "newPos": 0,
+      "reason": "原句motives为motive的复数；motif的复数为motifs，图案/反复主题义。",
+      "evidenceUrls": [
+        "https://www.oxfordlearnersdictionaries.com/definition/english/motif",
+        "https://www.oxfordlearnersdictionaries.com/definition/english/motive_1"
+      ],
+      "references": [
+        {
+          "book": "cet6",
+          "index": 4035,
+          "word": "motif",
+          "example": "The rug has a simple floral motif.",
+          "source": "自编"
+        },
+        {
+          "book": "combined",
+          "index": 4790,
+          "word": "motif",
+          "example": "The rug has a simple floral motif.",
+          "source": "自编"
+        }
+      ],
+      "unchangedOriginalReferences": [
+        {
+          "book": "cet6",
+          "index": 3198,
+          "word": "hidden",
+          "source": "六级 2015.06",
+          "example": "But what most students and parents don't realize is that schools have hidden motives for offering early decision."
+        },
+        {
+          "book": "cet6",
+          "index": 5704,
+          "word": "motive",
+          "source": "六级 2015.06",
+          "example": "But what most students and parents don't realize is that schools have hidden motives for offering early decision."
+        }
+      ]
+    },
+    {
+      "word": "pediatric",
+      "book": "cet6",
+      "index": 7965,
+      "oldExample": "The American Academy of Pediatrics (AAP), which first issued that recommendation back in 1999, has extensively updated and revised its guidelines for children and adolescents to reflect new research and new habits.",
+      "oldSource": "六级 2022.12",
+      "newExample": "The hospital opened a new pediatric clinic for children.",
+      "newSource": "自编",
+      "oldPos": 0,
+      "newPos": 2,
+      "reason": "原句机构名Pediatrics是学科名词；pediatric为儿科的形容词。",
+      "evidenceUrls": [
+        "https://www.oxfordlearnersdictionaries.com/definition/english/pediatric",
+        "https://www.oxfordlearnersdictionaries.com/definition/english/pediatrics"
+      ],
+      "references": [
+        {
+          "book": "cet6",
+          "index": 7965,
+          "word": "pediatric",
+          "example": "The hospital opened a new pediatric clinic for children.",
+          "source": "自编"
+        },
+        {
+          "book": "combined",
+          "index": 10861,
+          "word": "pediatric",
+          "example": "The hospital opened a new pediatric clinic for children.",
+          "source": "自编"
+        }
+      ],
+      "unchangedOriginalReferences": []
+    }
+  ],
+  "relationshipPending": [
+    {
+      "word": "nonlive",
+      "reason": "Oxford nonlive/non-live/nonliving/non-living均404；Cambridge/Collins/Merriam-Webster请求403，OED仅空202，未取得可靠词条正文。保留原词头/释义/词性/词形/音标/例句/频次待核，不以网页未收录推断单词不存在。",
+      "references": [
+        {
+          "book": "cet6",
+          "index": 7837
+        },
+        {
+          "book": "combined",
+          "index": 10686
+        }
+      ]
+    }
+  ],
+  "motiveEvidence": {
+    "book": "cet6",
+    "index": 5704,
+    "oldPos": 1,
+    "newPos": 0,
+    "url": "https://www.oxfordlearnersdictionaries.com/definition/english/motive_1",
+    "reason": "当前仅名词释义n. 动机, 目的；Oxford明确motive noun。考研/综合本已p=0；例句与src保持。"
+  },
+  "graffitiNounExample": {
+    "evidenceUrl": "https://www.oxfordlearnersdictionaries.com/definition/english/graffiti",
+    "reason": "noun主词性修订后，旧graffitied分词不在已交付fm。未取得Oxford verb/inflection正文，不推断该词形非法；选择目标名词例句而不猜补动词义/fm或恢复错误p。",
+    "oldExample": "Nothing is necessarily gained by forcing students to learn geometry at a graffitied desk stuck with generations of discarded chewing gum.",
+    "oldSource": "英语二 2018",
+    "newExample": "The city removed graffiti from the bridge.",
+    "newSource": "自编",
+    "references": [
+      {
+        "book": "kaoyan",
+        "index": 6284
+      },
+      {
+        "book": "combined",
+        "index": 3117
+      }
+    ],
+    "unchangedOriginalReferences": [
+      {
+        "book": "kaoyan",
+        "index": 2845,
+        "word": "chew",
+        "example": "Nothing is necessarily gained by forcing students to learn geometry at a graffitied desk stuck with generations of discarded chewing gum.",
+        "source": "英语二 2018"
+      },
+      {
+        "book": "kaoyan",
+        "index": 2864,
+        "word": "gum",
+        "example": "Nothing is necessarily gained by forcing students to learn geometry at a graffitied desk stuck with generations of discarded chewing gum.",
+        "source": "英语二 2018"
+      },
+      {
+        "book": "combined",
+        "index": 3981,
+        "word": "chew",
+        "example": "Nothing is necessarily gained by forcing students to learn geometry at a graffitied desk stuck with generations of discarded chewing gum.",
+        "source": "英语二 2018"
+      },
+      {
+        "book": "combined",
+        "index": 4512,
+        "word": "gum",
+        "example": "Nothing is necessarily gained by forcing students to learn geometry at a graffitied desk stuck with generations of discarded chewing gum.",
+        "source": "英语二 2018"
+      }
+    ]
+  }
+}

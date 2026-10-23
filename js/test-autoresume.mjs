@@ -741,8 +741,241 @@ console.log("== 7. 用户在其他视图与保存失败 ==");
   ck(autoState().phase === "countdown" || T.cur !== null, "存储恢复后自动续背可继续工作");
 }
 
-/* ================= 8. 存储不可用：放弃并提示，不循环空开组 ================= */
-console.log("== 8. 租约存储不可用 ==");
+/* ================= 8. 便捷预设/唯一手动入口/不可达配置 ================= */
+console.log("== 8. 便捷续背与手动门槛分离 ==");
+{
+  completionPage({dailyNew: 2, groupSize: 1, autoResume: {enabled: false}});
+  autoTick();
+  ck(stateEl("#autoResume").hidden === false && /未开启/.test(stateEl("#autoResumeText").innerHTML),
+    "自动关闭的老用户完成页仍可发现启用入口");
+  ck(typeof stateEl("#autoResumeQuick").onclick === "function", "完成页便捷入口已接线");
+  stateEl("#autoResumeQuick").onclick();
+  ck(eq(T.getAutoResume(), {enabled: true, threshold: 1, idleMs: 30000, countdownMs: 3000}),
+    "便捷预设是1张/30秒/3秒，不改变新用户默认");
+  autoTick(); autoTick(30000);
+  ck(autoState().phase === "countdown", "仅1张剩余候选可触发便捷倒计时");
+  autoTick(3000);
+  ck(T.cur !== null && T.getGroupTotal() === 1 && T.answered === 0, "便捷到点只开一张新组，不自动判定");
+}
+{
+  completionPage({dailyNew: 3, groupSize: 1, autoResume: DEFAULT_AR});
+  autoTick(); autoTick(121000);
+  ck(/每组 1 张.*阈值 5 张.*无法达到/.test(stateEl("#autoResumeText").innerHTML),
+    "组长小于阈值明确解释不可达，不静默等待");
+  ck(settings().autoResume.threshold === 5, "不可达配置不静默钳制已存阈值");
+  ck(!stateEl("#autoResumeQuick").hidden, "冲突配置提供显式便捷修正入口");
+  T.pauseAutoResumeToday();
+  const pauseRaw = store.get(T.autoResumePauseKey);
+  ck(T.continueMainSession() === true && T.cur !== null, "手动继续不受自动阈值或今日暂停约束");
+  ck(store.get(T.autoResumePauseKey) === pauseRaw, "手动继续不解除今日暂停");
+}
+{
+  completionPage({dailyNew: 1, groupSize: 1, autoResume: {enabled: false}});
+  const frozen = clone(T.getPlan());
+  ck(T.continueMainSession() === false && T.cur === null, "无可用候选不空开组");
+  ck(eq(T.getPlan(), frozen), "无候选手动复核不替换完成页计划");
+}
+{
+  setup({dailyNew: 1, groupSize: 1, dayN: 1, due: 2, cap: 3, autoResume: {enabled: false}});
+  completeGroup();
+  const latest = JSON.parse(store.get(KEY)); latest.reviewDay.used = 3;
+  store.set(KEY, JSON.stringify(latest));
+  const before = JSON.stringify(T.getS());
+  ck(T.getCandidatesNow() === 0, "延迟storage事件时读取最新预算，不给手动入口虚假候选");
+  ck(JSON.stringify(T.getS()) === before, "候选读取最新预算仍保持只读");
+  ck(T.continueMainSession() === false && T.cur === null, "真实预算耗尽时不能借手动继续绕过");
+}
+{
+  for (const mode of ["manual", "auto"]) {
+    completionPage({dailyNew: 20, groupSize: 1, cap: 100, autoResume: {enabled: mode === "auto"}});
+    T.setAutoResume(T.getAutoResume()); // 用正式入口解除前面暂停场景留下的本书今日暂停
+    markDue(10);
+    settings().groupSize = 30;
+    saveNow();
+    const latest = JSON.parse(store.get(KEY)); latest.reviewDay.used = 95;
+    store.set(KEY, JSON.stringify(latest)); // storage事件延迟，部分预算仍剩5次
+    const unchanged = JSON.stringify(T.getS());
+    const candidates = autoState().candidates;
+    ck(candidates.available === 5 && candidates.backlogGuarded && candidates.freshActive === 0,
+      mode + "候选按远端部分预算重算积压保护", JSON.stringify(candidates));
+    ck(JSON.stringify(T.getS()) === unchanged, mode + "部分预算候选复核保持只读");
+    const dayBefore = clone(S().days);
+    const started = mode === "manual" ? T.continueMainSession() : T.startAutoResumeNow();
+    ck(started && T.Q.every(i => T.hasMainProgress(S().progress[i])) && S().reviewDay.used === 95,
+      mode + "开组前对齐预算且积压时不补新词");
+    ck(eq(S().days, dayBefore) && T.answered === 0, mode + "开组不新增判定或消耗额度");
+  }
+}
+/* ================= 8b. 空页显式等待：不伪造完成组 ================= */
+console.log("== 8b. 本页等待到期 ==");
+ck(typeof T.startEmptyWait === "function" && typeof T.stopEmptyWait === "function", "空页等待提供正式进入/退出入口");
+if (typeof T.startEmptyWait === "function") {
+  const quick = {enabled: true, threshold: 1, idleMs: 30000, countdownMs: 3000};
+  const emptyPage = (o = {}) => {
+    setup({dailyNew: 1, dayN: 1, cap: o.cap || 100, used: o.used || 0, autoResume: o.autoResume || quick});
+    const i = scopeIndices()[0];
+    S().progress[i] = [1, now + (o.futureMs || 60000), 1, 0, now - 86400000];
+    saveNow(); T.startSession("main");
+    T.setAutoResume(T.getAutoResume());
+    return i;
+  };
+  {
+    emptyPage(); autoTick(120000);
+    ck(T.cur === null && !autoState().eligible && !autoState().waitingForDue, "普通空页未选择时到期也不自动开始");
+    ck(!stateEl("#startEmptyWait").hidden, "普通空页有显式等待入口");
+    const before = JSON.stringify(T.buildExport()), raw = store.get(KEY), dayBefore = clone(S().days);
+    ck(T.startEmptyWait() && autoState().waitingForDue && autoState().eligible, "显式选择后获得本页等待资格");
+    ck(T.getGroupTotal() === 0 && T.answered === 0 && !autoState().completedPage, "等待不伪造完成张数或主组完成");
+    ck(JSON.stringify(T.buildExport()) === before && store.get(KEY) === raw, "进入等待不写主记录/备份或学习统计");
+    autoTick(30000);
+    ck(autoState().phase === "countdown", "空等待复用30秒闲置倒计时");
+    fireDocument("click");
+    ck(autoState().phase !== "countdown" && autoState().waitingForDue, "有效操作取消倒计时但不退出等待");
+    autoTick(30000); autoTick(3000);
+    ck(T.cur !== null && T.answered === 0 && eq(S().days, dayBefore), "空等待自动开组不判定/记账");
+    ck(autoState().returnKind === "waiting" && /返回等待页/.test(stateEl("#acts").innerHTML), "来自空页的返回入口准确叫返回等待页");
+    ck(T.returnToPreviousResults() && T.cur === null && autoState().waitingForDue && T.getGroupTotal() === 0,
+      "返回等待页恢复0张现场与临时资格");
+    T.stopEmptyWait();
+    ck(!autoState().waitingForDue && !autoState().eligible, "退出等待立即解除资格");
+  }
+  {
+    emptyPage({autoResume: {enabled: false}});
+    ck(!T.startEmptyWait() && !autoState().waitingForDue, "自动关闭时不能借等待绕过开关");
+    T.applyAutoResumePreset("quick");
+    ck(T.startEmptyWait(), "明确启用便捷预设后才可进入等待");
+    T.simulateReload();
+    ck(T.cur === null && !autoState().waitingForDue && !autoState().eligible, "模拟真实刷新清除空等待资格");
+    T.startEmptyWait(); T.show("stats"); T.show("study");
+    ck(!autoState().waitingForDue, "离开主视图解除本页等待");
+    T.startEmptyWait(); T.switchBook("cet4"); T.switchBook("kaoyan");
+    ck(!autoState().waitingForDue, "切书再返回不会恢复旧书等待资格");
+  }
+  {
+    emptyPage(); T.pauseAutoResumeToday(); const pauseRaw = store.get(T.autoResumePauseKey);
+    ck(!T.startEmptyWait() && store.get(T.autoResumePauseKey) === pauseRaw, "等待入口不解除今日暂停");
+    T.applyAutoResumePreset("quick"); T.startEmptyWait();
+    T.pauseAutoResumeToday(); autoTick(120000);
+    ck(T.cur === null && autoState().pausedToday && autoState().waitingForDue, "等待中今天暂停阻止启动且保留可退出状态");
+    T.stopEmptyWait();
+  }
+  {
+    emptyPage({futureMs: 600000}); T.startEmptyWait(); T.openGuide(); autoTick(120000);
+    ck(autoState().waitingForDue && !autoState().eligible && T.cur === null, "浮层内不启动空等待");
+    T.closeSheet();
+    document.visibilityState = "hidden"; fireDocument("visibilitychange"); autoTick(600000);
+    ck(T.cur === null && autoState().waitingForDue, "后台不启动且不消耗本页等待资格");
+    document.visibilityState = "visible"; fireDocument("visibilitychange"); autoTick();
+    ck(autoState().phase !== "countdown", "后台回来重新等待，不能补跑闲置");
+    autoTick(30000); ck(autoState().phase === "countdown", "回前台满等待后可倒计时");
+    T.stopEmptyWait();
+  }
+  {
+    emptyPage({futureMs: 2 * 86400000}); T.startEmptyWait(); advance(86400000); T.refreshForResume(); autoTick();
+    ck(autoState().waitingForDue && autoState().phase !== "countdown", "跨天保留显式本页意图但重计闲置/额度");
+    T.stopEmptyWait();
+  }
+  {
+    emptyPage({futureMs: 10000, cap: 3}); T.startEmptyWait(); autoTick(30000);
+    const latest = JSON.parse(store.get(KEY)); latest.reviewDay.used = 3; store.set(KEY, JSON.stringify(latest));
+    autoTick(3000);
+    ck(T.cur === null && autoState().candidates.available === 0 && autoState().waitingForDue,
+      "倒计时末刻另一标签用完预算不空开组");
+    T.stopEmptyWait();
+  }
+  {
+    const i = emptyPage({futureMs: 10000}); T.startEmptyWait(); autoTick(30000);
+    store.set("kaoyan_vocab_proficient_v1", JSON.stringify({[T.getW()[i].w]: now}));
+    autoTick(3000);
+    ck(T.cur === null && T.getCandidatesNow() === 0 && autoState().waitingForDue,
+      "倒计时末刻远端标熟练不把已排除词开入新组");
+    T.stopEmptyWait();
+  }
+  {
+    emptyPage(); failKeys.add(KEY); T.setGroupSize(2);
+    ck(!T.startEmptyWait() && !autoState().waitingForDue, "持续存储错误期间不能进入等待");
+    failKeys.delete(KEY); T.setGroupSize(1);
+    setup({dailyNew: 2, groupSize: 1, autoResume: quick}); const before = groupSig();
+    ck(!T.startEmptyWait() && eqGroup(groupSig(), before), "未完成卡不能进入等待或被重建");
+  }
+  {
+    emptyPage({futureMs: 10000}); T.startEmptyWait(); autoTick(30000);
+    store.set(T.autoResumePauseKey, JSON.stringify({kaoyan: todayStr()}));
+    for (const fn of winHandlers.get("storage") || []) fn({key: T.autoResumePauseKey});
+    ck(autoState().pausedToday && autoState().phase !== "countdown", "另一标签今天暂停立即同步并取消等待倒计时");
+    autoTick(3000); ck(T.cur === null, "远端暂停后不能仍按旧缓存启动"); T.stopEmptyWait();
+    emptyPage({futureMs: 10000}); T.startEmptyWait(); autoTick(30000);
+    store.set(T.autoResumePauseKey, JSON.stringify({kaoyan: todayStr()})); // 故意不派发storage事件
+    autoTick(3000); ck(T.cur === null && autoState().pausedToday, "启动前重读暂停键覆盖延迟storage事件"); T.stopEmptyWait();
+    emptyPage();
+    store.set(T.autoResumePauseKey, JSON.stringify({cet4: todayStr()}));
+    T.pauseAutoResumeToday();
+    ck(stored(T.autoResumePauseKey).cet4 === todayStr() && stored(T.autoResumePauseKey).kaoyan === todayStr(),
+      "本书暂停写前合并最新map，不抹掉远端其他书暂停");
+    T.applyAutoResumePreset("quick");
+    ck(stored(T.autoResumePauseKey).cet4 === todayStr() && !stored(T.autoResumePauseKey).kaoyan,
+      "本书解除暂停只删本书，保留其他书");
+    emptyPage({futureMs: 10000}); T.startEmptyWait(); autoTick(30000);
+    failKeys.add(T.autoResumePauseKey); T.pauseAutoResumeToday();
+    ck(autoState().pausedToday && !T.startAutoResumeNow() && autoState().pausedToday,
+      "暂停写失败退化本页内存，启动前强制读不能抹掉该暂停");
+    store.set(T.autoResumePauseKey, JSON.stringify({cet6: todayStr()}));
+    for (const fn of winHandlers.get("storage") || []) fn({key: T.autoResumePauseKey});
+    ck(autoState().pausedToday, "远端暂停map更新仍保留本页未落盘暂停");
+    failKeys.delete(T.autoResumePauseKey); T.applyAutoResumePreset("quick");
+    ck(!autoState().pausedToday && stored(T.autoResumePauseKey).cet6 === todayStr(),
+      "用户明确解除本页暂停后落盘并保留远端词书暂停");
+    T.stopEmptyWait();
+  }
+  {
+    for (const kind of ["replace", "content"]) {
+      emptyPage(); const external = clone(stored());
+      if (kind === "replace") { external._replace = "remote-empty-reset"; external.progress = {}; external.days = {}; }
+      else { const i = scopeIndices()[1]; external.progress[i] = [1, now - 1000, 1, 0, now - 86400000]; }
+      store.set(KEY, JSON.stringify(external)); // 存储变化尚未通知，普通设置save必须同样保持空页
+      T.applyAutoResumePreset("quick");
+      ck(T.cur === null && T.getGroupTotal() === 0 && !autoState().waitingForDue && !autoState().eligible,
+        kind + "延迟冲突保存只同步空页，不绕过显式选择启动");
+    }
+  }
+  {
+    emptyPage(); T.startEmptyWait();
+    const external = clone(stored()); external._replace = "remote-explicit-wait-reset";
+    external.progress = {}; external.days = {}; store.set(KEY, JSON.stringify(external));
+    for (const fn of winHandlers.get("storage") || []) fn({key: KEY});
+    ck(T.cur === null && !autoState().waitingForDue && !autoState().eligible,
+      "远端重置换代解除旧等待，不从storage直接开组");
+  }
+  {
+    emptyPage({futureMs: 10000}); T.startEmptyWait(); autoTick(30000);
+    const idle = autoState().idleSince;
+    fireDocument("scroll", {isTrusted: true});
+    ck(autoState().phase === "countdown" && autoState().idleSince === idle,
+      "没有新输入的布局锚点scroll不取消倒计时");
+    fireDocument("wheel", {isTrusted: true}); fireDocument("scroll", {isTrusted: true});
+    ck(autoState().phase !== "countdown" && autoState().waitingForDue,
+      "真实滚轮输入及其scroll立即取消倒计时并保持等待");
+    autoTick(30000); fireDocument("pointermove", {buttons: 0, isTrusted: true});
+    ck(autoState().phase === "countdown", "未按压鼠标移动仍不算活动");
+    fireDocument("pointermove", {buttons: 1, isTrusted: true});
+    ck(autoState().phase !== "countdown", "按压拖动属于有效交互");
+    T.stopEmptyWait();
+  }
+  {
+    emptyPage({futureMs: 600000}); T.applyComboFilters("core"); saveNow();
+    const currentCount = T.inScopeCount(); T.startEmptyWait();
+    ck(!T.hasPendingScopeSettings() && String(stateEl("#scopeLabel").textContent).includes(currentCount.toLocaleString())
+      && String(stateEl("#studyScope").textContent).includes(currentCount.toLocaleString()),
+      "空等待显示当前保存范围，不沿用0张空组的旧冻结摘要");
+    T.stopEmptyWait();
+  }
+}
+// 本文件共用一个真实 app 实例。恢复本节改变的设置/今日暂停后，再测试本页持续熔断；
+// 租约写失败会保留 autoResumeStorageError，不能让它污染前面的正常自动续背场景。
+T.setAutoResume(DEFAULT_AR);
+
+/* ================= 9. 存储不可用：放弃并提示，不循环空开组 ================= */
+console.log("== 9. 租约存储不可用 ==");
 {
   completionPage({ dailyNew: 20, groupSize: 10 });
   autoTick(); autoTick(DEFAULT_AR.idleMs + 1000);
@@ -761,8 +994,8 @@ console.log("== 8. 租约存储不可用 ==");
   ck(T.cur !== null, "用户仍可手动点继续开始下一组");
 }
 
-/* ================= 9. 调试钩子只读性 ================= */
-console.log("== 9. 只读调试钩子 ==");
+/* ================= 10. 调试钩子只读性 ================= */
+console.log("== 10. 只读调试钩子 ==");
 {
   const before = JSON.stringify(T.getS());
   autoState();

@@ -485,6 +485,46 @@ console.log("== 4e. #exPop 键盘选词、Esc 关闭与焦点返回 ==");
   ck(words[0].classList.contains("ex-active"), "Home 选中句首词");
 }
 
+console.log("== 4f. motif / motives 词形兜底（B2-5 防回归） ==");
+{
+  // 数据依据：motive 的 fm=「复数 motives」，motif 的 fm=「复数 motifs」。
+  // IRREGULAR_FORMS 不得再把 motives 当作 motif 的复数（交付复审 P3）。
+  const idxIn = (arr, word) => arr.findIndex(x => x.w === word);
+  const highlightFor = (entry, sentence) => highlightedTokens(T.exHtml(sentence, entry));
+  const checkBook = (label, bookId) => {
+    ck(T.switchBook(bookId) === true, `${label}：切到该词书核对 motif/motive 词形`);
+    const arr = T.getW();
+    const iMotive = idxIn(arr, "motive"), iMotif = idxIn(arr, "motif");
+    const hasMotif = iMotif >= 0;
+    ck(iMotive >= 0, `${label}：motive 词条存在`, `motive=${iMotive} motif=${iMotif}`);
+    const list = T.lookupExWordCandidates("motives") || [];
+    const names = list.map(i => (arr[i] || {}).w);
+    ck(list.indexOf(iMotif) < 0,
+      `${label}：motives 候选不含 motif（motif 的复数是 motifs）`, JSON.stringify(names));
+    ck(list.length > 0 && list[0] === iMotive && T.lookupExWord("motives") === iMotive,
+      `${label}：motives 主结果仍是 motive`, JSON.stringify(names));
+    if (hasMotif) {
+      const motifTokens = highlightFor(arr[iMotif], "The hidden motives are clear.");
+      ck(motifTokens.length === 0, `${label}：motif 例句高亮不把 motives 标成 motif`, motifTokens.join(","));
+      const motifsTokens = highlightFor(arr[iMotif], "The rug has a simple floral motif; motifs vary.");
+      ck(motifsTokens.join(",") === "motif,motifs",
+        `${label}：motif 的明确复数 motifs 仍正常高亮`, motifsTokens.join(","));
+    }
+    const motiveTokens = highlightFor(arr[iMotive], "The hidden motives are clear.");
+    ck(motiveTokens.join(",") === "motives",
+      `${label}：motive 词条仍把 motives 高亮为自身词形`, motiveTokens.join(","));
+    const rendered = T.exHtml("The hidden motives are clear.", hasMotif ? arr[iMotif] : arr[iMotive]);
+    ck(!rendered.includes('data-exlemma="motif"'),
+      `${label}：motives 不携带 motif 的原形查词标记`, rendered);
+  };
+  const C6 = globalThis.window.WORDS_CET6 || [];
+  const CB = globalThis.window.WORDS_COMBINED || [];
+  if (C6.length) checkBook("六级", "cet6");
+  if (CB.length) checkBook("综合", "combined");
+  checkBook("考研", "kaoyan");
+  ck(T.switchBook("kaoyan") === true && T.getW() === W, "核对后切回考研词书");
+}
+
 console.log("== 5. 浮层内容 ==");
 {
   const iAnswer = W.findIndex(x => x.w === "answer");

@@ -43,6 +43,7 @@ const checks = [
   { name: "test-review-ui", cmd: process.execPath, args: ["js/test-review-ui.mjs"] },
   { name: "test-multibook", cmd: process.execPath, args: ["js/test-multibook.mjs"] },
   { name: "test-combined-book", cmd: process.execPath, args: ["js/test-combined-book.mjs"] },
+  { name: "test-content-quality", cmd: process.execPath, args: ["js/test-content-quality.mjs"] },
   { name: "test-txt-export", cmd: process.execPath, args: ["js/test-txt-export.mjs"] },
   { name: "test-txt-zip", cmd: process.execPath, args: ["js/test-txt-zip.mjs"] },
   { name: "test-new-features", cmd: process.execPath, args: ["js/test-new-features.mjs"], optional: true },

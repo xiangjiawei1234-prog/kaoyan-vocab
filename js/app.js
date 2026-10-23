@@ -417,6 +417,7 @@
   const AUTO_RESUME_DEFAULT = {enabled: true, threshold: 5, idleMs: 120000, countdownMs: 15000};
   const AUTO_RESUME_LEGACY_DEFAULT = Object.assign({}, AUTO_RESUME_DEFAULT, {enabled: false});
   const AUTO_RESUME_PRESETS = {
+    quick: {label: "便捷", threshold: 1, idleMs: 30000, countdownMs: 3000},
     timely: {label: "及时", threshold: 1, idleMs: 60000, countdownMs: 15000},
     balanced: {label: "均衡", threshold: 5, idleMs: 120000, countdownMs: 15000},
     focused: {label: "集中", threshold: 10, idleMs: 300000, countdownMs: 15000}
@@ -650,11 +651,135 @@
   // 只影响损坏的那一本；切换到另一本仍可正常读写。
   const blockedBooks = new Set();
   let lastMainRaw = null;
+  // 只存在主记录原文中的同步代际；不进 S、备份或 normalizeState 白名单。
+  // 显式重置/导入换代，普通保存沿用，避免旧页面把重置前的辅助累计重新合回。
+  let pendingReplacementToken = null;
+  let replacementSequence = 0;
+  let studyPendingMs = 0;
+  function replacementToken(raw){
+    if (typeof raw !== "string") return "";
+    try {
+      const token = JSON.parse(raw)?._replace;
+      return typeof token === "string" && token.length <= 160 ? token : "";
+    } catch (e) { return ""; }
+  }
+  function newReplacementToken(){
+    replacementSequence++;
+    return AUTO_RESUME_TAB_ID + ":" + Date.now().toString(36) + ":" + replacementSequence.toString(36);
+  }
+  function serializeSharedState(state, raw, token){
+    const out = Object.assign({}, state);
+    delete out._replace;
+    const keep = token || replacementToken(raw);
+    if (keep) out._replace = keep;
+    return JSON.stringify(out);
+  }
   // 渲染会建立空的当日计数；空计数不代表有尚未保存的用户改动。
   function savedStateSignature(state){
     return JSON.stringify([state.settings, state.progress,
       Object.fromEntries(Object.entries(state.days).filter(([, d]) => d.r > 0)),
       state.stars, state.proficient, state.timeSec]);
+  }
+  /** 只比较会令当前组失效的学习内容。设置、时长和独立台账不重开冻结组；空日记录等价。 */
+  function sharedLearningSignature(state){
+    const sorted = obj => Object.entries(obj || {}).sort(([a], [b]) => a.localeCompare(b));
+    const days = sorted(state.days).filter(([, d]) => d.n || d.r || d.ok || d.no)
+      .map(([date, d]) => [date, d.n || 0, d.r || 0, d.ok || 0, d.no || 0]);
+    return JSON.stringify([sorted(state.progress), days, sorted(state.stars), sorted(state.proficient)]);
+  }
+  /** 存储事件尚未送达时：本地显式改动的字段胜出，其余字段采用最新存储，避免覆盖远端偏好。 */
+  function mergeSharedSettings(local, incoming, baseline){
+    const merged = Object.assign({}, incoming);
+    for (const key of Object.keys(local)) {
+      if (JSON.stringify(local[key]) !== JSON.stringify(baseline[key])) merged[key] = local[key];
+    }
+    return merged;
+  }
+  function mergeSharedCounters(incoming){
+    autoResumeCheckCache = null;
+    if ((incoming.timeSec || 0) > (S.timeSec || 0)) studyPendingMs = 0;
+    S.timeSec = Math.max(S.timeSec || 0, incoming.timeSec || 0);
+    const localReview = reviewLedger(), review = normalizeReviewDay(incoming.reviewDay);
+    if (review.d === localReview.d && review.used > localReview.used) S.reviewDay = review;
+    const localExtra = extraDayLedger(), extra = normalizeExtraDay(incoming.extraDay);
+    if (extra.d === localExtra.d && extra.extra > localExtra.extra) S.extraDay = extra;
+    S.spelling = mergeSpellingState(S.spelling, incoming.spelling);
+  }
+  /** 权威同步不能让原本空的页面绕过显式等待，save与storage必须采用同一裁决。 */
+  function resumeAfterSharedChange(wasEmptyPage, replaced){
+    if (!wasEmptyPage) { startSession(); return; }
+    if (replaced) autoResumeEmptyWaitBook = null;
+    sessionPlan = null; sessionScopeSet = null; undoStack = [];
+    autoResumeReturnSnap = null; autoResumeReturnArmed = false;
+    autoResumeReturnFromWait = false;
+    resetAutoResumeRuntime(); renderCard(); updateBar();
+  }
+  /** 完成页开下一组前主动同步：storage 事件可能尚未送达，先采用最新权威记录再抽组。 */
+  function refreshSharedBeforeNextGroup(){
+    if (cur != null || drillMode || inSubgroup()) return false;
+    try {
+      // 保存失败后的本页记录仍可能仅在内存中，不能借“刷新”悄悄丢弃。
+      if (!storageOK && savedStateSignature(S) !== lastSavedSignature) return false;
+      const raw = localStorage.getItem(KEY);
+      const candidate = raw === null ? freshState(currentBook()) : normalizeState(JSON.parse(raw), currentBookId);
+      candidate.proficient = readBookProficient(currentBook(), candidate.proficient);
+      const replaced = raw === null || replacementToken(raw) !== replacementToken(lastMainRaw);
+      if (pendingReplacementToken && !replaced) return false;
+      const before = S;
+      const pendingTimeBefore = studyPendingMs;
+      const incomingTime = candidate.timeSec || 0;
+      const contentChanged = sharedLearningSignature(candidate) !== sharedLearningSignature(before);
+      S = candidate;
+      if (replaced) {
+        autoResumeEmptyWaitBook = null;
+        studyPendingMs = 0;
+        clearProfPending(currentBookId);
+        pendingReplacementToken = null;
+      } else {
+        S.proficient = mergePendingProficient(S.proficient, currentBookId);
+        mergeSharedCounters(before);
+        studyPendingMs = incomingTime > (before.timeSec || 0) ? 0 : pendingTimeBefore;
+      }
+      if (replaced || contentChanged) {
+        clearSessionSnapshot(currentBookId);
+        // 旧完成页的撤销和“返回上一组”不能再回滚已经替换的权威记录。
+        Q = []; qi = 0; rounds = {}; cur = null; verdict = null; snap = null; phase = "recall";
+        answered = 0; rightN = 0; groupTotal = 0; undoStack = []; autoSpoken = false;
+        sessionPlan = null; sessionScopeSet = null; resumeNoticePending = null;
+        capPaused = false; capGroupEnded = false;
+        autoResumeReturnSnap = null; autoResumeReturnArmed = false;
+        resetAutoResumeRuntime();
+      }
+      lastMainRaw = raw;
+      lastSavedSignature = savedStateSignature(S);
+      trackAutoResumeLegacy(currentBookId, raw);
+      storageOK = true;
+      blockedBooks.delete(currentBookId);
+      refreshSharedSettingsSurfaces(false, before.settings);
+      if (replaced || contentChanged) renderCard();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+  let sharedCardRefreshPending = false;
+  let sharedListRefreshPending = false;
+  function refreshSharedSettingsSurfaces(renderStudyCard = true, previous = {}){
+    const differs = key => JSON.stringify(previous[key]) !== JSON.stringify(S.settings[key]);
+    const scopeChanged = ["fmin", "fmax", "pmin", "kyOnly", "pos", "posMode"].some(differs);
+    const cardChanged = ["showPh", "showEx", "showFm", "keys", "singleCharKeys"].some(differs);
+    bindSet();
+    if (scopeChanged) {
+      if (activeSheet) sharedListRefreshPending = currentBookId;
+      else applyFilter(false);
+    }
+    renderStats(); renderCapSurfaces(); fitVisibleWords();
+    renderPlanPendingNotice(); renderGroupSurfaces(); updateBar();
+    const popOpen = $("#exPop") && $("#exPop").hidden === false;
+    // 阅读浮层及其触发节点保持；关闭后再应用会替换卡片DOM的显示偏好。
+    if (cardChanged) sharedCardRefreshPending = currentBookId;
+    if (sharedCardRefreshPending && renderStudyCard && !activeSheet && !popOpen) renderCard();
+    renderAutoResume();
   }
   let lastSavedSignature = savedStateSignature(S);
   /**
@@ -1052,6 +1177,7 @@
       const got = readBookState(book);
       S = got.state;
       lastMainRaw = got.raw;
+      pendingReplacementToken = null;
       blockedBooks.delete(book.id);
       storageOK = true;
       loadError = null;
@@ -1070,8 +1196,36 @@
   }
   function save(proficiencyChanged = false, replaceAll = false){
     if (blockedBooks.has(currentBookId)) return false;   // 该书记录损坏/不可写时保护原文件
+    if (replaceAll) {
+      pendingReplacementToken = newReplacementToken();
+      clearProfPending(currentBookId);
+    }
     try {
-      if (proficiencyChanged) {
+      let latest = localStorage.getItem(KEY);
+      const wasEmptyPage = emptyMainPage();
+      // 替换必须在写独立熟练键之前裁决，不能先把旧 pending 熟练操作写回。
+      const replaced = !replaceAll && latest !== lastMainRaw
+        && (latest === null || replacementToken(latest) !== replacementToken(lastMainRaw));
+      if (replaced) {
+        const authoritative = latest === null ? freshState(currentBook()) : normalizeState(JSON.parse(latest), currentBookId);
+        authoritative.proficient = readBookProficient(currentBook(), authoritative.proficient);
+        S = authoritative;
+        clearProfPending(currentBookId);
+        pendingReplacementToken = null;
+        studyPendingMs = 0;
+        lastMainRaw = latest;
+        lastSavedSignature = savedStateSignature(S);
+        clearSessionSnapshot(currentBookId);
+        if (activeSheet) closeSheet();
+        bindSet(); applyFilter(); renderStats(); resumeAfterSharedChange(wasEmptyPage, true);
+        storageOK = true;
+        blockedBooks.delete(currentBookId);
+        clearAlert("save");
+        toast("另一窗口已替换记录，学习队列已同步");
+        return true;
+      }
+      // 写入失败后保留待提交换代；同一旧代的设置/累计不能再合入这份显式替换。
+      if (proficiencyChanged || pendingReplacementToken) {
         localStorage.setItem(PROF_KEY, JSON.stringify(S.proficient));
         clearProfPending(currentBookId);
       } else {
@@ -1082,8 +1236,7 @@
           clearProfPending(currentBookId);
         }
       }
-      let latest = localStorage.getItem(KEY);
-      if (!replaceAll && latest !== lastMainRaw) {
+      if (!replaceAll && !pendingReplacementToken && latest !== lastMainRaw) {
         // A delayed storage event must not let an older tab overwrite newer learning records.
         const localLedger = reviewLedger();   // 本页当日台账（引用 S.reviewDay，含刚消费的计数）
         const latestState = latest !== null ? normalizeState(JSON.parse(latest), currentBookId) : freshState(currentBook());
@@ -1091,33 +1244,31 @@
         if (lastMainRaw !== null) {
           try { baselineState = normalizeState(JSON.parse(lastMainRaw), currentBookId); } catch (e) { baselineState = null; }
         }
-        // savedStateSignature 不含 reviewDay：相等 ⇒ 别标签只更新了当日复习台账。
-        const onlyLedgerDiffers = baselineState !== null
-          && savedStateSignature(latestState) === savedStateSignature(baselineState);
+        // 学习内容相等时，仅设置/台账等变化不应抢掉本页这次有效判定。
+        const onlySettingsAndCountersDiffer = latest !== null && baselineState !== null
+          && sharedLearningSignature(latestState) === sharedLearningSignature(baselineState);
         const localExtra = normalizeExtraDay(S.extraDay);
         const localSpelling = normalizeSpellingState(S.spelling);
-        if (onlyLedgerDiffers) {
-          // 只合并台帐/临时加量（均取较大值），保留本页当前卡、本次判定与撤销现场，不重建队列。
-          const incoming = normalizeReviewDay(latestState.reviewDay);
-          if (incoming.d === localLedger.d && incoming.used > localLedger.used) S.reviewDay = incoming;
-          else S.reviewDay = localLedger;
-          const incomingExtra = normalizeExtraDay(latestState.extraDay);
-          if (incomingExtra.d === localExtra.d && incomingExtra.extra > localExtra.extra) S.extraDay = incomingExtra;
-          else S.extraDay = localExtra;
-          // 16：拼写记录不进 savedStateSignature；按「完成组数/作答次数更多者胜」合并，避免静默丢失。
-          S.spelling = mergeSpellingState(localSpelling, latestState.spelling);
-          const mergedRaw = JSON.stringify(S);
+        if (onlySettingsAndCountersDiffer) {
+          const previousSettingsObject = S.settings;
+          const previousSettings = JSON.stringify(S.settings);
+          S.settings = mergeSharedSettings(S.settings, latestState.settings, baselineState.settings);
+          mergeSharedCounters(latestState);
+          const mergedRaw = serializeSharedState(S, latest, pendingReplacementToken);
           localStorage.setItem(KEY, mergedRaw);
+          pendingReplacementToken = null;
           lastMainRaw = mergedRaw;
           lastSavedSignature = savedStateSignature(S);
           storageOK = true;
           blockedBooks.delete(currentBookId);
           clearAlert("save");
+          if (JSON.stringify(S.settings) !== previousSettings) refreshSharedSettingsSurfaces(false, previousSettingsObject);
           return true;
         }
         // 内容（进度/熟练/日统计等）确实被别标签更新：整份采用最新存储，本页这次判定让位，
         // 但当日台账/临时加量取较大值，不能让别的标签的旧快照把本页已消费额度或已授予加量回退。
         S = latestState;
+        pendingReplacementToken = null;
         syncProficientFromStorage();
         const mergedLedger = reviewLedger();
         let mergedConflict = false;
@@ -1131,21 +1282,23 @@
           mergedConflict = true;
         }
         // 16：本页刚完成的拼写组不能被别标签的旧快照覆盖；更新的一方保留并使合并结果落盘。
-        const mergedSpelling = mergeSpellingState(localSpelling, latestState.spelling);
+        const mergedSpelling = latest !== null ? mergeSpellingState(localSpelling, latestState.spelling)
+          : normalizeSpellingState(latestState.spelling);
         if (JSON.stringify(mergedSpelling) !== JSON.stringify(normalizeSpellingState(S.spelling))) {
           S.spelling = mergedSpelling;
           mergedConflict = true;
         }
         if (mergedConflict) {
           try {
-            const mergedRaw = JSON.stringify(S);
+            const mergedRaw = serializeSharedState(S, latest);
             localStorage.setItem(KEY, mergedRaw);
             latest = mergedRaw;
           } catch (e) { /* 写入失败：内存值保留，下一次保存重试 */ }
         }
         lastMainRaw = latest;
         lastSavedSignature = savedStateSignature(S);
-        bindSet(); applyFilter(); renderStats(); startSession();
+        if (latest === null) { studyPendingMs = 0; clearProfPending(currentBookId); }
+        bindSet(); applyFilter(); renderStats(); resumeAfterSharedChange(wasEmptyPage, false);
         toast("另一窗口已更新记录，学习队列已同步");
         storageOK = true;
         blockedBooks.delete(currentBookId);
@@ -1154,8 +1307,11 @@
       // 保存时若当日台账/加量的日期已不是今天则归「今日 0」（跨午夜且轮询尚未刷新也不写错日期）。
       S.reviewDay = normalizeReviewDay(S.reviewDay);
       S.extraDay = normalizeExtraDay(S.extraDay);
-      const serialized = JSON.stringify(S);
+      const serialized = serializeSharedState(S, latest, pendingReplacementToken);
+      const committedReplacement = !!pendingReplacementToken;
       localStorage.setItem(KEY, serialized); lastMainRaw = serialized;
+      pendingReplacementToken = null;
+      if (committedReplacement) studyPendingMs = 0;
       lastSavedSignature = savedStateSignature(S);
       storageOK = true; blockedBooks.delete(currentBookId); clearAlert("save"); return true;
     }
@@ -1218,7 +1374,7 @@
     const book = BOOKS[id];
     if (!book) return false;
     try {
-      localStorage.setItem(book.KEY, JSON.stringify(state));
+      localStorage.setItem(book.KEY, serializeSharedState(state, null, newReplacementToken()));
       localStorage.setItem(book.PROF_KEY, JSON.stringify(state.proficient));
       clearProfPending(id);
       blockedBooks.delete(id);
@@ -1280,12 +1436,15 @@
       }
     }
     currentBookId = id;
+    sharedCardRefreshPending = false;
+    sharedListRefreshPending = false;
     KEY = book.KEY;
     PROF_KEY = book.PROF_KEY;
     SURVEY_KEY = book.SURVEY_KEY;
     W = book.words;
     wordIndex = book.wordIndex;
     S = target;
+    pendingReplacementToken = null;
     loadSurvey();
     lastMainRaw = targetRaw;
     lastSavedSignature = savedStateSignature(S);
@@ -1627,6 +1786,7 @@
     const beforeBlocked = new Set(blockedBooks);
     const beforeRaw = lastMainRaw;
     const beforeSig = lastSavedSignature;
+    const beforeReplacementToken = pendingReplacementToken;
     const beforeStorageOK = storageOK;
     const beforePending = snapshotPendingProf();
     try {
@@ -1659,6 +1819,7 @@
         S = beforeS; currentBookId = beforeBook;
         blockedBooks.clear(); beforeBlocked.forEach(id => blockedBooks.add(id));
         lastMainRaw = beforeRaw; lastSavedSignature = beforeSig;
+        pendingReplacementToken = beforeReplacementToken;
         storageOK = beforeStorageOK;
         restorePendingProf(beforePending);
         KEY = BOOKS[currentBookId].KEY; PROF_KEY = BOOKS[currentBookId].PROF_KEY;
@@ -1695,6 +1856,7 @@
     const beforeBlocked = new Set(blockedBooks);
     const beforeRaw = lastMainRaw;
     const beforeSig = lastSavedSignature;
+    const beforeReplacementToken = pendingReplacementToken;
     const beforeStorageOK = storageOK;
     const beforePending = snapshotPendingProf();
     try {
@@ -1711,6 +1873,7 @@
         }
         blockedBooks.clear(); beforeBlocked.forEach(id => blockedBooks.add(id));
         lastMainRaw = beforeRaw; lastSavedSignature = beforeSig;
+        pendingReplacementToken = beforeReplacementToken;
         storageOK = beforeStorageOK;
         restorePendingProf(beforePending);
         sessionSnapshotWriteSuspended = true;
@@ -1837,7 +2000,7 @@
     syncAutoResumeSettings();
     return {ok: true, settings: getAutoResume()};
   }
-  /** 套用内置预设：及时(1/1min)、均衡(5/2min)、集中(10/5min)、关闭；倒计时固定 15 秒。 */
+  /** 套用预设：便捷(1/30s/3s)、及时(1/1min)、均衡(5/2min)、集中(10/5min)、关闭。 */
   function applyAutoResumePreset(name){
     if (name === "off") return setAutoResume({enabled: false});
     const p = AUTO_RESUME_PRESETS[name];
@@ -1889,6 +2052,8 @@
     try {
       const raw = localStorage.getItem(KEY);
       if (raw === null || raw === lastMainRaw) return ledger;   // 自己的最新写入无需对齐
+      // 新一代主记录来自显式导入/重置；旧台账不能跨代取大，等待整份权威同步。
+      if (replacementToken(raw) !== replacementToken(lastMainRaw)) return ledger;
       const stored = JSON.parse(raw);
       const rec = stored && isRecord(stored.reviewDay) ? stored.reviewDay : null;
       if (!rec || rec.d !== ledger.d) return ledger;
@@ -2391,7 +2556,7 @@
    * 不把任意派生词/专名当作目标词高亮。
    */
   const IRREGULAR_FORMS = {
-    medium: ["media"], alumnus: ["alumni"], motif: ["motives"],
+    medium: ["media"], alumnus: ["alumni"],
     curriculum: ["curricula"], criterion: ["criteria"], phenomenon: ["phenomena"],
     datum: ["data"], bacterium: ["bacteria"], stimulus: ["stimuli"],
     nucleus: ["nuclei"], radius: ["radii"], analysis: ["analyses"],
@@ -2831,12 +2996,24 @@
     const pop = $("#exPop");
     if (!pop) return;
     const previous = exPopReturn;
+    const containers = Array.from($("#card")?.querySelectorAll?.(".ex[data-ex-linked], .sense-quote[data-ex-linked]") || []);
+    const containerIndex = previous ? containers.indexOf(previous.trigger) : -1;
+    const wordIndexInQuote = previous ? Array.from(previous.trigger.querySelectorAll?.(".ex-word") || []).indexOf(previous.word) : -1;
     exPopReturn = null;
     pop.hidden = true;
     pop.classList.remove("on");
     pop.setAttribute?.("aria-expanded", "false");
     if (previous && previous.trigger) previous.trigger.setAttribute?.("aria-expanded", "false");
+    const refresh = sharedCardRefreshPending === currentBookId && !activeSheet;
+    if (refresh) renderCard();
     if (restoreFocus && previous && previous.trigger) {
+      if (refresh && containerIndex >= 0) {
+        const nextContainer = $("#card")?.querySelectorAll?.(".ex[data-ex-linked], .sense-quote[data-ex-linked]")?.[containerIndex];
+        const nextWord = nextContainer?.querySelectorAll?.(".ex-word")?.[wordIndexInQuote];
+        if (nextContainer) { setExActive(nextContainer, nextWord); (nextWord || nextContainer).focus?.({preventScroll: true}); }
+        else $("#card")?.focus?.({preventScroll: true});
+        return;
+      }
       setExActive(previous.trigger, previous.word);
       const target = previous.word && previous.word.isConnected !== false ? previous.word : previous.trigger;
       target.focus?.({ preventScroll: true });
@@ -3424,15 +3601,20 @@
   let autoResumeIdleSince = null;        // 当前「完成页连续无有效交互」的起点；null=尚未开始计时
   let autoResumeLastReason = "";         // 最近一次未触发原因（UI/调试只读）
   let autoResumeCheckCache = null;       // 最近一次候选复核明细（只读 UI/调试）
+  let autoResumeCacheExpiresAt = 0, autoResumeNextDueAt = null;
   let autoResumeStorageError = false;    // 存储不可用：放弃自动开组，提示手动继续
   let autoResumeReturnSnap = null;       // 自动开组前上一组完成页现场（含撤销栈内存副本）
   let autoResumeReturnArmed = false;     // 新组首个有效判定前「返回上一组结果」可用
+  let autoResumeReturnFromWait = false; // 空页等待启动的返回入口不能冒充上一组结果
+  let autoResumeEmptyWaitBook = null;   // 用户显式开启的本页等待资格；不持久化、不伪造完成组
   let autoResumeStarting = false;        // 自动开组进行中：startSession 不清返回现场
   // 「今天暂停自动续背」的 localStorage 缓存（AUTO_RESUME_PAUSE_KEY）；首次读取后常驻内存。
   const autoResumePauseStore = {loaded: false, map: {}};
+  const autoResumePausePending = new Map(); // 暂停键写失败时的本页增删；强制重读也不能抹掉用户操作
   const autoResumeLegacyBooks = new Set();     // 旧记录缺 autoResume 的书：设置页提示推荐方案
   let autoResumeLastRenderKey = "";
   let autoResumeLastRenderAt = 0;
+  let autoResumeScrollInputAt = -Infinity; // 将真实滚动关联到输入，布局/滚动锚点的scroll不算交互
 
   function newSeed(){ return (Math.random() * 0x7fffffff) | 0; }
 
@@ -3734,10 +3916,12 @@
    */
   function startSession(kind){
     kind = kind === "extra" ? "extra" : kind === "newOnly" ? "newOnly" : "main";
+    autoResumeEmptyWaitBook = null;
     if (!autoResumeStarting) {
       // 22：手动开新组/继续下一组时，不再保留上一组完成页的「返回上一组结果」。
       autoResumeReturnSnap = null;
       autoResumeReturnArmed = false;
+      autoResumeReturnFromWait = false;
     }
     drillMode = false;
     mainSnap = null;
@@ -4128,22 +4312,48 @@
     return {correct: false, status: "wrong", input: raw.trim(), expected: wanted, note: "",
       firstDiff: spellFirstDiff(user, want)};
   }
-  /** 候选口径：当前书 + 当前范围 + 非熟练；优先已学（hasMainProgress），不足补未学。 */
+  /**
+   * 专项只读中文题面：去掉词性缩写、英文搭配（含答案/变体），保留混合括号中的中文。
+   * 不直接复用主释义，也不把答案放进隐藏节点/可访问属性；没有中文时不生成题目。
+   */
+  function spellingChineseHint(x){
+    let hint = String(x && x.m || "")
+      .replace(/[A-Za-z\u00c0-\u024f\uff21-\uff3a\uff41-\uff5a]+(?:['’\-‐‑][A-Za-z\u00c0-\u024f\uff21-\uff3a\uff41-\uff5a]+)*\.?/g, "")
+      .replace(/[\/\\|]+/g, " ");
+    // 逐层清理英文留下的空括号；不能连中文说明一起整段删除。
+    let previous;
+    do {
+      previous = hint;
+      hint = hint.replace(/（[^（）]*）|\([^()]*\)|【[^【】]*】|\[[^\[\]]*\]/g,
+        part => /[\u3400-\u9fff\d]/.test(part) ? part : "");
+    } while (hint !== previous);
+    hint = hint
+      .replace(/([（(【\[])[\s,，;；:：·、]+/g, "$1")
+      .replace(/[\s,，;；:：·、]+([）)】\]])/g, "$1")
+      .replace(/([,，;；、])[\s,，;；、]+/g, "$1")
+      .replace(/\s+([,，;；、）)】\]])/g, "$1")
+      .replace(/\s+/g, " ")
+      .replace(/^[\s.,，;；:：·、]+|[\s.,，;；:：·、]+$/g, "");
+    return /[\u3400-\u9fff]/.test(hint) ? hint : "";
+  }
+  /** 候选口径：当前书 + 当前范围 + 非熟练 + 有效中文题面；已学优先，不足补未学。 */
   function spellingCandidateStats(){
-    let learned = 0, fresh = 0;
+    let learned = 0, fresh = 0, skippedNoHint = 0;
     for (let i = 0; i < W.length; i++) {
       if (!inScope(i) || isProficient(i)) continue;
+      if (!spellingChineseHint(W[i])) { skippedNoHint++; continue; }
       if (hasMainProgress(st(i))) learned++; else fresh++;
     }
     const total = learned + fresh;
-    return {learned: learned, fresh: fresh, total: total, size: Math.min(SPELLING_ROUND_SIZE, total)};
+    return {learned: learned, fresh: fresh, total: total, size: Math.min(SPELLING_ROUND_SIZE, total),
+      skippedNoHint: skippedNoHint};
   }
   function pickSpellingIndices(){
     const stats = spellingCandidateStats();
     if (!stats.size) return {queue: [], mixed: false, learnedCount: 0, stats: stats};
     const learned = [], fresh = [];
     for (let i = 0; i < W.length; i++) {
-      if (!inScope(i) || isProficient(i)) continue;
+      if (!inScope(i) || isProficient(i) || !spellingChineseHint(W[i])) continue;
       (hasMainProgress(st(i)) ? learned : fresh).push(i);
     }
     const wantLearned = Math.min(learned.length, stats.size);
@@ -4177,7 +4387,9 @@
   function beginSpellingSession(){
     const plan = pickSpellingIndices();
     if (!plan.queue.length) {
-      toast("当前范围没有可用于拼写练习的词；可调整筛选或取消熟练标记");
+      toast(plan.stats.skippedNoHint
+        ? "当前范围的候选词缺少有效中文提示，已跳过；可调整筛选后再练习"
+        : "当前范围没有可用于拼写练习的词；可调整筛选或取消熟练标记");
       return false;
     }
     spellingSession = {
@@ -4192,6 +4404,7 @@
       mixed: plan.mixed,
       learnedCount: plan.learnedCount,
       totalCandidates: plan.stats.total,
+      skippedNoHint: plan.stats.skippedNoHint,
       startedAt: Date.now()
     };
     renderSpellingSession();
@@ -4271,14 +4484,16 @@
     if (actions) actions.hidden = false;
     if (groupNote) {
       groupNote.hidden = false;
-      groupNote.textContent = s.mixed
+      const sourceNote = s.mixed
         ? "本组含 " + Math.max(0, s.queue.length - s.learnedCount) + " 个未学词：只练拼写，不记为学习进度。"
         : "本组词来自当前范围的已学词。";
+      groupNote.textContent = sourceNote + (s.skippedNoHint
+        ? " 已跳过 " + s.skippedNoHint + " 个缺少有效中文提示的词。" : "");
     }
     const x = currentSpellingWord();
     if (x) {
       const pos = $("#spellPos"); if (pos) pos.textContent = poslineText(x);
-      const mean = $("#spellMean"); if (mean) mean.textContent = x.m || "（暂无中文释义，可先跳过）";
+      const mean = $("#spellMean"); if (mean) mean.textContent = spellingChineseHint(x);
       const ph = $("#spellPh");
       if (ph) {
         const p = S.settings.showPh ? pronHtml(x) : "";
@@ -5116,7 +5331,7 @@
       }
     }
     if (nextBtn) {
-      const showNext = mainTail && info.hasMore;
+      const showNext = false; // 继续动作统一在#again；组尾只显示本组结果。
       nextBtn.hidden = !showNext;
       nextBtn.disabled = !showNext;
       nextBtn.onclick = () => startSession("main");
@@ -5327,11 +5542,15 @@
     if (!autoResumeReturnArmed || !autoResumeReturnSnap) return "";
     if (drillMode || inSubgroup() || verdict !== null) return "";
     if (answered !== 0) return "";
-    return '<button type="button" class="btn ghost sm" id="returnPrevResult" ' +
-      'title="仅在自动开始的新组首个判定前可用；刷新页面后上一组结果不可恢复">返回上一组结果</button>';
+    const label = autoResumeReturnFromWait ? "返回等待页" : "返回上一组结果";
+    const title = autoResumeReturnFromWait
+      ? "仅在自动开始的新组首个判定前可用；刷新后本页等待资格失效"
+      : "仅在自动开始的新组首个判定前可用；刷新页面后上一组结果不可恢复";
+    return '<button type="button" class="btn ghost sm" id="returnPrevResult" title="' + title + '">' + label + '</button>';
   }
 
   function renderCard(){
+    sharedCardRefreshPending = false;
     renderSurvey();
     hideExPop();
     const c = $("#card"), a = $("#acts");
@@ -5346,10 +5565,10 @@
     if (a.dataset) a.dataset.guard = "";   // 新一次渲染后旧的连击拦截标记失效
     const finishRender = () => {
       fitVisibleWords();
-      const message = cur == null ? "本组学习结束。" : W[cur].w + (verdict === null
+      const message = cur == null ? (emptyWaitActive() ? "本页正在等待可背词，可随时退出等待。" : groupTotal ? "本组学习结束。" : "当前暂无待背单词。") : W[cur].w + (verdict === null
         ? "，请先回忆，再选择会或不会。"
         : (verdict ? "，已记为会。" : "，已记为不会。") + W[cur].m);
-      c.setAttribute?.("aria-label", cur == null ? "本组学习结果" : "当前单词：" + W[cur].w);
+      c.setAttribute?.("aria-label", cur == null ? (emptyMainPage() ? "等待到期与学习范围" : "本组学习结果") : "当前单词：" + W[cur].w);
       const announcement = $("#studyAnnouncement");
       if (announcement && announcement.textContent !== message) announcement.textContent = message;
       // 重绘会移除原按钮；键盘操作后把焦点留在学习区，空格仍可继续。
@@ -5433,14 +5652,14 @@
       const gInfo = groupInfo();
       // 16：拼写专项入口与批次 D 的 #resumeNotice、自动续背完成页状态区共存——只加一个按钮，
       // 不改 #card/#acts 顺序与几何（完成页 #card 无 .word-face，不受固定高度规则影响）。
-      const spellN = spellingCandidateStats().size;
+      const spellStats = spellingCandidateStats(), spellN = spellStats.size;
       c.innerHTML =
         '<div class="done">' +
-          "<h2>" + (capDone ? "本组已暂停" : completed ? "本组完成" : "暂无待背单词") + "</h2>" +
+          "<h2>" + (capDone ? "本组已暂停" : completed ? "本组完成" : emptyWaitActive() ? "本页等待到期" : "暂无待背单词") + "</h2>" +
           "<p>本次共 " + answered + " 张，正确 " + rightN + " 张</p>" +
           (completed
             ? "<p>本组完成 <b>" + gInfo.done + "</b>/<b>" + gInfo.groupTotal + "</b> · 剩余到期 <b>"
-              + gInfo.remainingDue + "</b> 个" + (gInfo.hasMore ? "（点「继续下一组」继续）" : "") + "</p>"
+              + gInfo.remainingDue + "</b> 个</p>"
             : "") +
           '<div class="big">' + scopedMasteredCount() + "<span>/ " + inScopeCount() + " 已掌握</span></div>" +
           (capDone
@@ -5449,7 +5668,7 @@
               ? "<p>另有 <b>" + due + "</b> 个词已到复习时间</p>"
               : freshLeft && quotaLeft ? (isBacklogGuarded()
                   ? "<p>今天优先复习：到期词超出今日剩余复习额度，已暂停自动补新词；如需继续学新词，可点「仍学今日计划内新词」</p>"
-                  : "<p>还有新词可学，点击继续背诵开始下一组</p>")
+                  : "<p>还有新词可学，点击「继续下一组」开始</p>")
               : freshLeft ? "<p>今日新词目标已完成；到期复习可继续，新词明天更新</p>"
               : "<p>当前范围没有新词或到期复习；可调整筛选或管理熟练词</p>") +
           (hasPendingScopeSettings()
@@ -5458,14 +5677,17 @@
             : "") +
           (drillListN ? "<p>错词本有 <b>" + drillListN + "</b> 个词，可开始错词特训</p>" : "") +
           (proficientCount() ? "<p>已排除 " + proficientCount() + " 个熟练词，可在词表中取消</p>" : "") +
+          (!spellN && spellStats.skippedNoHint
+            ? "<p>当前范围有 " + spellStats.skippedNoHint + " 个词缺少有效中文提示，已跳过拼写专项。</p>" : "") +
         "</div>";
       a.innerHTML =
-        '<button type="button" class="btn primary" id="again">' + (capDone ? "重新开始本组" : "继续背诵") + "</button>" +
+        '<button type="button" class="btn primary" id="again">' + (capDone ? "重新开始本组" : "继续下一组") + "</button>" +
         (drillListN ? '<button type="button" class="btn ghost" id="startDrillBtn">错词特训</button>' : "") +
         (spellN ? '<button type="button" class="btn ghost" id="startSpellingBtn" title="用当前范围的词练拼写：不占新词额度、不记为学习进度">拼写专项（' + spellN + " 词）</button>" : "") +
         '<button type="button" class="btn ghost" id="goStats">查看统计</button>' +
         (undoStack.length ? '<button type="button" class="btn ghost sm" id="undoBtn">撤销上一步</button>' : "");
-      $("#again").onclick = startSession;
+      $("#again").onclick = continueMainSession;
+      $("#again").disabled = candidateStatsNow().available < 1;
       if (drillListN) $("#startDrillBtn").onclick = () => startDrill();
       if (spellN) $("#startSpellingBtn").onclick = () => startSpellingDrill();
       $("#goStats").onclick = () => show("stats");
@@ -6964,7 +7186,8 @@
         ? "已开启：" + (preset === "custom" ? "自定义" : AUTO_RESUME_PRESETS[preset].label) + "方案 · 可背词达到 "
           + ar.threshold + " 张、连续 " + formatAutoMinutes(ar.idleMs) + " 无有效操作后，倒计时 "
           + Math.round(ar.countdownMs / 1000) + " 秒自动开始下一组"
-        : "已关闭：完成一组后不会自动开始下一组；点「继续背诵」仍可手动开始。";
+        : "已关闭：完成一组后不会自动开始下一组；点「继续下一组」仍可手动开始。";
+      if (ar.enabled && ar.threshold > S.settings.groupSize) status.textContent += "；" + autoResumeConfigConflict(ar);
     }
     const legacy = $("#autoResumeLegacy");
     if (legacy) legacy.hidden = !(autoResumeLegacyBooks.has(currentBookId) && !ar.enabled);
@@ -7120,6 +7343,15 @@
       : hasPlan ? "本组范围：" + text : "当前筛选范围：" + text) + "。点击查看并调整词库范围。";
     el.title = full;
     el.setAttribute?.("aria-label", full);
+    // 学习页两处范围摘要同源：当前设置只是下一组预览，不能冒充冻结的本组范围。
+    if ($("#v-study")?.classList.contains("on")) {
+      const label = $("#scopeLabel");
+      if (label) {
+        label.textContent = (pending ? "本组范围 " : "背诵范围 ") + count.toLocaleString() + " / " + W.length + " 词";
+        label.title = full;
+        label.setAttribute?.("aria-label", full);
+      }
+    }
   }
   /** 学习页范围摘要与页头副标题的统一入口：进入设置页「词库范围」并聚焦该节。 */
   function jumpToScopeSettings(){
@@ -7464,6 +7696,11 @@
     activeSheet = null;
     $("#main").inert = false;
     $(".top").inert = false;
+    if (sharedCardRefreshPending === currentBookId) renderCard();
+    if (sharedListRefreshPending === currentBookId) {
+      sharedListRefreshPending = false;
+      applyFilter(false);
+    }
     if (closedId === "bookSheet") {
       const btn = $("#btnBooks");
       if (btn) btn.setAttribute?.("aria-expanded", "false");
@@ -7478,6 +7715,10 @@
     } else if (previousFocus && previousFocus.isConnected && previousFocus !== document.body) {
       // 非背诵页：仅当触发元素不是 body 时归还焦点（body 不可聚焦，focus 无效）
       previousFocus.focus?.({ preventScroll: true });
+    } else if ($("#v-list")?.classList.contains("on")) {
+      const pos = filt.indexOf(listActiveWord);
+      if (pos >= 0) focusListRow(pos, listActiveAction);
+      else $("#listScroll")?.focus?.({preventScroll: true});
     }
     previousFocus = null;
   }
@@ -7546,6 +7787,7 @@
       renderAutoResume();
       renderResumeNotice();
     } else {
+      autoResumeEmptyWaitBook = null; // 离开本页等待流程，需要回来后再次明确选择
       dismissResumeNotice();   // 15：切换页面=明确退出恢复现场；已恢复的学习记录不丢
       if (autoResumePhase !== "idle" || autoResumeIdleSince !== null) {
         autoResumePhase = "idle";
@@ -7555,6 +7797,7 @@
       }
     }
     if (v === "study") { fitVisibleWords(); renderCapSurfaces(); }
+    updateScopeCount();
     if (v === "list") {
       // 首次进入且尚无保存状态时，尊重当前控件值（例如从统计页点「到期词」预设的筛选）。
       if (!wasList && listUiByBook[currentBookId]) restoreListUi(currentBookId);
@@ -8585,8 +8828,8 @@
    */
   function currentAutoResume(){ return normalizeAutoResume(S.settings.autoResume, false); }
   /** 读取并缓存 AUTO_RESUME_PAUSE_KEY；损坏/不可读时按空处理，不影响主记录。 */
-  function readAutoResumePauseStore(){
-    if (autoResumePauseStore.loaded) return autoResumePauseStore.map;
+  function readAutoResumePauseStore(force = false){
+    if (autoResumePauseStore.loaded && !force) return autoResumePauseStore.map;
     autoResumePauseStore.loaded = true;
     const map = {};
     try {
@@ -8597,7 +8840,11 @@
           if (bookOf(book) && typeof day === "string" && /^\d{4}-\d{2}-\d{2}$/.test(day)) map[book] = day;
         }
       }
-    } catch (e) { /* 损坏/不可读：视为无暂停 */ }
+    } catch (e) { Object.assign(map, autoResumePauseStore.map); /* 不可读时保留已知暂停，避免错误解除 */ }
+    for (const [book, day] of autoResumePausePending) {
+      if (day === null) delete map[book];
+      else map[book] = day;
+    }
     autoResumePauseStore.map = map;
     return map;
   }
@@ -8606,21 +8853,28 @@
     const today = todayStr();
     const map = readAutoResumePauseStore();
     for (const k of Object.keys(map)) if (map[k] !== today) delete map[k];
-    try { localStorage.setItem(AUTO_RESUME_PAUSE_KEY, JSON.stringify(map)); return true; }
+    try {
+      localStorage.setItem(AUTO_RESUME_PAUSE_KEY, JSON.stringify(map));
+      autoResumePausePending.clear();
+      return true;
+    }
     catch (e) { return false; }
   }
   function clearAutoResumePause(bookId){
-    const map = readAutoResumePauseStore();
+    const map = readAutoResumePauseStore(true);
     if (!Object.prototype.hasOwnProperty.call(map, bookId)) return false;
     delete map[bookId];
+    autoResumePausePending.set(bookId, null);
     writeAutoResumePauseStore();
     return true;
   }
   function pruneAutoResumePause(){
     const today = todayStr();
-    const map = readAutoResumePauseStore();
+    const map = readAutoResumePauseStore(true);
     let changed = false;
-    for (const k of Object.keys(map)) if (map[k] !== today) { delete map[k]; changed = true; }
+    for (const k of Object.keys(map)) if (map[k] !== today) {
+      delete map[k]; autoResumePausePending.set(k, null); changed = true;
+    }
     if (changed) writeAutoResumePauseStore();
   }
   function autoResumePausedToday(){
@@ -8628,15 +8882,16 @@
     return map[currentBookId] === todayStr();
   }
   function pauseAutoResumeToday(){
-    const map = readAutoResumePauseStore();
+    const map = readAutoResumePauseStore(true);
     map[currentBookId] = todayStr();
+    autoResumePausePending.set(currentBookId, todayStr());
     const persisted = writeAutoResumePauseStore();
     autoResumePhase = "paused";
     autoResumeDeadline = 0;
     autoResumeIdleSince = null;
     renderAutoResume();
     toast(persisted
-      ? "今天不再自动续背（刷新后仍保持）；需要时仍可手动点「继续背诵」"
+      ? "今天不再自动续背（刷新后仍保持）；需要时仍可手动点「继续下一组」"
       : "今天不再自动续背；浏览器存储不可用，暂停仅本次页面有效");
   }
   /** 主组「真正完成」：无当前卡、非特训/子组、非被额度暂停结束、答过至少一张、无未答位置。 */
@@ -8645,13 +8900,45 @@
     if (!(groupTotal > 0) || !(answered > 0) || qi < Q.length) return false;
     return true;
   }
+  /** 普通空页本身没有自动资格；只能由显式选择进入本页等待。 */
+  function emptyMainPage(){
+    return cur == null && !drillMode && !inSubgroup() && !capGroupEnded
+      && groupTotal === 0 && answered === 0 && Q.length === 0 && pendingReinforce() === 0;
+  }
+  function emptyWaitActive(){ return autoResumeEmptyWaitBook === currentBookId && emptyMainPage(); }
+  function startEmptyWait(){
+    if (!emptyMainPage() || !$("#v-study")?.classList.contains("on") || document.visibilityState === "hidden") return false;
+    if (activeSheet || ($("#exPop") && !$("#exPop").hidden) || ($("#appAlert") && !$("#appAlert").hidden)) return false;
+    readAutoResumePauseStore(true);
+    if (!currentAutoResume().enabled) { toast("请先开启便捷续背，再开始等待到期"); return false; }
+    if (autoResumePausedToday()) { toast("今天已暂停自动续背；进入等待不会解除暂停"); return false; }
+    if (autoResumeStorageError || !storageOK || !refreshSharedBeforeNextGroup()) {
+      toast("无法安全读取最新记录，暂不能开始等待"); return false;
+    }
+    if (!emptyMainPage() || !currentAutoResume().enabled || autoResumePausedToday()) return false;
+    sessionPlan = null; sessionScopeSet = null; // 0张空组没有需要冻结的学习现场；等待使用当前保存范围
+    autoResumeEmptyWaitBook = currentBookId;
+    resetAutoResumeRuntime();
+    autoResumeIdleSince = Date.now();
+    renderCard();
+    toast("已开始本页等待；刷新、切书或离开背诵页后退出等待");
+    return true;
+  }
+  function stopEmptyWait(){
+    const waiting = autoResumeEmptyWaitBook !== null;
+    autoResumeEmptyWaitBook = null;
+    resetAutoResumeRuntime();
+    if (waiting && cur == null) renderCard();
+    return waiting;
+  }
   /** 完成页是否满足所有静态前提（可见、无浮层、无待巩固、非额度暂停、主组计划）。 */
   function autoResumeEligiblePage(){
     if (!$("#v-study")?.classList.contains("on")) return false;
     if (document.visibilityState === "hidden") return false;
-    if (!mainGroupCompletedForAuto()) return false;
+    const waiting = emptyWaitActive();
+    if (!mainGroupCompletedForAuto() && !waiting) return false;
     const plan = activePlan();
-    if (!plan || (plan.kind && plan.kind !== "main")) return false;
+    if ((!plan && !waiting) || (plan && plan.kind && plan.kind !== "main")) return false;
     if (pendingReinforce() > 0) return false;
     if (computeCapPaused()) return false;
     if (activeSheet) return false;
@@ -8668,7 +8955,15 @@
     now = now || Date.now();
     const q = buildQueue(now);
     const cap = getReviewCap();
-    const capLeft = reviewCapLeft();
+    let capLeft = reviewCapLeft();
+    // 候选读取保持只读；即使storage事件延迟，也不把别标签已消费的预算算作可用。
+    if (cap > 0) {
+      try {
+        const incoming = JSON.parse(localStorage.getItem(KEY) || "null");
+        const used = normalizeReviewDay(incoming && incoming.reviewDay).used;
+        capLeft = Math.min(capLeft, Math.max(0, cap - used));
+      } catch (e) { /* 损坏存储不改内存，启动与判定沿用原有安全门控 */ }
+    }
     const groupSize = Math.max(GROUP_SIZE_MIN, Math.min(GROUP_SIZE_MAX,
       Number.isInteger(S.settings.groupSize) ? S.settings.groupSize : GROUP_SIZE_DEFAULT));
     const dueTotal = q.due.length;
@@ -8676,7 +8971,8 @@
     const dueActive = cap === 0 ? plannedDue : Math.min(plannedDue, capLeft);
     const quota = Math.max(0, effectiveNewTarget() - day().n);
     const slots = Math.max(0, groupSize - plannedDue);
-    const freshActive = q.backlogGuarded ? 0 : Math.min(slots, quota, q.fresh.length);
+    const backlogGuarded = !!S.settings.backlogGuard && cap > 0 && dueTotal > capLeft;
+    const freshActive = backlogGuarded ? 0 : Math.min(slots, quota, q.fresh.length);
     const capPausedNow = cap > 0 && capLeft <= 0 && dueTotal > 0;
     return {
       available: capPausedNow ? 0 : dueActive + freshActive,
@@ -8684,18 +8980,29 @@
       fresh: q.fresh.length, freshActive: freshActive,
       quota: quota, groupSize: groupSize, cap: cap,
       capLeft: capLeft === Infinity ? null : capLeft,
-      backlogGuarded: q.backlogGuarded, capPaused: capPausedNow
+      backlogGuarded: backlogGuarded, capPaused: capPausedNow
     };
   }
   function getCandidatesNow(){ return candidateStatsNow().available; }
+  /** 候选最多缓存30秒，最近到期时刻提前失效；设置/进度/台账变化会主动清空。 */
+  function autoResumeStats(now = Date.now()){
+    if (!autoResumeCheckCache || now >= autoResumeCacheExpiresAt) {
+      autoResumeCheckCache = candidateStatsNow(now);
+      autoResumeNextDueAt = reviewPlan(now).next;
+      autoResumeCacheExpiresAt = Math.min(now + 30000, autoResumeNextDueAt || Infinity);
+    }
+    return autoResumeCheckCache;
+  }
   /** 未触发/不满足原因文案（完成页状态与只读调试用）。 */
   function autoResumeReasonText(stats, ar){
     if (autoResumePausedToday()) return "今天已暂停自动续背";
-    if (autoResumeStorageError) return "浏览器存储不可用，无法安全自动开始；请手动点「继续背诵」";
+    if (autoResumeStorageError) return "浏览器存储不可用，无法安全自动开始；请手动点「继续下一组」";
     const pending = pendingReinforce();
     if (pending > 0) return "本组还有 " + pending + " 张待巩固";
     if (computeCapPaused()) return "今日复习额度已用完（本组暂停）";
     if (stats.capPaused) return "今日复习额度已用完（仍有 " + stats.due + " 张到期）";
+    const conflict = autoResumeConfigConflict(ar);
+    if (conflict) return conflict;
     if (stats.available <= 0) {
       if (stats.due > 0 || stats.fresh > 0) {
         return "当前范围没有真正可入组的词（受剩余复习预算/新词额度/积压保护限制）";
@@ -8707,29 +9014,28 @@
   }
   /** 完成页自动续背状态区渲染（静态节点；倒计时每秒更新一次）。 */
   function autoResumePanelRelevant(){
-    return cur == null && !drillMode && !inSubgroup() && !capGroupEnded
-      && groupTotal > 0 && answered > 0 && qi >= Q.length;
+    return mainGroupCompletedForAuto() || emptyMainPage();
   }
   function renderAutoResume(){
     const box = $("#autoResume");
     if (!box) return;
     const ar = currentAutoResume();
-    const visible = ar.enabled && autoResumePanelRelevant() && $("#v-study")?.classList.contains("on");
+    const empty = emptyMainPage(), waiting = emptyWaitActive();
+    const visible = autoResumePanelRelevant() && $("#v-study")?.classList.contains("on");
     if (!visible) {
       if (!box.hidden) box.hidden = true;
       autoResumeLastRenderKey = "";
       return;
     }
     box.hidden = false;
-    const stats = autoResumeCheckCache || candidateStatsNow();
-    autoResumeCheckCache = stats;
+    const stats = autoResumeStats();
     const paused = autoResumePausedToday();
     let phase = paused ? "paused" : autoResumePhase;
     if (phase === "countdown" && autoResumeDeadline <= Date.now()) phase = "waiting";   // 下一 tick 启动
     const remainSec = phase === "countdown" ? Math.max(0, Math.ceil((autoResumeDeadline - Date.now()) / 1000)) : 0;
     const reason = paused || autoResumeStorageError || phase === "countdown" || stats.available >= ar.threshold
       ? "" : (autoResumeLastReason || autoResumeReasonText(stats, ar));
-    const key = [currentBookId, phase, remainSec, stats.available, ar.threshold, paused,
+    const key = [currentBookId, ar.enabled, empty, waiting, phase, remainSec, stats.available, ar.threshold, ar.idleMs, paused,
       autoResumeStorageError, reason].join("|");
     if (key === autoResumeLastRenderKey) return;
     autoResumeLastRenderKey = key;
@@ -8737,19 +9043,25 @@
     const text = $("#autoResumeText");
     if (text) {
       let html;
-      if (paused) {
-        html = "今天已暂停自动续背（刷新后仍保持）；随时可以手动点「继续背诵」开始下一组，或在设置页重新开启。";
+      const counts = "下一组可复习 <b>" + stats.dueActive + "</b> 张 · 新词 <b>" + stats.freshActive + "</b> 张";
+      if (empty && !waiting && ar.enabled && !paused) {
+        html = counts + "。本页尚未等待；点击「开始等待到期」后，有到期词或新词额度恢复时按当前方案续背。刷新、切书或离开背诵页会退出。";
+      } else if (paused) {
+        html = counts + "。今天已暂停自动续背（刷新后仍保持），有候选时仍可手动继续。";
+      } else if (!ar.enabled) {
+        html = counts + "。自动续背未开启；可选择便捷方案：1 张 / 闲置 30 秒 / 倒计时 3 秒。";
       } else if (autoResumeStorageError) {
         html = esc(reason || autoResumeReasonText(stats, ar));
       } else if (phase === "countdown") {
-        html = "可背词 <b>" + stats.available + "</b> 张（阈值 " + ar.threshold
-          + " 张）· 倒计时结束后自动开始下一组；任何有效操作都会取消倒计时。";
+        html = counts + "；倒计时后自动继续，任何有效操作可取消。";
       } else if (stats.available >= ar.threshold) {
-        html = "已开启：当前可背 <b>" + stats.available + "</b> 张（阈值 " + ar.threshold
-          + " 张）；连续 " + formatAutoMinutes(ar.idleMs) + "无有效操作后出现倒计时。";
+        html = counts + "；已开启自动续背，连续 " + formatAutoMinutes(ar.idleMs) + "无有效操作后倒计时。";
       } else {
-        html = "已开启 · " + esc(reason || autoResumeReasonText(stats, ar)) + "（阈值 " + ar.threshold + " 张）";
+        const next = autoResumeNextDueAt;
+        html = counts + "；" + esc(reason || autoResumeReasonText(stats, ar))
+          + (next ? "。下次到期：" + esc(formatReviewTime(next)) : "");
       }
+      if (waiting) html = "本页已在等待。" + html;
       if (text.innerHTML !== html) text.innerHTML = html;
     }
     const cd = $("#autoResumeCountdown");
@@ -8764,22 +9076,53 @@
     }
     const nowBtn = $("#autoResumeNow");
     if (nowBtn) {
-      nowBtn.hidden = false;
-      nowBtn.disabled = paused || autoResumeStorageError || stats.available < ar.threshold;
-      nowBtn.onclick = () => { startAutoResumeNow(); };
+      nowBtn.hidden = true; // 历史宿主兼容；唯一手动入口为#again。
+    }
+    const quickBtn = $("#autoResumeQuick");
+    if (quickBtn) {
+      quickBtn.hidden = ar.enabled && !paused && !autoResumeConfigConflict(ar);
+      quickBtn.textContent = autoResumeConfigConflict(ar) ? "改用便捷续背（1 张）" : "开启便捷续背";
+      quickBtn.onclick = () => {
+        const r = applyAutoResumePreset("quick");
+        if (r.ok) toast("已开启便捷续背：1 张 / 闲置 30 秒 / 倒计时 3 秒");
+      };
     }
     const pauseBtn = $("#autoResumePause");
     if (pauseBtn) {
-      pauseBtn.hidden = false;
+      pauseBtn.hidden = !ar.enabled;
       pauseBtn.disabled = paused;
       pauseBtn.onclick = pauseAutoResumeToday;
     }
+    const startWait = $("#startEmptyWait"), stopWait = $("#stopEmptyWait");
+    if (startWait) {
+      startWait.hidden = !empty || waiting;
+      startWait.disabled = !ar.enabled || paused || autoResumeStorageError || !storageOK;
+      startWait.onclick = startEmptyWait;
+    }
+    if (stopWait) { stopWait.hidden = !waiting; stopWait.onclick = stopEmptyWait; }
     const title = $("#autoResumeTitle");
-    if (title) title.textContent = paused ? "挂机自动续背（今天已暂停）" : "挂机自动续背";
+    if (title) title.textContent = waiting ? "本页等待到期" : empty ? "等待到期" : paused ? "下一组 · 今天暂停自动续背" : "下一组";
+    const again = $("#again");
+    if (again) again.disabled = stats.available < 1;
+  }
+  function autoResumeConfigConflict(ar){
+    return ar.enabled && ar.threshold > S.settings.groupSize
+      ? "每组 " + S.settings.groupSize + " 张，自动阈值 " + ar.threshold + " 张无法达到；可改用便捷续背。" : "";
+  }
+  /** 手动继续与自动阈值/今日暂停独立，但仍复核候选和最新预算，不空开组。 */
+  function continueMainSession(){
+    if (cur != null || drillMode || inSubgroup()) return false;
+    if (!refreshSharedBeforeNextGroup()) { toast("无法安全读取最新记录，请先检查存储状态"); return false; }
+    refreshForResume();
+    alignReviewLedgerFromStorage();
+    const stats = candidateStatsNow();
+    if (stats.available < 1) { renderCard(); toast(autoResumeReasonText(stats, currentAutoResume())); return false; }
+    startSession("main");
+    return Q.length > 0;
   }
   /** 有效交互：重置闲置起点；倒计时中则立即取消。鼠标移动不算（不监听 pointermove/mousemove）。 */
   function noteAutoResumeActivity(){
-    if (!mainGroupCompletedForAuto()) return;
+    if (!mainGroupCompletedForAuto() && !emptyWaitActive()) return;
     if (!$("#v-study")?.classList.contains("on") || document.visibilityState === "hidden") return;
     autoResumeIdleSince = Date.now();
     if (autoResumePhase === "countdown") {
@@ -8812,8 +9155,7 @@
     }
     if (now - autoResumeIdleSince < ar.idleMs) { renderAutoResume(); return; }
     // 到闲置阈值：用最新口径复核候选，达到阈值才进入可取消倒计时，否则显示原因、不空开组。
-    const stats = candidateStatsNow(now);
-    autoResumeCheckCache = stats;
+    const stats = autoResumeStats(now);
     if (stats.available >= ar.threshold) {
       autoResumePhase = "countdown";
       autoResumeDeadline = now + ar.countdownMs;
@@ -8858,12 +9200,22 @@
   /** 到点真正启动：再次复核 + 抢租约 + 保存上一组现场 + 应用内刷新后开组。 */
   function startAutoResumeNow(){
     if (autoResumeStarting) return false;
+    readAutoResumePauseStore(true);
+    if (!currentAutoResume().enabled || !autoResumeEligiblePage() || autoResumePausedToday()) return false;
+    if (!refreshSharedBeforeNextGroup()) {
+      autoResumePhase = "waiting";
+      autoResumeLastReason = "无法安全读取最新记录，请手动检查后继续";
+      renderAutoResume();
+      return false;
+    }
     const ar = currentAutoResume();
+    readAutoResumePauseStore(true);
     if (!ar.enabled) return false;
     if (!autoResumeEligiblePage()) { renderAutoResume(); return false; }
     if (autoResumePausedToday()) { renderAutoResume(); return false; }
     // 统一应用内恢复入口：只刷新额度/到期/统计，不重建当前卡，也不整页 reload。
     refreshForResume();
+    alignReviewLedgerFromStorage();
     const stats = candidateStatsNow();
     autoResumeCheckCache = stats;
     if (stats.available < ar.threshold) {
@@ -8881,16 +9233,18 @@
     if (!acquireAutoResumeLease()) {
       autoResumePhase = autoResumeStorageError ? "blocked" : "waiting";
       autoResumeLastReason = autoResumeStorageError
-        ? "浏览器存储不可用，无法安全自动开始下一组；请手动点「继续背诵」"
+        ? "浏览器存储不可用，无法安全自动开始下一组；请手动点「继续下一组」"
         : "另一标签页已开始下一组";
       renderAutoResume();
       return false;
     }
     // 保存上一组完成页现场（含完成页撤销栈的内存副本）：新组首个有效判定前可返回。
+    const fromWait = emptyWaitActive();
     const prevSnap = captureSessionSnapshot();
     autoResumeStarting = true;
     autoResumeReturnSnap = prevSnap;
     autoResumeReturnArmed = true;
+    autoResumeReturnFromWait = fromWait;
     autoResumePhase = "idle";
     autoResumeDeadline = 0;
     autoResumeIdleSince = null;
@@ -8914,7 +9268,7 @@
     // 程序化开组不是学习活动：不把自动开始计入学习时长。
     studyLastFingerprint = studyStateFingerprint();
     studyLastTickAt = Date.now();
-    toast("已自动开始下一组（" + Q.length + " 张）；首个判定前可返回上一组结果");
+    toast("已自动开始下一组（" + Q.length + " 张）；首个判定前可" + (fromWait ? "返回等待页" : "返回上一组结果"));
     renderAutoResume();
     return true;
   }
@@ -8926,15 +9280,20 @@
       return false;
     }
     const s = autoResumeReturnSnap;
+    const fromWait = autoResumeReturnFromWait;
     autoResumeReturnSnap = null;
     autoResumeReturnArmed = false;
+    autoResumeReturnFromWait = false;
     restoreSessionSnapshot(s);
+    autoResumeEmptyWaitBook = fromWait ? currentBookId : null;
+    if (fromWait) { sessionPlan = null; sessionScopeSet = null; }
     clearSessionSnapshot(currentBookId);   // 15：回到完成页，不需要未完成组快照
     updateBar();
     renderDrillEntry();
     renderGroupSurfaces();
     resetAutoResumeRuntime();
-    toast("已返回上一组结果：撤销上一组判定仍可用（刷新后不可恢复）");
+    renderCard();
+    toast(fromWait ? "已返回等待页；刷新、切书或离开背诵页会退出等待" : "已返回上一组结果：撤销上一组判定仍可用（刷新后不可恢复）");
     return true;
   }
 
@@ -9267,6 +9626,12 @@
    * 真实浏览器刷新走同一 bootstrapSession 路径；页面级瞬时状态（撤销栈/自动续背倒计时等）按刷新语义重置。
    */
   function simulateReloadForTest(){
+    autoResumeEmptyWaitBook = null;
+    autoResumeReturnFromWait = false;
+    autoResumeScrollInputAt = -Infinity;
+    autoResumePausePending.clear();
+    autoResumePauseStore.loaded = false;
+    autoResumePauseStore.map = {};
     if (drillMode) { drillMode = false; mainSnap = null; }
     extraSubgroup = false; extraSnap = null;
     newOnlySubgroup = false; newOnlySnap = null;
@@ -9315,6 +9680,8 @@
       enabled: ar.enabled, threshold: ar.threshold, idleMs: ar.idleMs, countdownMs: ar.countdownMs,
       phase: autoResumePhase, pausedToday: autoResumePausedToday(),
       eligible: autoResumeEligiblePage(), completedPage: mainGroupCompletedForAuto(),
+      emptyPage: emptyMainPage(), waitingForDue: emptyWaitActive(),
+      returnKind: autoResumeReturnArmed ? (autoResumeReturnFromWait ? "waiting" : "results") : null,
       idleSince: autoResumeIdleSince,
       idleRemainingMs: autoResumeIdleSince === null ? null : Math.max(0, ar.idleMs - (now - autoResumeIdleSince)),
       countdownDeadline: autoResumeDeadline,
@@ -9328,13 +9695,29 @@
   // 有效交互（鼠标移动不算）：点击、键盘、触摸/笔、阅读滚动都会取消当前倒计时并重置闲置起点。
   document.addEventListener("click", () => noteAutoResumeActivity(), true);
   document.addEventListener("keydown", (e) => {
+    autoResumeScrollInputAt = Date.now();
     if (!e || e.repeat || e.isComposing) return;
     noteAutoResumeActivity();
   }, true);
   document.addEventListener("pointerdown", (e) => {
-    if (e && (e.pointerType === "touch" || e.pointerType === "pen")) noteAutoResumeActivity();
+    autoResumeScrollInputAt = Date.now();
+    if (e) noteAutoResumeActivity();
   }, true);
-  document.addEventListener("scroll", () => noteAutoResumeActivity(), true);
+  document.addEventListener("pointermove", e => {
+    if (!e || !e.buttons) return; // 无按压的鼠标移动仍不计活动
+    autoResumeScrollInputAt = Date.now();
+    noteAutoResumeActivity();
+  }, {capture: true, passive: true});
+  document.addEventListener("wheel", () => {
+    autoResumeScrollInputAt = Date.now();
+    noteAutoResumeActivity();
+  }, {capture: true, passive: true});
+  document.addEventListener("scroll", e => {
+    // 浏览器布局/scrollIntoView同样发trusted scroll。只有近期输入导致的真实滚动重计闲置；
+    // 非浏览器事件保留既有DOM测试/程序调用语义。按键、触摸、滚轮、拖动本身仍立即取消。
+    if (e?.isTrusted === true && Date.now() - autoResumeScrollInputAt > 1500) return;
+    noteAutoResumeActivity();
+  }, true);
   // 后台不抢焦点、不启动：隐藏时清空倒计时与闲置起点，回前台由统一恢复入口重新计时。
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState !== "hidden") return;
@@ -9348,7 +9731,10 @@
   // 到期词轮询：未开始新组时补显示到期词；跨天只刷新现场数据
   setInterval(() => {
     if (todayStr() !== lastDay) { refreshForResume(); return; }
-    if (cur == null && countDue() > 0) renderCard();
+    if (cur == null && countDue() > 0) {
+      if (emptyWaitActive()) renderAutoResume();
+      else renderCard();
+    }
     renderReviewPlan();
     if ($("#v-list").classList.contains("on") && $("#fst").value === "due") applyFilter(false);
   }, 30000);
@@ -9364,7 +9750,6 @@
   const STUDY_PERSIST_MS = 30000;      // 累计满 30 秒才落盘一次，避免高频写入
   let studyLastTickAt = Date.now();
   let studyLastActivityAt = 0;         // 0 = 尚无有效活动；首次活动后才开始计时
-  let studyPendingMs = 0;
   let studyWasHidden = false;
   let studyWasOnStudy = false;
   let studyBookId = currentBookId;
@@ -9389,6 +9774,7 @@
   }
   /** 把待记的整秒时长并入主记录；多标签以存储为准合并，绝不覆盖别人的判定。 */
   function studyTimeFlush(){
+    if (pendingReplacementToken) return false;
     const whole = Math.floor(studyPendingMs / 1000);
     if (whole <= 0) return true;
     let raw;
@@ -9396,6 +9782,8 @@
     if (raw === null && lastMainRaw !== null) return false;   // 别的标签清空记录：等同步，不写回旧状态
     let storedTime = 0;
     if (raw !== null && raw !== lastMainRaw) {
+      // 计时不能先采纳新 raw 再用旧 S 保存，否则会抹掉换代信号并复活旧辅助记录。
+      if (replacementToken(raw) !== replacementToken(lastMainRaw)) return false;
       let latest;
       try { latest = normalizeState(JSON.parse(raw), currentBookId); }
       catch (e) { return false; }
@@ -9509,6 +9897,15 @@
 
   window.addEventListener?.("storage", (e) => {
     if (e.key === ACTIVE_KEY) { followActiveBook(); return; }
+    if (e.key === AUTO_RESUME_PAUSE_KEY || e.key === null) {
+      if (e.key === null) { autoResumePausePending.clear(); autoResumePauseStore.map = {}; }
+      readAutoResumePauseStore(true);
+      if (autoResumePausedToday()) {
+        autoResumePhase = "paused"; autoResumeDeadline = 0; autoResumeIdleSince = null;
+      } else if (autoResumePhase === "paused") resetAutoResumeRuntime();
+      renderAutoResume();
+      if (e.key !== null) return;
+    }
     for (const id of Object.keys(BOOKS)) {
       if (e.key === BOOKS[id].SURVEY_KEY) {
         if (id === currentBookId) { loadSurvey(); renderSurvey(); }
@@ -9530,23 +9927,24 @@
     }
     try {
       const raw = localStorage.getItem(KEY);
+      const wasEmptyPage = emptyMainPage();
       const candidate = raw !== null ? normalizeState(JSON.parse(raw), currentBookId) : freshState(currentBook());
+      const replaced = raw === null || e.key === null || replacementToken(raw) !== replacementToken(lastMainRaw);
+      // 显式替换写入失败仍在本页待提交；旧一代普通通知不能把它改回旧累计。
+      if (pendingReplacementToken && !replaced) return;
       const proficientRaw = localStorage.getItem(PROF_KEY);
       if (proficientRaw !== null) candidate.proficient = normalizeProficientByBook(JSON.parse(proficientRaw), currentBook());
-      const signature = s => JSON.stringify([s.settings, s.progress, s.days, s.stars, s.proficient]);
-      if (signature(candidate) === signature(S) && !Q.slice(qi).some(i => !!candidate.proficient[W[i].w])) {
-        // 别的标签已把同一时段的时长落盘：丢弃本页可能重复的待记时长，避免重复累计。
-        if ((candidate.timeSec || 0) > (S.timeSec || 0)) studyPendingMs = 0;
-        S.timeSec = Math.max(S.timeSec, candidate.timeSec);
-        // 20/23：内容相同但当日台账/临时加量可能被别标签改大，按「取较大」同步内存，不重建队列。
-        const localReview = reviewLedger(), incomingReview = normalizeReviewDay(candidate.reviewDay);
-        if (incomingReview.d === localReview.d && incomingReview.used > localReview.used) S.reviewDay = incomingReview;
-        const localExtra = normalizeExtraDay(S.extraDay), incomingExtra = normalizeExtraDay(candidate.extraDay);
-        if (incomingExtra.d === localExtra.d && incomingExtra.extra > localExtra.extra) S.extraDay = incomingExtra;
-        // 16：内容相同只差拼写记录时按「更多组/更多作答者胜」合并，不重建队列。
-        S.spelling = mergeSpellingState(S.spelling, candidate.spelling);
+      if (!replaced && sharedLearningSignature(candidate) === sharedLearningSignature(S)
+          && !Q.slice(qi).some(i => !!candidate.proficient[W[i].w])) {
+        const previousSettings = S.settings;
+        const settingsChanged = JSON.stringify(S.settings) !== JSON.stringify(candidate.settings);
+        S.settings = candidate.settings;
+        mergeSharedCounters(candidate);
         lastMainRaw = raw;
         lastSavedSignature = savedStateSignature(S);
+        storageOK = true;
+        blockedBooks.delete(currentBookId);
+        if (settingsChanged) refreshSharedSettingsSurfaces(true, previousSettings);
         renderCapSurfaces();
         if ($("#v-study").classList.contains("on") && cur == null) renderCard();
         return;
@@ -9556,17 +9954,20 @@
       const localExtraBefore = normalizeExtraDay(S.extraDay);
       const localSpellingBefore = normalizeSpellingState(S.spelling);
       S = candidate;
+      pendingReplacementToken = null;
       // 内容被别的标签更新时，当日台账/临时加量仍取较大值，不回退本页已知的消费或授予。
       const afterReview = reviewLedger();
-      if (localReviewBefore.d === afterReview.d && localReviewBefore.used > afterReview.used) {
+      const removed = replaced;
+      if (!removed && localReviewBefore.d === afterReview.d && localReviewBefore.used > afterReview.used) {
         S.reviewDay = {d: afterReview.d, used: localReviewBefore.used};
       }
       const afterExtra = extraDayLedger();
-      if (localExtraBefore.d === afterExtra.d && localExtraBefore.extra > afterExtra.extra) {
+      if (!removed && localExtraBefore.d === afterExtra.d && localExtraBefore.extra > afterExtra.extra) {
         S.extraDay = {d: afterExtra.d, extra: localExtraBefore.extra};
       }
       // 16：本页刚完成的拼写组不被别标签旧快照覆盖；更新的一方保留（下一次保存落盘）。
-      S.spelling = mergeSpellingState(localSpellingBefore, candidate.spelling);
+      if (!removed) S.spelling = mergeSpellingState(localSpellingBefore, candidate.spelling);
+      else { studyPendingMs = 0; clearProfPending(currentBookId); pendingReplacementToken = null; }
       if ((S.timeSec || 0) > prevTimeSec) studyPendingMs = 0;   // 外部时长覆盖了本页待记的部分
       studyLastFingerprint = studyStateFingerprint();           // 外部同步不算本页的学习活动
       lastMainRaw = raw;
@@ -9574,7 +9975,9 @@
       storageOK = true;
       blockedBooks.delete(currentBookId);
       if (activeSheet) closeSheet();
-      bindSet(); applyFilter(); renderStats(); startSession(); applyBrand(); renderBookList();
+      bindSet(); applyFilter(); renderStats();
+      resumeAfterSharedChange(wasEmptyPage, replaced);
+      applyBrand(); renderBookList();
       toast("另一窗口的进度已同步");
     } catch (err) { toast("另一窗口的记录无法读取，当前进度已保留"); }
   });
@@ -9609,6 +10012,7 @@
     isCapPaused: () => isCapPaused(),
     getCapPaused: () => isCapPaused(),
     refreshForResume,
+    refreshSharedBeforeNextGroup,
     // —— 23 今日临时加量 / 额外新词子组（只读 + grantExtraNew/endExtraSubgroup 为合法写入口） ——
     getExtraDay, getEffectiveNewTarget, grantExtraNew, grantExtraNewFromPause,
     getExtraCandidatesAvailable: () => extraCandidatesAvailable(),
@@ -9649,6 +10053,8 @@
     getAutoResume,
     getCandidatesNow,
     getAutoResumeState,
+    continueMainSession,
+    startEmptyWait, stopEmptyWait,
     setAutoResume,
     applyAutoResumePreset,
     pauseAutoResumeToday,

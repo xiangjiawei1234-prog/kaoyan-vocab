@@ -6,7 +6,7 @@
 <meta name="description" content="基于真题词频的背单词工具（考研 / 英语四级 / 英语六级 / 综合词书）">
 <meta name="theme-color" content="#F6F3ED">
 <title>考研英语单词背诵</title>
-<link rel="stylesheet" href="css/app.css?v=20261022-r37">
+<link rel="stylesheet" href="css/app.css?v=20261023-r42">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
 </head>
@@ -137,14 +137,15 @@
         </div>
         <p class="auto-resume-text" id="autoResumeText"></p>
         <div class="auto-resume-acts">
-          <button type="button" class="btn ghost sm" id="autoResumeNow">立即开始</button>
+          <button type="button" class="btn ghost sm" id="autoResumeQuick" title="启用 1 张可背词、闲置 30 秒后倒计时 3 秒的自动续背方案">便捷续背</button>
+          <button type="button" class="btn ghost sm" id="startEmptyWait" hidden>开始等待到期</button>
+          <button type="button" class="btn ghost sm" id="stopEmptyWait" hidden>退出本页等待</button>
           <button type="button" class="btn ghost sm" id="autoResumePause">今天暂停自动续背</button>
         </div>
       </div>
       <div class="group-footer" id="groupFooter" role="status" hidden>
         <p class="group-footer-text" id="groupFooterText"></p>
         <div class="group-footer-actions">
-          <button type="button" class="btn ghost sm" id="nextGroupBtn" hidden>继续下一组</button>
           <button type="button" class="btn ghost sm" id="returnMainGroup" title="只学今日计划内新词 · 返回原组" aria-label="只学今日计划内新词，返回原组" hidden>返回原组</button>
         </div>
       </div>
@@ -247,35 +248,36 @@
 
   <!-- ============ 统计 ============ -->
   <section class="view" id="v-stats" aria-label="统计">
-    <div class="view-heading stats-wide"><div><p class="eyebrow">LEARNING JOURNAL</p><h2>学习足迹</h2></div><p>看见积累，也为下一次复习做好准备。</p></div>
-    <div class="panel stats-wide overview-panel">
-      <h3>学习总览 <span class="panel-note">掌握类＝当前背诵范围 · 其他＝当前词书</span></h3>
-      <p class="stats-note" id="timeSecNote">累计时长按实际学习计量：有有效操作与停留才累计，闲置约 1 分钟后暂停；切后台、休眠和跨页不补记。旧版本按页面停留累计的历史数值原样保留。</p>
-      <div class="mastery-meter" id="masteryMeter"></div>
-      <div class="grid" id="kpis"></div>
-    </div>
+    <div class="view-heading"><div><p class="eyebrow">LEARNING JOURNAL</p><h2>学习足迹</h2></div><p>看见积累，也为下一次复习做好准备。</p></div>
     <div class="panel review-action-panel">
-      <h3>今日计划 <span class="panel-note">当前背诵范围</span></h3>
+      <div class="panel-heading"><h3>今日计划</h3><p class="panel-note">当前背诵范围</p></div>
       <p class="review-plan" id="reviewPlan" role="status" aria-live="polite"></p>
       <p class="review-cap-line" id="reviewCapLine" role="status"></p>
       <div class="stats-review-actions"><button type="button" class="btn primary" id="btnDueList">查看到期词</button><button type="button" class="btn ghost" id="btnStatsStudy">返回背诵</button></div>
       <div class="today-goal" id="todayGoal"></div>
     </div>
+    <div class="panel overview-panel">
+      <div class="panel-heading"><h3>学习总览</h3><p class="panel-note">掌握类＝当前背诵范围 · 其他＝当前词书</p></div>
+      <details class="stats-method-note"><summary>学习时长如何计量</summary><p class="stats-note" id="timeSecNote">累计时长按实际学习计量：有有效操作与停留才累计，闲置约 1 分钟后暂停；切后台、休眠和跨页不补记。旧版本按页面停留累计的历史数值原样保留。</p></details>
+      <div class="mastery-meter" id="masteryMeter"></div>
+      <div class="grid" id="kpis"></div>
+    </div>
+    <div class="stats-analysis-heading"><h3>深入分析</h3><p>按需展开，查看复习安排和学习分布。</p></div>
     <details class="panel stats-details" id="statsForecastPanel">
-      <summary><h3>复习负荷 <span class="panel-note">当前背诵范围 · 未来 14 天</span></h3></summary>
+      <summary><h3>复习负荷</h3><span class="panel-note">当前背诵范围 · 未来 14 天</span></summary>
       <p class="chart-instruction">选择日期查看词数，方向键切换日期<span class="chart-mobile-hint">左右滑动查看全部日期</span></p>
       <div class="chart-scroll"><div class="forecast" id="forecast" role="group" aria-label="未来 14 天到期词数，左右方向键切换日期"></div></div>
       <p class="chart-summary" id="forecastSummary"></p>
       <div class="chart-hint" id="forecastHint" role="status" aria-live="polite"></div>
     </details>
     <details class="panel stats-details" id="surveyPanel">
-      <summary><h3>历史首次自评 <span class="panel-note">乱序历史样本 · 非当前范围/全书掌握率</span></h3></summary>
+      <summary><h3>历史首次自评</h3><span class="panel-note">乱序历史样本 · 非当前范围/全书掌握率</span></summary>
       <div class="grid" id="surveyKpis"></div>
       <div class="survey-gauge" id="surveyGauge"></div>
       <p class="chart-hint" id="surveyHint" role="status" aria-live="polite"></p>
     </details>
     <details class="panel stats-details" id="statsFreqPanel">
-      <summary><h3>词频分层掌握度 <span class="panel-note">当前背诵范围</span></h3></summary>
+      <summary><h3>词频分层掌握度</h3><span class="panel-note">当前背诵范围</span></summary>
       <div class="fm-list" id="freqMastery"></div>
       <div class="legend" aria-hidden="true">
         <span><i class="lg-mastered"></i>已掌握</span>
@@ -285,13 +287,13 @@
       <p class="chart-summary" id="freqMasterySummary"></p>
     </details>
     <details class="panel stats-details" id="statsStagesPanel">
-      <summary><h3>掌握阶段分布 <span class="panel-note">当前背诵范围 · 艾宾浩斯 10 档</span></h3></summary>
+      <summary><h3>掌握阶段分布</h3><span class="panel-note">当前背诵范围 · 艾宾浩斯 10 档</span></summary>
       <p class="chart-instruction" id="stagesSummary">仅统计已开始学习的词，选择档位查看词数</p><p class="chart-mobile-hint">左右滑动查看全部档位</p>
       <div class="chart-scroll"><div class="stages" id="stages" role="group" aria-label="掌握阶段分布，左右方向键切换档位"></div></div>
       <div class="chart-hint" id="stagesHint" role="status" aria-live="polite"></div>
     </details>
     <details class="panel stats-details" id="statsDaysPanel">
-      <summary><h3>近 14 天学习量 <span class="panel-note">当前词书全部学习活动</span></h3></summary>
+      <summary><h3>近 14 天学习量</h3><span class="panel-note">当前词书全部学习活动</span></summary>
       <p class="chart-instruction">选择日期查看新词、复习和正确率<span class="chart-mobile-hint">左右滑动查看全部日期</span></p>
       <div class="chart-scroll"><div class="days" id="days" role="group" aria-label="近 14 天学习量，左右方向键切换日期"></div></div>
       <div class="legend" aria-hidden="true">
@@ -301,23 +303,23 @@
       <p class="chart-summary" id="daysSummary"></p>
       <div class="chart-hint" id="daysHint" role="status" aria-live="polite"></div>
     </details>
-    <details class="panel stats-details stats-wide" id="statsHeatmapPanel">
-      <summary><h3>学习热力图 <span class="panel-note">当前词书 · 近 12 周</span></h3></summary>
+    <details class="panel stats-details" id="statsHeatmapPanel">
+      <summary><h3>学习热力图</h3><span class="panel-note">当前词书 · 近 12 周</span></summary>
       <div class="heatmap-scroll" id="heatmapScroll">
         <div class="heatmap" id="heatmap"></div>
       </div>
       <div class="heatmap-legend" aria-label="颜色越深表示当日学习量越多"><span>少</span><i data-level="0"></i><i data-level="1"></i><i data-level="2"></i><i data-level="3"></i><i data-level="4"></i><span>多</span></div>
       <div class="chart-hint" id="heatmapTip" role="status" aria-live="polite"></div>
     </details>
-    <div class="panel stats-wide stats-storage-panel">
-      <h3>备份与导出 <span class="panel-note">学习记录仅保存在当前浏览器</span></h3>
+    <div class="panel stats-storage-panel">
+      <div class="panel-heading"><h3>备份与导出</h3><p class="panel-note">进度备份 · 打印生词本</p></div>
       <div class="stats-backup-actions">
         <button type="button" class="btn ghost" id="btnPrintBook">打印生词本</button>
         <button type="button" class="btn ghost" id="exp">导出进度</button>
         <button type="button" class="btn ghost" id="imp">导入进度</button>
       </div>
-      <p class="storage-note">进度与熟练标记保存在当前浏览器中；更换浏览器或清除网站数据后不会自动恢复。可导出进度备份；导入前会展示备份时间、各书记录量与替换范围，替换学习记录但保留已有熟练标记。熟练词可用「取消熟练」恢复背诵与复习。</p>
       <p class="backup-status" id="backupStatus" role="status" aria-live="polite"></p>
+      <p class="storage-note">导入前会展示备份时间、各书记录量与替换范围；导入替换学习记录，保留已有熟练标记。熟练词可在词表中取消，恢复背诵与复习。</p>
       <details class="stats-danger-area"><summary>重置当前词书<span>谨慎操作</span></summary><div class="stats-danger-body"><p>只影响当前词书。建议先导出进度备份；操作前会再次确认影响范围。</p><div class="stats-backup-actions"><button type="button" class="btn ghost danger" id="resetProficient">清空熟练标记</button><button type="button" class="btn ghost danger" id="rst">重置当前词书记录</button></div></div></details>
       <input type="file" id="file" accept=".json" hidden>
     </div>
@@ -374,8 +376,9 @@
         </div>
         <div class="field auto-resume-field">
           <div class="field-title"><h4 id="autoResumeSetTitle">完成后挂机自动续背</h4><span class="field-hint">可随时取消</span></div>
-          <p class="fdesc" id="autoResumeDesc">主学习组真正完成且没有待巩固后，若连续一段时间没有有效操作、当前范围可背词达到阈值，会先出现可取消倒计时，再自动开始下一组。只刷新到期与额度，不判定、不消耗额度、不增加学习时长；后台标签不抢焦点。旧记录默认关闭。</p>
+          <p class="fdesc" id="autoResumeDesc">主学习组真正完成且没有待巩固后，或在空页明确选择“开始等待到期”后，连续一段时间没有有效操作且可背词达到阈值时，先可取消倒计时，再自动开始下一组。不判定、不消耗额度、不增加学习时长；后台不启动。空页等待仅本页有效，旧记录默认关闭自动续背。</p>
           <div class="ar-presets" id="autoResumePresets" role="group" aria-label="自动续背预设">
+            <button type="button" data-ar-preset="quick" aria-pressed="false">便捷（1 张 / 30 秒）</button>
             <button type="button" data-ar-preset="timely" aria-pressed="false">及时（1 张 / 1 分钟）</button>
             <button type="button" data-ar-preset="balanced" aria-pressed="false">均衡（5 张 / 2 分钟）</button>
             <button type="button" data-ar-preset="focused" aria-pressed="false">集中（10 张 / 5 分钟）</button>
@@ -733,6 +736,6 @@
 <script src="js/combined-words-data.js"></script>
 <script src="js/senses-data.js"></script>
 <script src="js/txt-zip.js"></script>
-<script src="js/app.js?v=20261022-r37"></script>
+<script src="js/app.js?v=20261023-r42"></script>
 </body>
 </html>

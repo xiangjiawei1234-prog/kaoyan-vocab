@@ -15,6 +15,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
+import { contentEncodingFields, isConfirmedBadExample, exampleHasWordForm, mechanicalExampleRisks } from "./content-validation.mjs";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -45,7 +46,7 @@ function srcYear(src){const s=String(src||"");const c=s.match(CET_SRC_RE);if(c)r
 const YEAR_RANGE_RE = /^(\d{4})[–-](\d{4})$/;
 const PLACEHOLDER_RE = /TODO|FIXME|待补|暂无|无释义|占位|N\/A|\bnull\b|\bundefined\b|xxx+/i;
 const DANGER_RE = /<script|onerror\s*=|onload\s*=|javascript:|<\/?iframe|<\/?img|<\/?svg/i;
-const BAD_CHAR_RE = /[\uFFFD\u0000-\u0008\u000B\u000C\u000E-\u001F]/;
+const BAD_CHAR_RE = /[\uFFFD\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/;
 
 // ---------- 结果收集 ----------
 const issues = [];
@@ -126,13 +127,17 @@ function checkCommon(index, bookKey, entries) {
       if (DANGER_RE.test(ex) || BAD_CHAR_RE.test(ex)) htmlDanger++;
       const srcOk = typeof src === "string" && SRC_RE.test(src);
       if (!srcOk) { exBadSrc++; if (badSrcList.length < 8) badSrcList.push([i, w, src, ex]); }
-      // 例句应包含该词的词干（允许屈折变化：compare 前 4 字母，至少 4 字母）
-      const stem = w.length >= 6 ? w.slice(0, w.length - 2) : w.slice(0, 4);
-      if (!new RegExp(stem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i").test(ex)) {
-        exNoWord++; if (exNoWord <= 6) warn("例句", `例句疑似不含该词（词干 ${JSON.stringify(stem)}）`, bookKey, i, w, short(ex));
+      // 只接受词头或该条 fm 已明确给出的词形，如 lead→led / catch→caught。
+      if (!exampleHasWordForm(w, ex, fm)) {
+        exNoWord++; if (exNoWord <= 6) warn("例句", "例句疑似不含对应词头/明确词形", bookKey, i, w, short(ex));
       }
     }
     if (typeof src === "string" && src && row[7] && src.trim()) { /* src 合法性在例句分支判定 */ }
+    const badEncodingFields = contentEncodingFields(row);
+    if (badEncodingFields.length) err("编码", "字段含控制字符/替换符/私用区", bookKey, i, w, `字段 ${badEncodingFields.map(k => FIELD[k]).join("/")}`);
+    if (isConfirmedBadExample(ex)) err("内容修订", "已确认污染例句回流", bookKey, i, w, short(ex));
+    const mechRisks = mechanicalExampleRisks(ex);
+    if (mechRisks.length) warn("例句", "疑似机械污染（待人工核验：" + mechRisks.join("/") + "）", bookKey, i, w, short(ex));
     if (ky === 1) kyCount++;
     if (BAD_CHAR_RE.test(String(w) + String(m) + String(ex) + String(fm))) phishing++;
   });
@@ -155,7 +160,7 @@ function checkCommon(index, bookKey, entries) {
   if (nonCjkMeaning) warn("释义", `释义不含中文（${nonCjkMeaning}/${N}）`, bookKey, null, null, null);
   if (htmlDanger) err("安全", `字段疑似含 HTML/脚本（${htmlDanger} 处）`, bookKey, null, null, null);
   if (exBadSrc) err("例句", `例句出处格式非法或与本级不符（${exBadSrc}/${exampleCount}）`, bookKey, badSrcList[0]?.[0], badSrcList[0]?.[1], `如 ${badSrcList.slice(0, 5).map(x => JSON.stringify(x[2])).join(",")}`);
-  if (exNoWord) warn("例句", `疑似例句不含对应词（${exNoWord}/${exampleCount}，允许屈折/派生）`, bookKey, null, null, null);
+  if (exNoWord) warn("例句", `疑似例句不含对应词头/明确词形（${exNoWord}/${exampleCount}，只采纳本条 fm）`, bookKey, null, null, null);
   if (phishing) warn("编码", `字段含控制字符/替换符（${phishing} 条）`, bookKey, null, null, null);
 
   // r 排序结构：补回实义虚词（若存在）必须连续追加在数组末尾，之前部分 r 严格递增
@@ -386,7 +391,7 @@ function checkContentFixes(bookKey, entries) {
     expect("loneliness", a => a[8] === "自编" && hasForm(a[7], ["loneliness"]) && /[.!?]["']?$/.test(a[7]), "loneliness 原残句应替换为准确标注的自编完整句");
     expect("lie", a => /躺/.test(a[2]) && /说谎/.test(a[2]) && /lain/.test(a[10]) && /lied/.test(a[10]), "lie 需分义列出躺（lay/lain）与说谎（lied/lied）的词形");
   }
-  // 已清理的填空残留不得回流（本轮清理 _lQ_；cet6 的 tum 残句已列入待核对，不在此断言）。
+  // 已清理的填空残留不得回流（2026-10-23 也清理 tum 等全部已确认句族，硬门控见共用 content-validation.mjs）。
   entries.forEach((row, i) => {
     if (Array.isArray(row) && typeof row[7] === "string" && row[7].includes("_lQ_")) {
       warn("内容修订", "例句含已清理的填空残留 _lQ_", bookKey, i, row[0], short(row[7]));
@@ -521,8 +526,8 @@ try {
     }
   }
   lines.push("## 判定口径", "");
-  lines.push("- error 即失败：两册非空、11 元组与类型、全小写 ASCII、无重复、`r` 连续 1..N、`f>=1`、`1<=c<=paperCount`、`ky∈{0,1}`、`posIdx∈[0,15]`、释义非空、例句出处格式 `四级/六级 YYYY.MM` 或考研来源/自编、meta 与数组一致、无 HTML/脚本注入。");
-  lines.push("- warning 提示信息披露项：音标/例句/词形覆盖率、释义不含中文、wordfreq 缺词（补回词）、yearRange 与例句年份差异等。");
+  lines.push("- error 即失败：两册非空、11 元组与类型、全小写 ASCII、无重复、`r` 连续 1..N、`f>=1`、`1<=c<=paperCount`、`ky∈{0,1}`、`posIdx∈[0,15]`、释义非空、例句出处格式 `四级/六级 YYYY.MM` 或考研来源/自编、meta 与数组一致、无 HTML/脚本注入；C0/DEL/C1/替换符/私用区以及 2026-10-23 已确认污染例句不得回流。");
+  lines.push("- warning 提示信息披露项：音标/例句/词形覆盖率、释义不含中文、词头/明确词形缺席、wordfreq 缺词（补回词）、yearRange 与例句年份差异等。");
   lines.push("- 内容修订回归（warning）：`docs/内容修订记录-2026-10-22.md` 首批已核对词条的读音/词性/释义/例句固定期望（use、minute、contract、object、loneliness、rate、barely、lead、customer、lie），以及例句回流 `_lQ_` 等已清理残留。");
   lines.push("- `r` 排名口径：按 `(-f, -c, word)` 排序的 1 基排名；补回实义虚词 `will/may/can/one/own` 连续追加在数组末尾。");
   lines.push("");

@@ -10,6 +10,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
+import { contentEncodingFields, isConfirmedBadExample, mechanicalExampleRisks } from "./content-validation.mjs";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -45,7 +46,7 @@ const isInt = (n) => typeof n === "number" && Number.isInteger(n);
 const isStr = (v) => typeof v === "string";
 const CJK = /[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/;
 const GARBLED = /[\ufffd\u{fffe}\u{ffff}]|[\u{e000}-\u{f8ff}]/u;
-const CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/;
+const CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/;
 const WORD_RE = /^[a-z]+(?:[-'][a-z]+)*$/;
 const SRC_RE = /^(?:(?:英语一|英语二|旧题型) \d{4}|(?:四级|六级) \d{4}\.\d{2}|自编(?:例句)?|词典例句)$/;
 const PLACEHOLDER_RE = /TODO|FIXME|待补|暂无|无释义|占位|N\/A|\bnull\b|\bundefined\b|xxx+/i;
@@ -268,12 +269,19 @@ for (let i = 0; i < entries.length; i++) {
     err("structure", "词性索引 p 越界", i, w, `p=${p}（合法 0–${POS_MAX}）`);
   }
 
+  // 已确认编码/污染是硬门控；一般语义完整性仍由下方 warning 提醒人工复核。
+  const badEncodingFields = contentEncodingFields(a);
+  if (badEncodingFields.length) err("content", "字段含控制字符/替换符/私用区", i, w, `字段 ${badEncodingFields.map(k => FIELD_NAMES[k]).join("/")}`);
+  if (isConfirmedBadExample(ex)) err("content", "已确认污染例句回流", i, w, short(ex));
+
   // 6) 例句 / 来源
   if (ex) {
     if (CJK.test(ex)) warn("example", "例句含中文", i, w, short(ex));
     const words = ex.trim().split(/\s+/).filter(Boolean).length;
     if (words < 4) warn("example", "例句过短", i, w, `${words} 词: ${short(ex)}`);
     if (EXAM_LEFTOVER_RE.test(ex)) warn("example", "例句残留题号/选项标记", i, w, short(ex));
+    const mechRisks = mechanicalExampleRisks(ex);
+    if (mechRisks.length) warn("example", "例句疑似机械污染（待人工核验：" + mechRisks.join("/") + "）", i, w, short(ex));
     if (GARBLED.test(ex)) warn("example", "例句含乱码", i, w, short(ex));
     if (CONTROL.test(ex)) warn("example", "例句含控制字符", i, w, JSON.stringify(short(ex)));
     const odd = (ex.match(/"/g) || []).length % 2 === 1;
@@ -579,7 +587,7 @@ md.push("| 5 | 词频 r/f/c | r<1 或重复；f<1；c<1 或 c>46 或 c>f | r 不
 md.push("| 6 | 例句/来源 | — | 含中文；过短(<4词)；残留题号/选项；引号不配对；乱码；非常见字符；例句与来源不齐；来源格式不规范 |");
 md.push("| 7 | ky 一致性 | ky∉{0,1}；大纲词缺释义 | 大纲词缺音标；残缺词形标大纲；词性 PROPN 却标大纲 |");
 md.push("| 8 | 高频抽样 | — | r 前 50 释义不合格（无中文/无词性前缀/过短/占位/乱码） |");
-md.push("| 9 | 内容修订回归 | — | 已核对词条（use/minute/lead/lie/unmistakable/statistics）的读音/词性/词形/例句偏离固定期望；例句回流 `_lQ_`、`In tum` 等已清理残留；例句不含目标词形 |");
+md.push("| 9 | 内容修订回归 | 控制字符/替换符/私用区；2026-10-23 已确认污染例句回流 | 已核对词条（use/minute/lead/lie/unmistakable/statistics）的读音/词性/词形/例句偏离固定期望；例句回流 `_lQ_`、`In tum` 等已清理残留；例句不含目标词形 |");
 md.push("");
 md.push("字段顺序（与 `js/app.js` 一致）：`w, ph, m, p, r, f, c, ex, src, ky, fm`。");
 md.push("");

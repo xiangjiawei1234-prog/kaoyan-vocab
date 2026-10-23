@@ -819,6 +819,16 @@ console.log("== 19. 批次 C：首屏结构 · 范围摘要 · 统计页展开 =
   ck(detailPanels.length === 6, "统计页 6 个高阶面板使用原生 details", String(detailPanels.length));
   ck(idxHtml.includes('id="statsForecastPanel"') && idxHtml.includes('id="statsHeatmapPanel"'),
     "统计 details 面板 id 稳定，便于 QA/测试定位");
+  const statsHtml = idxHtml.slice(idxHtml.indexOf('<section class="view" id="v-stats"'), idxHtml.indexOf('<!-- ============ 设置'));
+  const statsOrder = ['review-action-panel', 'overview-panel', 'stats-analysis-heading', 'statsForecastPanel', 'surveyPanel', 'statsFreqPanel', 'statsStagesPanel', 'statsDaysPanel', 'statsHeatmapPanel', 'stats-storage-panel'];
+  ck(statsOrder.every((key, i) => statsHtml.indexOf(key) >= 0 && (i === 0 || statsHtml.indexOf(key) > statsHtml.indexOf(statsOrder[i - 1]))),
+    "统计真实 DOM 顺序为今日计划、学习总览、六项深入分析、备份，所有断点一致");
+  const statsDetails = [...statsHtml.matchAll(/<details class="panel stats-details(?: stats-wide)?"[^>]*>/g)];
+  ck(statsDetails.length === 6 && statsDetails.every(([tag]) => !/\bopen(?:[\s=>]|$)/.test(tag)),
+    "六个分析面板默认关闭，展开由原生 details 管理");
+  ck((statsHtml.match(/<summary><h3>[^<]+<\/h3><span class="panel-note">/g) || []).length === 6,
+    "分析卡头的标题与口径为独立节点，图标不受长说明挤压");
+
   ck(idxHtml.includes('tabindex="-1"></section>') || idxHtml.includes('id="settings-scope" aria-labelledby="scopeTitle" tabindex="-1"'),
     "设置页「词库范围」可被范围摘要聚焦跳转");
   ck(css.includes(".study-scope") && css.includes(".survey-detail") && css.includes(".stats-details"),

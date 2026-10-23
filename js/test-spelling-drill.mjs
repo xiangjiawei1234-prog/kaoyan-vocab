@@ -285,6 +285,32 @@ function isolationSnapshot(b) {
     groupTotal: b.T.getGroupTotal()
   });
 }
+/** 只保留指定词作为专项候选；只操作沙箱中的状态，不改交付词库。 */
+function restrictSpellingCandidates(b, wordNames) {
+  const allowed = new Set(wordNames), S = b.T.getS(), W = b.T.getW();
+  S.progress = {}; S.proficient = {};
+  Object.assign(S.settings, {fmin: 1, fmax: 0, pmin: 0, kyOnly: false, pos: []});
+  W.forEach((x, i) => {
+    if (allowed.has(x.w)) S.progress[i] = [1, Date.now() + 86400000, 1, 0, Date.now()];
+    else S.proficient[x.w] = 1;
+  });
+}
+/** 用户可见文本与可访问名称/描述；显式引用的描述即使隐藏也算，排除调试对象。 */
+function spellingAccessibleText(b) {
+  const out = [];
+  function walk(el) {
+    if (el.hidden) return;
+    out.push(el._text || '');
+    for (const name of ['title', 'aria-label', 'aria-description']) out.push(el.getAttribute(name) || '');
+    for (const name of ['aria-labelledby', 'aria-describedby']) {
+      for (const id of (el.getAttribute(name) || '').split(/\s+/).filter(Boolean)) out.push(b.query('#' + id)?.textContent || '');
+    }
+    el.children.forEach(walk);
+  }
+  walk(b.query('#spellingSheet'));
+  return out.join(' ');
+}
+const chineseCharacters = value => String(value).match(/[\u3400-\u9fff]/g)?.join('') || '';
 
 // ===========================================================================
 // A. 判定规则（纯函数）
@@ -477,6 +503,97 @@ test('四书隔离：每题按当前书取候选与统计', () => {
   assert.equal(b.T.getSpellingStats().sessions, 0);
 });
 
+test('真实四书 make/point/work：作答前去掉英文搭配，中文完整，作答后正常显示答案', () => {
+  const b = browser();
+  for (const book of ['kaoyan', 'cet4', 'cet6', 'combined']) {
+    if (book !== 'kaoyan') b.T.switchBook(book);
+    finishMainGroup(b);
+    for (const word of ['make', 'point', 'work']) {
+      const x = b.T.getW().find(x => x.w === word);
+      assert.ok(x, book + ' 应有真实词头 ' + word);
+      const original = x.m;
+      restrictSpellingCandidates(b, [word]);
+      assert.equal(b.T.startSpellingDrill(), true);
+      assert.equal(b.query('#spellInput').value, '');
+      const prompt = b.text('#spellMean');
+      assert.doesNotMatch(prompt, /[A-Za-z]/, book + '/' + word + ' 中文题面不带英文');
+      assert.equal(chineseCharacters(prompt), chineseCharacters(original), book + '/' + word + ' 不丢中文');
+      assert.doesNotMatch(spellingAccessibleText(b), new RegExp('\\b' + word + '\\b', 'i'), book + '/' + word + ' 可访问文本不露答案');
+      b.query('#spellInput').value = word;
+      b.key('#spellInput', 'Enter');
+      assert.match(b.text('#spellFeedback'), /拼写正确/);
+      assert.ok(b.text('#spellFeedback').includes(word), '反馈允许显示正确答案');
+      assert.equal(x.m, original, '专项转换不改正式释义');
+      b.T.exitSpellingDrill();
+    }
+  }
+});
+
+test('题面转换：大小写/接受变体/中英混合嵌套括号不泄漏，保留括号中的全部中文', () => {
+  const b = browser();
+  finishMainGroup(b);
+  const x = b.T.getW().find(x => x.w === 'colour');
+  x.m = 'n. 颜色（Colour/Color 色彩；使（COLOR）着色），颜料；vt. 涂色（colour in）';
+  const original = x.m;
+  restrictSpellingCandidates(b, ['colour']);
+  b.T.startSpellingDrill();
+  const mean = b.text('#spellMean');
+  assert.equal(chineseCharacters(mean), chineseCharacters(original), '不得整括号丢掉中文含义');
+  assert.doesNotMatch(mean, /[A-Za-z]/);
+  assert.doesNotMatch(mean, /[（(]\s*[）)]/, '清理英文后不留空括号');
+  assert.doesNotMatch(mean, /[（(]\s*[/;,，；]/, '不留下英文分隔符残片');
+  assert.doesNotMatch(spellingAccessibleText(b), /\b(?:colour|color)\b/i);
+  b.query('#spellInput').value = 'color';
+  b.key('#spellInput', 'Enter');
+  assert.match(b.text('#spellFeedback'), /已接受美式拼写/);
+  assert.equal(x.m, original);
+});
+
+test('纯中文题面完整保留；缺音标题目仍可作答且音标隐藏', () => {
+  const b = browser();
+  finishMainGroup(b);
+  const x = b.T.getW().find(x => x.w === 'apple');
+  assert.ok(x);
+  x.m = '苹果；果实（可食用）'; x.ph = '';
+  restrictSpellingCandidates(b, ['apple']);
+  assert.equal(b.T.startSpellingDrill(), true);
+  assert.equal(b.text('#spellMean'), x.m);
+  assert.equal(b.query('#spellPh').hidden, true);
+  b.query('#spellInput').value = 'apple';
+  b.key('#spellInput', 'Enter');
+  assert.match(b.text('#spellFeedback'), /拼写正确/);
+});
+
+test('无有效中文候选：跳过并说明，不生成空题、不计用户跳过或专项统计', () => {
+  const b = browser();
+  finishMainGroup(b);
+  const W = b.T.getW(), S = b.T.getS();
+  const apple = W.find(x => x.w === 'apple'), make = W.find(x => x.w === 'make');
+  apple.m = 'n. Apple (APPLE/fruit)';
+  restrictSpellingCandidates(b, ['apple', 'make']);
+  const statsBefore = JSON.stringify(S.spelling), mainBefore = isolationSnapshot(b);
+  const candidates = b.T.getSpellingCandidates();
+  assert.equal(candidates.total, 1, '有效候选只计有中文的 make');
+  assert.equal(candidates.skippedNoHint, 1, '另报无中文提示数');
+  assert.equal(b.T.startSpellingDrill(), true);
+  assert.equal(b.T.getSpellingState().total, 1);
+  assert.equal(b.T.getSpellingState().current.w, 'make');
+  assert.match(b.text('#spellGroupNote'), /已跳过 1 个缺少有效中文提示的词/);
+  assert.equal(b.T.getSpellingState().skipped, 0, '内容过滤不是用户跳过');
+  assert.equal(isolationSnapshot(b), mainBefore, '开始专项过滤不改主学习状态');
+  b.T.exitSpellingDrill();
+  assert.equal(JSON.stringify(S.spelling), statsBefore, '退出未完成组不计专项统计');
+  restrictSpellingCandidates(b, ['apple']);
+  b.T.setCur(null);
+  assert.equal(b.query('#startSpellingBtn'), null, '没有有效中文候选时不显示专项入口');
+  assert.match(b.text('#card'), /1 个词缺少有效中文提示，已跳过拼写专项/, '完成页说明入口不可用的原因');
+  assert.equal(b.T.startSpellingDrill(), false);
+  assert.equal(b.query('#spellingSheet').hidden, true);
+  assert.match(b.text('#toast'), /缺少有效中文提示/);
+  assert.equal(apple.m, 'n. Apple (APPLE/fruit)', '不回写数据内容');
+  assert.ok(make.m.includes('make headway'), '主释义中的英文搭配保留');
+});
+
 // ===========================================================================
 // C. 入口与会话流程
 // ===========================================================================
@@ -504,7 +621,8 @@ test('打开 sheet：显示中文释义+词性（+音标），不显示英文单
   assert.equal(st.active, true);
   const cur = st.current;
   assert.ok(cur, '有当前词');
-  assert.equal(b.text('#spellMean'), cur.m);
+  assert.equal(chineseCharacters(b.text('#spellMean')), chineseCharacters(cur.m), '题面保留完整中文释义');
+  assert.doesNotMatch(b.text('#spellMean'), /[A-Za-z]/, '题面去掉原释义中的英文及词性缩写');
   assert.ok(String(b.text('#spellPos')).length > 0, '显示词性提示');
   const promptText = String(b.text('#spellPrompt'));
   assert.ok(!promptText.toLowerCase().includes(cur.w.toLowerCase()), '提示区不得泄漏英文单词：' + promptText);
@@ -561,6 +679,8 @@ test('变体拼写：提示「已接受美式/英式拼写」，计入正确', (
   const pairs = b.T.getSpellingVariants();
   const pair = pairs.find(p => p[0] === target || p[1] === target);
   const alt = pair[0] === target ? pair[1] : pair[0];
+  // 完成页夹具已有主学习记录；清掉后建立恰好 10 个已学候选，避免随机抽样漏掉目标。
+  b.T.getS().progress = {};
   markLearned(b, 10, [vi]);
   b.T.startSpellingDrill();
   const st = b.T.getSpellingState();

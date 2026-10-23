@@ -582,5 +582,264 @@ console.log("== 9. 按类恢复默认不影响学习进度 ==");
   ck(T.resetSettingsClass("nope").ok === false, "未知恢复类别返回失败");
 }
 
+/* ================= 10. 跨标签仅设置变化保留当前组 ================= */
+console.log("== 10. 跨标签设置同步不重开当前组 ==");
+function receiveStoredSettings(change, { omitZeroDay = false } = {}) {
+  const incoming = clone(stored());
+  Object.assign(incoming.settings, change);
+  if (omitZeroDay) incoming.days = {};
+  store.set(KEY, JSON.stringify(incoming));
+  for (const fn of winHandlers.get("storage") || []) fn({key: KEY});
+}
+{
+  setup({dailyNew: 20, groupSize: 5});
+  T.show("study");
+  T.judge(true);
+  const before = groupSig(), frozen = clone(plan()), word = T.cur;
+  receiveStoredSettings({theme: "dark", groupSize: 3, pmin: 3});
+  ck(eqGroup(groupSig(), before), "另一标签改主题/组长/范围不替换Q或重置已答数");
+  ck(T.phase === "revealed" && T.verdict === true && T.cur === word, "另一标签设置同步保留当前揭示与判定");
+  ck(eq(plan(), frozen), "跨标签设置同步仍保留冻结计划");
+  ck(settings().theme === "dark" && document.documentElement.dataset.theme === "dark", "跨标签外观即时生效");
+  ck(settings().groupSize === 3 && T.hasPendingScopeSettings(), "跨标签计划保存并提示下组生效");
+  ck(String(stateEl("#scopeLabel").textContent).includes(frozen.scopeCount.toLocaleString())
+    && String(stateEl("#scopeLabel").title).includes("下一组"), "学习页页头显示本组范围并解释下组设置");
+  T.undo();
+  ck(T.verdict === null && T.answered === 0 && !S().progress[word], "跨标签仅设置同步后撤销原判定仍有效");
+}
+{
+  setup({groupSize: 5});
+  T.resetSettingsClass("appearance");  // 使主记录和基线落盘，但不制造学习进度。
+  const before = groupSig();
+  receiveStoredSettings({fontSize: "large"}, {omitZeroDay: true});
+  ck(eqGroup(groupSig(), before) && settings().fontSize === "large", "缺失日记录与全零日记录等价，字号同步不重建组");
+}
+{
+  setup({groupSize: 5}); T.judge(true); T.openGuide();
+  const before = groupSig();
+  receiveStoredSettings({showEx: !settings().showEx});
+  ck(!stateEl("#guideSheet").hidden && stateEl("#main").inert, "另一标签只改显示偏好不关闭已有浮层");
+  ck(eqGroup(groupSig(), before) && T.phase === "revealed", "浮层内设置同步保留学习现场");
+  T.closeSheet();
+  ck(eqGroup(groupSig(), before), "关闭浮层后应用延迟显示更新不重开组");
+}
+
+/* ================= 11. storage事件延迟时保存采用设置三方合并 ================= */
+console.log("== 11. 延迟设置事件不抢掉本次有效判定 ==");
+{
+  setup({dailyNew: 20, groupSize: 5}); T.judge(true); T.tryNext();
+  const cur = T.cur, before = groupSig(), frozen = clone(plan());
+  const incoming = clone(stored()); incoming.settings.theme = "dark"; incoming.settings.groupSize = 2;
+  store.set(KEY, JSON.stringify(incoming));  // 模拟其他标签已写入，但storage事件尚未送达。
+  T.judge(true);
+  ck(T.cur === cur && T.phase === "revealed" && T.answered === before.answered + 1,
+    "最新主记录只差设置时，本页判定正常提交且不重开组");
+  ck(settings().theme === "dark" && settings().groupSize === 2 && eq(plan(), frozen),
+    "保存冲突采用最新设置，仍不改本组冻结计划");
+  ck(!!stored().progress[cur] && stored().settings.theme === "dark", "学习判定与远端设置一并落盘，不相互覆盖");
+  T.undo();
+  ck(!S().progress[cur] && settings().theme === "dark", "合并后撤销只回滚判定，不撤销远端偏好");
+}
+{
+  setup({groupSize: 5}); T.judge(true);
+  const incoming = clone(stored()); incoming.settings.theme = "dark";
+  store.set(KEY, JSON.stringify(incoming));
+  T.setGroupSize(7); // 本地显式改组长，与远端主题改动应逐字段合并。
+  ck(settings().groupSize === 7 && settings().theme === "dark", "并发修改不同设置字段保留双方改动");
+  ck(stored().settings.groupSize === 7 && stored().settings.theme === "dark", "不同字段合并结果已保存");
+}
+
+/* ================= 12. 实际外部内容变化仍权威同步 ================= */
+console.log("== 12. 不把真实学习推进或清空误判成设置更新 ==");
+{
+  setup({groupSize: 5}); T.judge(true);
+  const external = clone(stored()), other = T.Q[1];
+  external.progress[other] = [1, now + 86400000, 1, 0, now];
+  external.days[todayStr()].n++; external.days[todayStr()].r++; external.days[todayStr()].ok++;
+  store.set(KEY, JSON.stringify(external));
+  for (const fn of winHandlers.get("storage") || []) fn({key: KEY});
+  ck(!!S().progress[other] && T.answered === 0, "其他标签真实主进度推进仍采用权威存储并安全开组");
+  S().reviewDay = {d: todayStr(), used: 9};
+  S().extraDay = {d: todayStr(), extra: 40};
+  S().spelling = {sessions: 2, attempts: 2, correct: 1, skipped: 0, lastDay: null, lastSession: null};
+  store.clear();
+  for (const fn of winHandlers.get("storage") || []) fn({key: null});
+  ck(Object.keys(S().progress).length === 0 && T.answered === 0, "localStorage.clear仍清除旧状态，不复活记录");
+  ck(S().reviewDay.used === 0 && S().extraDay.extra === 0 && S().spelling.sessions === 0,
+    "清空存储不复活旧复习台账/临时加量/专项汇总");
+  T.resetSettingsClass("appearance");
+  ck(stored().reviewDay.used === 0 && stored().extraDay.extra === 0 && stored().spelling.sessions === 0,
+    "清空后再保存外观也不回写旧辅助记录");
+}
+
+/* ================= 13. raw-only 换代：导入/重置权威，旧辅助记录不能复活 ================= */
+console.log("== 13. 显式替换换代与完成页主动同步 ==");
+stateEl("#rst").onclick();
+const emptyReplacement = clone(stored());
+function seedReplacementProbe(hasProgress = false) {
+  stateEl("#rst").onclick(); // 真实重置写入另一个代际，确保不是伪造 normalize 后的 S。
+  setup({groupSize: 5});
+  S().timeSec = 200;
+  S().reviewDay = {d: todayStr(), used: 9};
+  S().extraDay = {d: todayStr(), extra: 40};
+  S().spelling = {sessions: 2, attempts: 2, correct: 1, skipped: 0, lastDay: null, lastSession: null};
+  if (hasProgress) T.judge(true);
+  T.setGroupSize(5);
+}
+function installReplacement(value = emptyReplacement) {
+  store.set(KEY, JSON.stringify(value));
+  store.set("kaoyan_vocab_proficient_v1", JSON.stringify(value.proficient || {}));
+}
+function receiveReplacement() {
+  for (const fn of winHandlers.get("storage") || []) fn({key: KEY});
+}
+function blankAux() {
+  return S().timeSec === 0 && S().reviewDay.used === 0 && S().extraDay.extra === 0 && S().spelling.sessions === 0;
+}
+{
+  const first = stored()._replace;
+  ck(typeof first === "string" && first.length > 0, "真实显式重置在主记录原文写入换代 nonce");
+  T.setGroupSize(6);
+  ck(stored()._replace === first, "普通设置保存携带同一 nonce，不制造换代");
+  ck(!Object.hasOwn(S(), "_replace") && !Object.hasOwn(T.normalizeState(stored(), "kaoyan"), "_replace"),
+    "raw-only 元数据不进入 S 或 normalize 白名单");
+  ck(!Object.hasOwn(T.buildExport().books.kaoyan, "_replace"), "换代 nonce 不进入备份 v3");
+  stateEl("#rst").onclick();
+  ck(stored()._replace !== first, "同一毫秒内再次重置也生成不同 nonce");
+}
+for (const hadProgress of [false, true]) {
+  seedReplacementProbe(hadProgress);
+  installReplacement(); receiveReplacement();
+  ck(blankAux() && Object.keys(S().progress).length === 0, "显式重置事件权威清除全部辅助累计（原有主进度=" + hadProgress + "）");
+  T.setGroupSize(5);
+  ck(stored().timeSec === 0 && stored().reviewDay.used === 0 && stored().extraDay.extra === 0 && stored().spelling.sessions === 0,
+    "重置同步后普通保存不复活旧辅助累计（原有主进度=" + hadProgress + "）");
+  ck(stored()._replace === emptyReplacement._replace, "重置同步后的普通保存保留远端代际");
+}
+for (const hadProgress of [false, true]) {
+  seedReplacementProbe(hadProgress);
+  installReplacement();
+  T.setGroupSize(7); // storage 事件尚未送达，save 必须先识别替换。
+  ck(blankAux() && Object.keys(S().progress).length === 0, "延迟事件后的 save 不跨代合并旧辅助累计（原有主进度=" + hadProgress + "）");
+  ck(stored()._replace === emptyReplacement._replace && stored().extraDay.extra === 0,
+    "延迟 save 采用权威原文，不覆盖重置记录");
+}
+{
+  seedReplacementProbe();
+  const smaller = clone(emptyReplacement);
+  smaller.timeSec = 7; smaller.reviewDay.used = 2; smaller.extraDay.extra = 3;
+  smaller.spelling = {sessions: 1, attempts: 1, correct: 1, skipped: 0, lastDay: null, lastSession: null};
+  installReplacement(smaller); receiveReplacement();
+  ck(S().timeSec === 7 && S().reviewDay.used === 2 && S().extraDay.extra === 3 && S().spelling.sessions === 1,
+    "同学习内容但较小辅助累计的换代导入仍按整份替换，不取大");
+}
+{
+  seedReplacementProbe();
+  const word = T.cur, w = T.getW()[word].w;
+  failKeys.add("kaoyan_vocab_proficient_v1");
+  T.setProficient(word, true);
+  failKeys.delete("kaoyan_vocab_proficient_v1");
+  ck(!!S().proficient[w], "熟练写入失败时本页保留待写操作");
+  installReplacement();
+  T.setGroupSize(5);
+  ck(!S().proficient[w] && !JSON.parse(store.get("kaoyan_vocab_proficient_v1"))[w],
+    "延迟重置必须先于熟练键写入裁决，旧 pending 熟练不能复活");
+}
+{
+  seedReplacementProbe();
+  const study = window.__vocabStudy;
+  study.tick(); study.act(); advance(2000); study.tick();
+  ck(study.getDebug().pendingMs >= 1000, "计时换代探针确实有未落盘时长");
+  installReplacement(); const raw = store.get(KEY);
+  ck(study.flush() === false && store.get(KEY) === raw, "计时先识别远端换代并拒绝写回旧 S");
+  receiveReplacement();
+  ck(blankAux() && study.getDebug().pendingMs === 0, "换代事件丢弃重置前待计时长");
+}
+{
+  seedReplacementProbe();
+  const before = stored()._replace;
+  const backup = T.buildExport();
+  backup.books.kaoyan.timeSec = 7;
+  T.importState(backup);
+  ck(stored()._replace !== before && S().timeSec === 7, "真实当前书导入生成新代际并使用备份时长");
+  ck(!Object.hasOwn(S(), "_replace") && !Object.hasOwn(T.buildExport().books.kaoyan, "_replace"),
+    "导入后的代际仍只在主记录原文，不污染内存与备份");
+  const nextBackup = T.buildExport(), otherBefore = store.get(BOOK_KEYS.cet4);
+  nextBackup.books.cet4.timeSec = 12;
+  T.importState(nextBackup);
+  const otherAfter = JSON.parse(store.get(BOOK_KEYS.cet4));
+  ck(typeof otherAfter._replace === "string" && otherAfter.timeSec === 12
+    && otherAfter._replace !== (otherBefore ? JSON.parse(otherBefore)._replace : undefined),
+    "非当前书导入 writeBookState 同样生成新代际");
+}
+{
+  seedReplacementProbe();
+  const baseline = clone(stored()), before = baseline._replace;
+  failKeys.add(KEY);
+  stateEl("#rst").onclick();
+  failKeys.delete(KEY);
+  ck(blankAux(), "显式重置写入失败后仍保留本页空白替换意图");
+  const remote = clone(baseline); remote.settings.theme = "dark";
+  store.set(KEY, JSON.stringify(remote));
+  receiveReplacement();
+  ck(blankAux(), "旧一代设置事件不覆盖待提交的失败重置");
+  T.setGroupSize(5);
+  ck(blankAux() && stored()._replace !== before && stored().extraDay.extra === 0 && stored().spelling.sessions === 0,
+    "失败重置恢复写入后按替换重试，不把旧代时长/台账/加量/专项合回");
+}
+{
+  seedReplacementProbe();
+  const word = T.cur, w = T.getW()[word].w;
+  T.setProficient(word, true);
+  failKeys.add("kaoyan_vocab_proficient_v1");
+  stateEl("#rst").onclick();
+  failKeys.delete("kaoyan_vocab_proficient_v1");
+  T.setGroupSize(5);
+  ck(!S().proficient[w] && !JSON.parse(store.get("kaoyan_vocab_proficient_v1"))[w],
+    "失败重置重试不读取旧熟练键复活已清空熟练名单");
+}
+{
+  seedReplacementProbe();
+  const before = store.get(KEY), beforeMemory = clone(S());
+  const backup = T.buildExport(); backup.books.kaoyan.timeSec = 7;
+  const write = localStorage.setItem;
+  let failedOnce = false, rolledBack = false;
+  localStorage.setItem = (key, value) => {
+    if (key === KEY && !failedOnce) { failedOnce = true; throw new Error("quota-once"); }
+    return write(key, value);
+  };
+  try { T.importState(backup); }
+  catch (error) { rolledBack = /已回滚/.test(error.message); }
+  finally { localStorage.setItem = write; }
+  ck(rolledBack && store.get(KEY) === before && eq(S(), beforeMemory), "失败导入回滚主记录原文与内存，保留原代际");
+  T.setGroupSize(5);
+  ck(stored()._replace === JSON.parse(before)._replace, "导入回滚后普通保存不残留失败导入的换代 nonce");
+}
+{
+  seedReplacementProbe(true); answerAllKnown();
+  ck(T.cur == null && T.answered > 0, "完成页主动同步探针保留真实上一组撤销现场");
+  installReplacement();
+  ck(T.refreshSharedBeforeNextGroup() === true && blankAux(), "完成页主动读取尚未送达的远端重置");
+  ck(T.answered === 0 && T.getGroupTotal() === 0 && T.Q.length === 0 && !T.getPlan(),
+    "换代后旧完成组指标/冻结计划安全失效，不自动空开组");
+  const disk = store.get(KEY); T.undo();
+  ck(store.get(KEY) === disk && Object.keys(S().progress).length === 0, "旧完成组撤销不能污染新代主记录");
+  ck(T.returnToPreviousResults() === false, "换代后不能返回上一代完成页");
+}
+{
+  stateEl("#rst").onclick(); setup({groupSize: 5}); answerAllKnown();
+  T.setGroupSize(5);
+  const incoming = clone(stored()), word = 0;
+  incoming.progress[word] = [1, now + 86400000, 1, 0, now];
+  incoming.days[todayStr()] = {n: 1, r: 1, ok: 1, no: 0};
+  store.set(KEY, JSON.stringify(incoming));
+  ck(T.refreshSharedBeforeNextGroup() === true && !!S().progress[word],
+    "完成页开组前同代真实主学习推进也从最新存储同步");
+  const before = clone(S()), raw = store.get(KEY);
+  store.set(KEY, "{broken");
+  ck(T.refreshSharedBeforeNextGroup() === false && eq(S(), before), "坏存储拒绝下一组前同步并完整保留本页状态");
+  store.set(KEY, raw);
+}
+
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);
 process.exit(fail ? 1 : 0);
