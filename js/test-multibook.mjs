@@ -121,7 +121,7 @@ function makeSynthCET(opts = {}){
 // ---------------------------------------------------------------------------
 // 浏览器桩
 // ---------------------------------------------------------------------------
-function browser({ initial = null, withoutCET = false, sharedStorage = null, storageThrows = false, raw = null, matchMediaDark = false, cetSourceOverride = null } = {}) {
+function browser({ initial = null, withoutCET = false, sharedStorage = null, sharedSession = null, storageThrows = false, raw = null, matchMediaDark = false, cetSourceOverride = null } = {}) {
   const now = new Date(2026, 9, 10, 12, 0, 0).getTime();
   const registry = new Map();
   const documentEvents = new Map();
@@ -240,9 +240,19 @@ function browser({ initial = null, withoutCET = false, sharedStorage = null, sto
     clear: () => { if (storageThrows) throw Error("storage disabled"); storage.clear(); },
   };
   window.localStorage = localStorageStub;
+  // O1：本页词书/模式在 sessionStorage（每个“页面”独立；同一页面刷新才共享，由测试显式传 sharedSession）
+  const session = sharedSession || new Map();
+  const sessionStorageStub = {
+    getItem: k => session.has(k) ? session.get(k) : null,
+    setItem: (k, v) => { if (storageThrows) throw Error("storage disabled"); session.set(k, String(v)); },
+    removeItem: k => session.delete(k),
+    clear: () => session.clear(),
+  };
+  window.sessionStorage = sessionStorageStub;
   const context = vm.createContext({
     window, document, Date: ClockDate, console,
     localStorage: localStorageStub,
+    sessionStorage: sessionStorageStub,
     setInterval(fn, ms) { intervals.push({ fn, ms }); return intervals.length; },
     clearInterval() {}, setTimeout() { return 0; }, clearTimeout() {},
     requestAnimationFrame(fn) { fn(); return 0; }, cancelAnimationFrame() {},
@@ -269,7 +279,7 @@ function browser({ initial = null, withoutCET = false, sharedStorage = null, sto
   const T = window.__vocab;
   assert.ok(T, "app.js 应提供 window.__vocab 测试钩子");
   return {
-    T, window, context, registry, storage, intervals, created, blobs, query, queryAll, nav, keyButtons, views,
+    T, window, context, registry, storage, session, intervals, created, blobs, query, queryAll, nav, keyButtons, views,
     get now() { return now; },
     storageKeys() { return [...storage.keys()].sort(); },
     stateOf(bookId) {
@@ -474,7 +484,15 @@ await test("B1 切换后判定写入本级键，不污染考研键", () => {
 
   assert.equal(b.T.switchBook("cet4"), true, "switchBook('cet4') 应返回 true");
   assert.equal(b.T.getBook(), "cet4");
-  assert.equal(b.storage.get(ACTIVE_KEY), "cet4", "当前词书应持久化到 vocab_active_book_v1");
+  // O1：新页面默认“仅本页”，切书只写本页 sessionStorage，不再无条件广播 ACTIVE 带动别的页面。
+  assert.equal(b.session.get("vocab_page_book_v1"), "cet4", "本页词书持久化到 sessionStorage");
+  assert.equal(b.storage.get(ACTIVE_KEY), undefined, "仅本页模式不写 ACTIVE 跨页信号");
+  // 显式开启“同步到跟随页面”后，切书才写旧 ACTIVE 信号。
+  assert.equal(b.T.setPageBookMode("follow").ok, true);
+  b.T.switchBook("cet6");
+  assert.equal(b.storage.get(ACTIVE_KEY), "cet6", "follow 模式切书写 ACTIVE 跨页信号");
+  b.T.switchBook("cet4");
+  b.T.setPageBookMode("local");
   assert.equal(STORAGE.kaoyan.state, "kaoyan_vocab_v1", "考研存储键不得改名");
   // 切换本身不得改写考研进度
   assert.equal(JSON.parse(b.storage.get(STORAGE.kaoyan.state)).progress && Object.keys(JSON.parse(b.storage.get(STORAGE.kaoyan.state)).progress).length, kyProgressCount);
@@ -963,22 +981,32 @@ await test("F3 切换前先保存当前书：立即切走不丢刚判定进度",
   assert.deepEqual(storedProgress, [String(i)]);
 });
 
-await test("F4 跨标签 storage 事件：别的标签切书，本标签跟随", () => {
+await test("F4 跨页切书信号：仅本页不响应 ACTIVE；follow 页有现场只提示、明确才切（O1）", () => {
   requireCET();
   const a = browser();
   const b = browser({ sharedStorage: a.storage });
-  assert.equal(b.T.getBook(), "kaoyan");
+  // 新页面默认仅本页：a 切书不写 ACTIVE，b 不跟随。
   a.T.switchBook("cet4");
   b.storageEvent(ACTIVE_KEY);
-  assert.equal(b.T.getBook(), "cet4", "应跟随切到四级");
-  assert.equal(b.T.getW().length, b.window.WORDS_CET4.length, "四级 W 长度应等于 WORDS_CET4");
-  assert.equal(b.T.getW()[0].w, b.window.WORDS_CET4[0][0], "四级 W 首词应一致");
+  assert.equal(b.T.getBook(), "kaoyan", "仅本页切换不广播，另一页保持自己的词书");
+  // 开启 follow 只影响之后的信号，不立即追历史 ACTIVE。
+  a.T.setPageBookMode("follow");
+  assert.equal(a.T.getPageBookMode?.() || undefined, undefined, "无 getPageBookMode 钩子时跳过");
+  b.T.setPageBookMode("follow");
+  assert.equal(b.T.getBook(), "kaoyan", "开启 follow 不立即追历史 ACTIVE");
   a.T.switchBook("cet6");
   b.storageEvent(ACTIVE_KEY);
-  assert.equal(b.T.getBook(), "cet6");
+  assert.equal(a.storage.get(ACTIVE_KEY), "cet6", "follow 页切书写 ACTIVE");
+  assert.notEqual(b.T.getBook(), "cet6", "另一页有未完成组时不自动切换");
+  assert.equal(b.T.getPendingBookFollow(), "cet6", "有受保护现场时只提示并记录待同步词书");
+  assert.equal(b.window.document.getElementById, undefined, "DOM 桩无 getElementById（仅占位）");
+  assert.equal(b.T.applyBookFollowNotice(), true, "用户明确点「同步切换」才切换");
+  assert.equal(b.T.getBook(), "cet6", "明确同步后切到六级");
+  assert.equal(b.T.getW().length, b.window.WORDS_CET6.length, "六级 W 长度应等于 WORDS_CET6");
+  assert.equal(b.T.getPendingBookFollow(), null, "同步后清空提示");
 });
 
-await test("F5 跨标签切书不丢别的书数据，当前书变化仍同步", () => {
+await test("F5 跨标签切书不丢别的书数据，别的书主键事件不换书（O1）", () => {
   requireCET();
   const a = browser();
   const b = browser({ sharedStorage: a.storage });
@@ -986,14 +1014,14 @@ await test("F5 跨标签切书不丢别的书数据，当前书变化仍同步",
   const ia = a.T.cur; a.T.judge(true);
   b.T.switchBook("cet4"); fullScope(b, { dailyNew: 2 });
   const ib = b.T.cur; b.T.judge(true);
-  a.storageEvent(ACTIVE_KEY); // b 切四级后 a 跟随
-  assert.equal(a.T.getBook(), "cet4");
-  // b 再学习，a 收到四级状态事件后同步
-  const ib2 = b.T.Q[b.T.qi + 1] ?? b.T.cur;
+  a.storageEvent(ACTIVE_KEY); // b 只是仅本页切换，不广播
+  assert.equal(a.T.getBook(), "kaoyan", "a 保持原词书，不被另一页的仅本页切换带动");
+  // b 再学习，a 收到四级主键事件：只更新书统计，不换书、不污染当前记录
   b.T.judge(true); b.T.tryNext(true);
   a.storageEvent(STORAGE.cet4.state);
   assert.ok(a.T.getBookState("kaoyan").progress[ia], "考研数据仍在");
   assert.ok(b.storage.get(STORAGE.kaoyan.state), "考研键仍在");
+  assert.equal(a.T.getBook(), "kaoyan", "别的书主键事件只刷新统计，不切换当前书");
 });
 
 await test("F5b 词表搜索/筛选/滚动位置按词书独立保留", () => {

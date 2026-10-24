@@ -19,7 +19,7 @@ const decode = s => String(s).replace(/&(?:amp|lt|gt|quot|#39);/g, x => ({'&amp;
 const VOID = new Set(['area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr']);
 
 /** DOM 桩：解析真实 HTML；focus() 派发 focusin 冒泡（与浏览器一致，能复现 C-07b）。 */
-function browser() {
+function browser({multiBook = false} = {}) {
   let doc;
   class Node {
     constructor(tag = 'div', text = '') {
@@ -154,6 +154,9 @@ function browser() {
     SpeechSynthesisUtterance: class {}, speechSynthesis: {cancel(){}, speak(){}, getVoices(){ return []; }}
   });
   vm.runInContext(words, context, {filename: 'words-data.js'});
+  if (multiBook) for (const file of ['cet-words-data.js', 'combined-words-data.js']) {
+    vm.runInContext(fs.readFileSync(path.join(ROOT, 'js', file), 'utf8'), context, {filename: file});
+  }
   vm.runInContext(app, context, {filename: 'app.js'});
   const T = window.__vocab;
   assert.ok(T, 'app.js 应提供 window.__vocab');
@@ -288,6 +291,38 @@ test('切书/返回后列表仍是「一次按键」换行（无遗留旧焦点�
   b.key('ArrowDown');
   assert.equal(b.T.getListActiveWord(), ids[1], '重新进入词表后首次方向键同样生效');
   assert.equal(b.activeWord(), String(ids[1]));
+});
+
+test('M07：词表综合高索引切回四级不按新词库渲染旧索引，逐书筛选和焦点保持', () => {
+  const b = browser({multiBook: true});
+  b.T.switchBook('cet4'); b.T.show('list');
+  const searchResit = () => {
+    b.query('#fsc').value = 'all'; b.query('#fsc').dispatch('change');
+    b.query('#q').value = 'resit'; b.query('#q').dispatch('input');
+    const row = b.rowWords().find(n => n.textContent.trim() === 'resit');
+    assert.ok(row, '应渲染真实resit行'); row.focus();
+    return Number(row.dataset.openWord);
+  };
+  const targetIndex = searchResit(), targetLength = b.T.getW().length;
+  b.T.switchBook('combined');
+  const sourceIndex = searchResit();
+  assert.ok(sourceIndex >= targetLength, '旧综合索引须真实超出目标四级长度');
+  // macOS 指针路径：点击原生button前焦点在body，不假设鼠标会聚焦词书按钮。
+  b.doc.body.focus(); b.query('#btnBooks').click();
+  assert.equal(b.query('#bookSheet').hidden, false);
+  assert.doesNotThrow(() => b.query('#bookList [data-book="cet4"]').click(), '真实词书入口不能渲染旧filt越界');
+  assert.equal(b.T.getBook(), 'cet4');
+  assert.equal(b.query('#bookSheet').hidden, true);
+  assert.equal(b.query('#q').value, 'resit', '目标书已保存搜索恢复');
+  assert.equal(b.query('#fsc').value, 'all', '目标书筛选恢复');
+  assert.equal(b.T.getListActiveWord(), targetIndex, '活动行是四级自己的索引');
+  assert.ok(b.rowWords().every(n => Number(n.dataset.openWord) < targetLength), '所有渲染行属于目标词库');
+  assert.equal(b.tabStops().length, 1, '恢复后仍只有一个列表Tab停靠点');
+  assert.equal(b.doc.activeElement.id, 'btnBooks', '切书完成后焦点停留在稳定的词书入口');
+  b.query('#btnBooks').click(); b.query('#bookList [data-book="combined"]').click();
+  assert.equal(b.query('#q').value, 'resit', '返回综合书保留其搜索');
+  assert.equal(b.T.getListActiveWord(), sourceIndex, '返回综合书恢复自己的活动索引');
+  assert.equal(b.tabStops().length, 1);
 });
 
 console.log(`\nC-07b 词表方向键回归：${passed} 通过，${failed} 失败`);

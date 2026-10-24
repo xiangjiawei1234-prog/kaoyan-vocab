@@ -616,6 +616,11 @@ console.log("== 6. 组内冻结与不追溯 ==");
   ck(planAfter && JSON.stringify(planAfter.stagesMs) === JSON.stringify(balanced)
     && planAfter.relearnMs === EXPECT_PRESETS.balanced.relearn * MIN_MS,
     "改设置后当前组 getPlan() 快照不变（不重建）");
+  ck(T.hasPendingScopeSettings() && ensureEl("#planPendingNotice").hidden === false,
+    "改曲线后统一pending与学习页提示立即同步");
+  const rhythmPending = ensureEl("#planPendingText").innerHTML;
+  ck(rhythmPending.includes("均衡") && rhythmPending.includes("旧版密集")
+    && rhythmPending.includes("不会后重学"), "提示分别呈现本组与下组曲线/重学差异", rhythmPending);
   ck(T.stageLabel(1, planAfter) === "第 1 档 · 1 天",
     "传入本组快照的档位标签仍显示旧曲线（balanced 1 天）", T.stageLabel(1, planAfter));
   ck(T.stageLabel(1) === "第 1 档 · 5 分钟",

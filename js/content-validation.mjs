@@ -5,8 +5,13 @@ const fixes = JSON.parse(fs.readFileSync(new URL('../tests/fixtures/content-fixe
 const nextFixes = JSON.parse(fs.readFileSync(new URL('../tests/fixtures/content-fixes-batch2-20261023.json', import.meta.url), 'utf8'));
 const thirdFixesPath = new URL('../tests/fixtures/content-fixes-batch3-20261023.json', import.meta.url);
 const thirdFixes = fs.existsSync(thirdFixesPath) ? JSON.parse(fs.readFileSync(thirdFixesPath, 'utf8')) : { confirmedBadExamples: [] };
+const maintenanceFixes = JSON.parse(fs.readFileSync(new URL('../tests/fixtures/content-fixes-maintenance-20261023.json', import.meta.url), 'utf8'));
 const normalized = text => String(text || '').replace(/\s+/g, ' ').trim();
 const confirmedBadExamples = new Set(fixes.confirmedBadExamples.concat(nextFixes.confirmedBadExamples, thirdFixes.confirmedBadExamples || []).map(normalized));
+const correctionByBookWord = new Map();
+for (const correction of maintenanceFixes.corrections) {
+  for (const reference of correction.references) correctionByBookWord.set(reference.book + ':' + correction.word, correction);
+}
 // TAB/LF/CR 可作文本排版；其余 C0、DEL/C1、替换符与私用区不应成为交付学习文本。
 export const BAD_CONTENT_CHAR_RE = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\ufffd\ufffe\uffff\u{e000}-\u{f8ff}\u{f0000}-\u{ffffd}\u{100000}-\u{10fffd}]/u;
 
@@ -17,6 +22,19 @@ export function contentEncodingFields(row) {
 export function isConfirmedBadExample(example) {
   const text = normalized(example);
   return confirmedBadExamples.has(text) || /_lQ_|In tum, feeling close to objects can loneliness\.|alretJ\.dy|fif\?Jd_s/.test(text);
+}
+
+// 仅拦截有词典证据的本书/词头旧值回流，不把合法共享原句列为全库污染。
+// 来源字段不单独封禁：同年真题可能合法，错配只按目标词的旧例句识别。
+export function confirmedCorrectionIssues(book, row) {
+  if (!Array.isArray(row)) return [];
+  const correction = correctionByBookWord.get(book + ':' + row[0]);
+  if (!correction) return [];
+  return Object.entries(correction.before).flatMap(([field, before]) => {
+    if (field === '8' || before === correction.after[field]) return [];
+    const reverted = field === '7' ? normalized(row[7]) === normalized(before) : row[Number(field)] === before;
+    return reverted ? [correction.id + ' ' + maintenanceFixes.fieldNames[Number(field)] + ' 旧值'] : [];
+  });
 }
 
 // 精确匹配词头或该条 fm 明列的屈折形；不靠前几字母/宽泛后缀吞掉真正的错配。

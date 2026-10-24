@@ -9,6 +9,8 @@ const check=(name,ok,actual)=>{report.checks.push({name,ok:!!ok,actual});console
 const open=async()=>{const p=await Page.open(conn,{url:server.url()});pages.push(p);await p.waitFor('window.__vocab && document.querySelector("#card")');return p;};
 const shot=async(p,name)=>report.shots.push(await p.screenshot('optimization-'+name+'.png'));
 const group=`(() => {const v=window.__vocab;return {cur:v.cur,phase:v.phase,verdict:v.verdict,qi:v.qi,answered:v.answered,Q:v.Q,total:v.getGroupTotal(),plan:v.getPlan()};})()`;
+// 不计实际阅读时长；检查恢复/设置操作不能隐式判定、消费额度或重写学习记录。
+const learningLedger=`(() => {const s=window.__vocab.getS();return {progress:s.progress,days:s.days,reviewDay:s.reviewDay,extraDay:s.extraDay};})()`;
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 // 统计页纵向分区（真实 DOM class 字符串，index.html #v-stats 的直接 .panel 子节点）：
 // 今日计划 → 学习总览 → 6 个原生 details 深入分析 → 备份与导出。
@@ -83,7 +85,7 @@ try{
   check('拼写提交后反馈可显示正确答案',await a.eval(`/make/i.test(document.querySelector('#spellFeedback').innerText)`));await a.key('Escape');
   await seed(a,{dailyNew:2,groupSize:1});await a.setViewport(424,900,{mobile:true});await a.key('keyF');await a.key('Enter');await sleep(100);
   const done=await a.eval(`({text:document.querySelector('#again').textContent,disabled:document.querySelector('#again').disabled,duplicates:!!document.querySelector('#autoResumeNow, #nextGroupBtn'),quick:!document.querySelector('#autoResumeQuick').hidden})`);
-  check('完成页唯一继续入口和可发现便捷入口',done.text==='继续下一组'&&!done.disabled&&!done.duplicates&&done.quick,done);await shot(a,'completion');
+  check('完成页唯一继续入口和可发现便捷入口',done.text.startsWith('继续下一组')&&!done.disabled&&!done.duplicates&&done.quick,done);await shot(a,'completion');
   await a.clickSelector('#autoResumeQuick');const started=Date.now();
   await a.waitFor(`window.__vocab.getAutoResumeState().phase==='countdown'`,{timeout:40000,interval:400});
   check('真实30秒闲置进入倒计时',Date.now()-started>=29000,{elapsed:Date.now()-started,state:await a.eval('window.__vocab.getAutoResumeState()')});await shot(a,'countdown');
@@ -92,6 +94,73 @@ try{
   check('真实3秒后自动开组不判定/消费新词且可返回',next.answered===0&&next.phase==='recall'&&next.ret&&next.n===1,next);await shot(a,'auto-started');
   await a.clickSelector('#returnPrevResult');await a.clickSelector('#autoResumePause');const pause=await a.eval(`localStorage.getItem('vocab_autoresume_pause_v1')`);await a.clickSelector('#again');
   check('今日暂停后手动继续可用且不解除暂停',await a.eval(`window.__vocab.cur!==null&&localStorage.getItem('vocab_autoresume_pause_v1')===${JSON.stringify(pause)}`));
+
+  // M01/M02 维护回归：追加在原有检查之后，保留既有全部验收路径。
+  // 自定义续背用真实点击恢复；曲线只改预设，再分别通过学习页/设置页显式重开。
+  const presets=await a.eval('window.__vocab.getStagePresets()');
+  for(const width of [375,1440]){
+    const mobile=width===375;
+    await a.setViewport(width,mobile?812:1000,{mobile});
+    const customResume={enabled:true,threshold:1,idleMs:90000,countdownMs:7000};
+    await seed(a,{dailyNew:2,groupSize:1,autoResume:customResume});
+    await a.key('keyF');await a.key('Enter');await a.waitFor('document.querySelector("#again")');
+    // 其他书同日暂停是夹具；被测操作仍必须保留它，只解除当前书。
+    await a.eval(`localStorage.setItem('vocab_autoresume_pause_v1',JSON.stringify({cet4:window.__vocab.getAutoResumePause().today}))`);
+    await a.scrollIntoView('#autoResumePause');await a.clickSelector('#autoResumePause');
+    const pausedResume=await a.eval(`({config:window.__vocab.getAutoResume(),pause:window.__vocab.getAutoResumePause(),store:JSON.parse(localStorage.getItem('vocab_autoresume_pause_v1')||'{}')})`);
+    await a.scrollIntoView('#autoResumeRestore');
+    check('M01 今日暂停保留自定义且恢复入口可点击 '+width,
+      same(pausedResume.config,customResume)&&pausedResume.pause.pausedToday
+      &&pausedResume.store.cet4===pausedResume.pause.today&&await a.isClickable('#autoResumeRestore'),pausedResume);
+    await shot(a,'m01-paused-'+width);
+    const resumeGroup=await a.eval(group),resumeLedger=await a.eval(learningLedger);
+    await a.clickSelector('#autoResumeRestore');
+    const restoredResume=await a.eval(`({config:window.__vocab.getAutoResume(),pause:window.__vocab.getAutoResumePause(),store:JSON.parse(localStorage.getItem('vocab_autoresume_pause_v1')||'{}'),runtime:window.__vocab.getAutoResumeState()})`);
+    check('M01 恢复原90秒7秒方案且仅清本书暂停 '+width,
+      same(restoredResume.config,customResume)&&!restoredResume.pause.pausedToday
+      &&!Object.hasOwn(restoredResume.store,'kaoyan')&&restoredResume.store.cet4===restoredResume.pause.today,restoredResume);
+    const resumedGroup=await a.eval(group),resumedLedger=await a.eval(learningLedger);
+    check('M01 恢复不重开组不判定不消费额度 '+width,
+      same(resumeGroup,resumedGroup)&&same(resumeLedger,resumedLedger),{before:resumeGroup,after:resumedGroup,ledger:resumedLedger});
+    check('M01 恢复重新等待而非立即倒计时 '+width,
+      restoredResume.runtime.phase!=='countdown'&&restoredResume.runtime.countdownDeadline===0
+      &&(restoredResume.runtime.idleSince===null||restoredResume.runtime.idleRemainingMs>=88000),restoredResume.runtime);
+    check('M01 恢复后375或桌面无页面横向溢出 '+width,await a.eval('document.documentElement.scrollWidth<=innerWidth+1'));
+    await shot(a,'m01-restored-'+width);
+
+    await seed(a,{dailyNew:5,groupSize:3,stages:presets.balanced.stages,relearn:presets.balanced.relearn,stagePreset:'balanced'});
+    await a.key('keyF');await a.waitFor('window.__vocab.phase!=="recall"');
+    const rhythmGroup=await a.eval(group),rhythmLedger=await a.eval(learningLedger);
+    await a.clickSelector('[data-v="set"]');
+    await a.scrollIntoView('#rhythmPresets [data-preset="light"]');await a.clickSelector('#rhythmPresets [data-preset="light"]');
+    const changedRhythm=await a.eval(`({group:${group},ledger:${learningLedger},stages:window.__vocab.getStages(),relearn:window.__vocab.getRelearn(),pending:window.__vocab.hasPendingScopeSettings(),current:document.querySelector('#settingsCurrentGroup').textContent,restartHidden:document.querySelector('#applySettingsRestart').hidden})`);
+    check('M02 仅改曲线保存轻负荷但本组和已写到期时间冻结 '+width,
+      same(changedRhythm.stages,presets.light.stages)&&changedRhythm.relearn===presets.light.relearn
+      &&same(rhythmGroup,changedRhythm.group)&&same(rhythmLedger,changedRhythm.ledger),changedRhythm);
+    check('M02 曲线差异显示待生效及设置页显式重开 '+width,
+      changedRhythm.pending&&!changedRhythm.restartHidden&&changedRhythm.current.includes('下一组')
+      &&!changedRhythm.current.includes('与当前设置一致'),changedRhythm);
+    await a.scrollIntoView('#settingsLifecycle');await shot(a,'m02-settings-pending-'+width);
+    await a.clickSelector('[data-v="study"]');
+    const rhythmNotice=await a.eval(`({hidden:document.querySelector('#planPendingNotice').hidden,text:document.querySelector('#planPendingText').textContent,group:${group}})`);
+    check('M02 学习页提示下组生效且旧范围签名保持兼容 '+width,
+      !rhythmNotice.hidden&&rhythmNotice.text.includes('下一组')&&same(rhythmNotice.group,rhythmGroup)
+      &&rhythmNotice.group.plan.scopeSig===rhythmGroup.plan.scopeSig,rhythmNotice);
+    await a.scrollIntoView('#planPendingNotice');await shot(a,'m02-study-pending-'+width);
+    const restartSelector=mobile?'#planPendingApply':'#applySettingsRestart';
+    if(!mobile)await a.clickSelector('[data-v="set"]');
+    await a.scrollIntoView(restartSelector);
+    check('M02 '+(mobile?'学习页':'设置页')+'重开入口真实可命中 '+width,await a.isClickable(restartSelector));
+    await a.clickSelector(restartSelector);
+    const restartedRhythm=await a.eval(`({group:${group},ledger:${learningLedger},pending:window.__vocab.hasPendingScopeSettings(),noticeHidden:document.querySelector('#planPendingNotice').hidden})`);
+    check('M02 显式重开采用新曲线并清除待生效不追溯进度 '+width,
+      !restartedRhythm.pending&&restartedRhythm.noticeHidden&&restartedRhythm.group.phase==='recall'
+      &&restartedRhythm.group.answered===0&&restartedRhythm.group.plan.startedAt>rhythmGroup.plan.startedAt
+      &&same(restartedRhythm.group.plan.stagesMs,presets.light.stages.map(n=>n*60000))
+      &&restartedRhythm.group.plan.relearnMs===presets.light.relearn*60000
+      &&same(restartedRhythm.ledger.progress,rhythmLedger.progress),restartedRhythm);
+    await a.clickSelector('[data-v="study"]');await shot(a,'m02-restarted-'+width);
+  }
 }catch(e){check('浏览器脚本执行完整',false,String(e.stack||e));}
 finally{
   for(const p of pages)report.errors.push(...p.errors());check('控制台无新增错误',report.errors.length===0,report.errors);

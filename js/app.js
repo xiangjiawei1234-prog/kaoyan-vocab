@@ -132,9 +132,82 @@
     const first = BOOK_DEFS.map(d => d.id).find(id => BOOKS[id].available);
     return first || "kaoyan";
   }
-  let currentBookId = pickActiveBook((function () {
-    try { return localStorage.getItem(ACTIVE_KEY); } catch (e) { return null; }
-  })());
+  /* ================= O1 本页词书 / 下次默认 / 跨页跟随（§7） =================
+   * 三个独立位置，不再让 ACTIVE_KEY 同时决定一切：
+   *   sessionStorage vocab_page_book_v1      本页词书（刷新保留；不可用时降本页内存并明确说明）
+   *   localStorage  vocab_default_book_v1    下次新开页面默认（改它不切已开页面）
+   *   sessionStorage vocab_page_book_mode_v1 local=仅本页 / follow=参与跨页跟随
+   * 新页默认 local；旧用户首次迁移可保留 follow。旧 ACTIVE_KEY 保留为迁移/兼容信号：
+   * follow 模式切书仍写它，local 模式只写 sessionStorage。
+   * 首启优先级：本页合法 sessionStorage → 默认词书 → 旧 ACTIVE 迁移值 → 考研。
+   */
+  const PAGE_BOOK_KEY = "vocab_page_book_v1";
+  const DEFAULT_BOOK_KEY = "vocab_default_book_v1";
+  const PAGE_BOOK_MODE_KEY = "vocab_page_book_mode_v1";
+  const PAGE_BOOK_MODES = ["local", "follow"];
+  const pageMemoryStore = new Map();
+  let pageSessionStoreMissing = false;
+  let defaultBookWriteFailed = false;
+  let bookModeMigrated = null;            // "follow" | null：本次启动是否执行了旧用户迁移
+  function storageArea(kind){
+    try {
+      if (kind === "page") return (typeof window !== "undefined" && window.sessionStorage) || null;
+      return (typeof window !== "undefined" && window.localStorage) || null;
+    } catch (e) { return null; }
+  }
+  function areaRead(area, key){
+    if (!area) return null;
+    try { return area.getItem(key); } catch (e) { return null; }
+  }
+  function areaWrite(area, key, value){
+    if (!area) return false;
+    try { area.setItem(key, value); return true; } catch (e) { return false; }
+  }
+  function pageStoreGet(key){
+    const area = storageArea("page");
+    if (area) {
+      const got = areaRead(area, key);
+      if (got !== null) return got;
+    }
+    return pageMemoryStore.has(key) ? pageMemoryStore.get(key) : null;
+  }
+  function pageStoreSet(key, value){
+    pageMemoryStore.set(key, value);
+    const area = storageArea("page");
+    if (area && areaWrite(area, key, value)) return true;
+    pageSessionStoreMissing = true;
+    return false;
+  }
+  function validBookIdRaw(id){ return typeof id === "string" && Object.prototype.hasOwnProperty.call(BOOKS, id) && BOOKS[id].available; }
+  function pageBookModeRaw(){
+    const stored = pageStoreGet(PAGE_BOOK_MODE_KEY);
+    return PAGE_BOOK_MODES.includes(stored) ? stored : null;
+  }
+  /** 首启解析：执行一次性默认书迁移、模式迁移，并按优先级得到本页词书。 */
+  function initialPageBookChoice(){
+    const local = storageArea("main");
+    const legacyActive = areaRead(local, ACTIVE_KEY);
+    let defaultBook = areaRead(local, DEFAULT_BOOK_KEY);
+    const defaultMissing = !validBookIdRaw(defaultBook);
+    if (defaultMissing) {
+      // 首次迁移：把默认词书固定为当时合法旧 ACTIVE 或考研；之后单次全页同步不改下次默认。
+      defaultBook = pickActiveBook(legacyActive);
+      if (!areaWrite(local, DEFAULT_BOOK_KEY, defaultBook)) defaultBookWriteFailed = true;
+    }
+    // 模式迁移：本页已有显式选择优先；否则旧用户（迁移前已有合法 ACTIVE）保留 follow，
+    // 新用户/之后的新页面默认 local。开启 follow 不立即追历史 ACTIVE。
+    if (!pageBookModeRaw()) {
+      const mode = (defaultMissing && validBookIdRaw(legacyActive)) ? "follow" : "local";
+      pageStoreSet(PAGE_BOOK_MODE_KEY, mode);
+      bookModeMigrated = mode === "follow" ? "follow" : null;
+    }
+    const pageBook = pageStoreGet(PAGE_BOOK_KEY);
+    if (validBookIdRaw(pageBook)) return pickActiveBook(pageBook);
+    if (validBookIdRaw(defaultBook)) return pickActiveBook(defaultBook);
+    if (validBookIdRaw(legacyActive)) return pickActiveBook(legacyActive);
+    return pickActiveBook(null);
+  }
+  let currentBookId = initialPageBookChoice();
   function currentBook(){ return BOOKS[currentBookId]; }
   function bookOf(id){ return Object.prototype.hasOwnProperty.call(BOOKS, id) ? BOOKS[id] : null; }
   function wordBookTags(word){
@@ -257,6 +330,8 @@
   }
   /** 本组冻结计划：startSession() 时生成；judge/改判/重考只用快照，设置只影响下一组。 */
   let sessionPlan = null;
+  // U3：学习页与设置/统计共用 #main；暂离后回到同词同组的阅读位置。
+  let studyReadingScroll = null;
   /**
    * 08 范围/计划签名：设置页据此判断「当前组是否已与新设置不一致」。
    * 只包含计划/范围类字段（外观/语音/键盘立即生效，不参与），每日复习上限即时生效也不参与。
@@ -334,6 +409,10 @@
     rhythmLastError = null;
     renderRhythmPanel();
     markSettingsSaved();
+    // 曲线与范围同属下组设置；仅同步提示，不替换当前卡/查词浮层或改写旧会话快照。
+    renderSettingsLifecycle();
+    renderPlanPendingNotice();
+    renderStudyScope();
     return { ok: true, stages: cfg.stages.slice(), relearn: cfg.relearn, preset: S.settings.stagePreset, saved: saved };
   }
   function getStages(){ return currentStageConfig().stages.slice(); }
@@ -400,6 +479,84 @@
   // KEY / PROF_KEY 已在上方按当前词书初始化：考研键名 = 历史键名，老用户零迁移。
   // Only explicit proficiency actions write PROF_KEY; stale tabs cannot erase exclusions.
   const DEFKEYS = {know:"f", dont:"j", next:" ", speak:"s", star:"b", proficient:"m"};
+  const DEFACTIONKEYS = Object.freeze({continue:null, wait:null, return:null, listSearch:null});
+  const DEFAULT_GESTURES = Object.freeze({enabled:true,
+    recall:Object.freeze({left:"dont",right:"know"}), revealed:Object.freeze({left:"none",right:"none"})});
+  const INPUT_ACTIONS = Object.freeze([
+    {id:"know",label:"会",contexts:["card"]}, {id:"dont",label:"不会",contexts:["card"]},
+    {id:"next",label:"下一个",contexts:["card"]}, {id:"speak",label:"发音",contexts:["card"]},
+    {id:"star",label:"收藏",contexts:["card"]}, {id:"proficient",label:"熟练",contexts:["card"]},
+    {id:"continue",label:"继续下一组",contexts:["done","empty","wait"]},
+    {id:"wait",label:"开始 / 退出本页等待",contexts:["empty","wait"]},
+    {id:"return",label:"返回原现场",contexts:["card","done","empty","wait"]},
+    {id:"listSearch",label:"词表搜索",contexts:["card","done","empty","wait"]}
+  ]);
+  const GESTURE_RECALL_ACTIONS = Object.freeze(["none","know","dont","speak","star","proficient","undo"]);
+  const GESTURE_REVEALED_ACTIONS = Object.freeze([...GESTURE_RECALL_ACTIONS,"next"]);
+  /** 旧单字符字节保持；新增只接受明确Shift+字母，保留浏览器/系统组合。 */
+  function normalizeKeyBinding(value){
+    if(typeof value!=="string")return null;
+    if(/^[a-z0-9 ]$/i.test(value))return value.toLowerCase();
+    if(/^shift\+[a-z]$/i.test(value))return value.toLowerCase();
+    return null;
+  }
+  function normalizeActionKeys(value){
+    const out=Object.assign({},DEFACTIONKEYS);
+    if(value && typeof value==="object" && !Array.isArray(value))for(const id of Object.keys(out)) {
+      out[id]=value[id]===null?null:normalizeKeyBinding(value[id]);
+    }
+    return out;
+  }
+  function normalizeGestures(value){
+    const out={enabled:true,recall:{left:"dont",right:"know"},revealed:{left:"none",right:"none"}};
+    if(!value || typeof value!=="object" || Array.isArray(value))return out;
+    if(typeof value.enabled==="boolean")out.enabled=value.enabled;
+    for(const phase of ["recall","revealed"])for(const side of ["left","right"]) {
+      const allowed=phase==="recall"?GESTURE_RECALL_ACTIONS:GESTURE_REVEALED_ACTIONS;
+      if(allowed.includes(value[phase]?.[side]))out[phase][side]=value[phase][side];
+    }
+    return out;
+  }
+  function normalizeActionLayout(value){return ["standard","left","right"].includes(value)?value:"standard";}
+  /** F1 阅读顺序：必须恰好是 meaning/example/forms 的全排列；其余整组回默认。 */
+  function normalizeReadingOrder(value){
+    return Array.isArray(value) && value.length === READING_ORDER_KEYS.length
+      && new Set(value).size === value.length
+      && value.every(k => READING_ORDER_KEYS.includes(k))
+      ? value.slice() : READING_ORDER_DEFAULT.slice();
+  }
+  /** F1 次级动作：0–2 个、无重复、仅 undo/proficient/speak/star；非法整组回默认。 */
+  function normalizeSecondaryActions(value){
+    return Array.isArray(value) && value.length <= 2 && new Set(value).size === value.length
+      && value.every(id => SECONDARY_ACTION_IDS.includes(id))
+      ? value.slice() : SECONDARY_ACTIONS_DEFAULT.slice();
+  }
+  function inputBindingConflict(keys,actionKeys){
+    const all=Object.assign({},keys,actionKeys), actions=INPUT_ACTIONS;
+    for(let i=0;i<actions.length;i++)for(let j=i+1;j<actions.length;j++) {
+      const a=actions[i],b=actions[j];
+      if(all[a.id] && all[a.id]===all[b.id] && a.contexts.some(c=>b.contexts.includes(c)))
+        return {first:a.id,second:b.id,label:a.label+" / "+b.label,binding:all[a.id]};
+    }
+    return null;
+  }
+  function normalizeInputSettings(settings, old){
+    settings.gestures=normalizeGestures(old.gestures);
+    settings.actionLayout=normalizeActionLayout(old.actionLayout);
+    const candidates=normalizeActionKeys(old.actionKeys);
+    settings.actionKeys=Object.assign({},DEFACTIONKEYS);
+    // 非法新映射只修该映射，不覆盖已保存的旧六键。
+    for(const id of Object.keys(DEFACTIONKEYS)) {
+      const value=candidates[id];
+      if(!value)continue;
+      settings.actionKeys[id]=value;
+      if(inputBindingConflict(settings.keys,settings.actionKeys))settings.actionKeys[id]=null;
+    }
+  }
+  function getInputActionDescriptors(){return INPUT_ACTIONS.map(x=>({id:x.id,label:x.label,contexts:x.contexts.slice()}));}
+  function getGestureActions(phase){
+    return (phase==="revealed"?GESTURE_REVEALED_ACTIONS:GESTURE_RECALL_ACTIONS).map(id=>({id,label:id==="none"?"不执行操作":id==="undo"?"撤销":INPUT_ACTIONS.find(x=>x.id===id)?.label||id}));
+  }
   /** 单日复习上限：0=不限；合法范围 1–1000 次。新用户默认 100，旧记录缺字段按 0（不限，旧行为）。 */
   const DAILY_REVIEW_CAP_DEFAULT = 100;
   const DAILY_REVIEW_CAP_MAX = 1000;
@@ -457,6 +614,20 @@
   const SPEECH_RATE_DEFAULT = 0.92;
   const SPEECH_RATE_MIN = 0.5;
   const SPEECH_RATE_MAX = 1.5;
+  /* ---- F1 阅读与布局定制（跨书界面偏好，立即生效；不改学习算法/队列/预算） ----
+   * readingOrder 是判定后主体的严格全排列；单词词头始终在答案前，回忆阶段不泄漏释义。
+   * secondaryActions 固定原第三行的 0–2 个动作，不减少“更多操作”里的入口。 */
+  const CARD_DENSITY_VALUES = ["comfortable", "compact"];
+  const CARD_DENSITY_DEFAULT = "comfortable";
+  const READING_ORDER_KEYS = ["meaning", "example", "forms"];
+  const READING_ORDER_DEFAULT = ["meaning", "example", "forms"];
+  const SECONDARY_ACTION_IDS = ["undo", "proficient", "speak", "star"];
+  const SECONDARY_ACTIONS_DEFAULT = ["undo", "proficient"];
+  /** 统计页 6 个高阶面板的展开偏好：设备级独立键，不进备份 v3/进度签名/设置目录/scopeSig。 */
+  const STATS_PANELS_KEY = "vocab_stats_panels_v1";
+  const STATS_PANEL_IDS = ["statsForecastPanel", "surveyPanel", "statsFreqPanel",
+    "statsStagesPanel", "statsDaysPanel", "statsHeatmapPanel"];
+  const STATS_CARD_IDS = ["statsPlanPanel", "statsOverviewPanel", ...STATS_PANEL_IDS, "statsStoragePanel"];
   /* ---- 16 拼写专项（只做拼写；不占新词额度、不推进主 SRS、不写主学习统计） ----
    * 记录按书写入 state.spelling（随备份 v3 的每书 state 整体导出），只保存累计与最近一组汇总，
    * 不保存逐词明细；判定规则见 spellCompare()：大小写不敏感 → 显式英美变体表 → 分隔符宽松 → 判错。 */
@@ -521,6 +692,14 @@
       speechRate: SPEECH_RATE_DEFAULT,
       singleCharKeys: true,
       keys: Object.assign({}, DEFKEYS),
+      actionKeys: Object.assign({}, DEFACTIONKEYS),
+      gestures: normalizeGestures(DEFAULT_GESTURES),
+      actionLayout: "standard",
+      // F1 阅读与布局：密度/判定后主体顺序/卡片次要元信息/固定次级动作；只改呈现。
+      cardDensity: CARD_DENSITY_DEFAULT,
+      readingOrder: READING_ORDER_DEFAULT.slice(),
+      showCardMeta: true, showCardStage: true, showCardPos: true,
+      secondaryActions: SECONDARY_ACTIONS_DEFAULT.slice(),
       // 22 完成页挂机自动续背：新用户默认开启；旧记录缺字段默认关闭（normalizeAutoResume）。
       autoResume: Object.assign({}, AUTO_RESUME_DEFAULT)
     },
@@ -540,6 +719,978 @@
     st.extraDay = {d: todayStr(), extra: 0};
     return st;
   }
+
+  /* ================= O1 设备通用 / 本书覆盖偏好归属 =================
+   * 依据 docs/输入与偏好下一步规格-2026-10-24.md §6：
+   * - 独立 localStorage 键 vocab_device_preferences_v1：shared=设备通用值（19 项严格合法），
+   *   overrides[book]=本书覆盖的字段名；effective = 有覆盖 ? 该书 settings 值 : shared 值。
+   * - S.settings 继续是当前书已解析运行时快照（不为 O1 改几十处读点）；覆盖标记才是取值来源裁决，
+   *   shared 变化后未覆盖字段必须重新解析，不信任主记录里的物化缓存。
+   * - 迁移：设备键不存在时 shared=DEF 默认值，每本已有旧主记录的书把 19 项全部标本书覆盖
+   *   （值取该书旧 settings）；不选基准书、不改已有主记录、只写设备键。写失败保留本页值并
+   *   明确提示归属未保存，本次不执行会覆盖目标书偏好的旧 carry，安全降级为每书独立。
+   * - 设备键损坏/高版本：保留原文、禁写该键，各书仍读自己的 settings（每书独立），不以空 shared 覆写。
+   * - 覆盖增删 / “设为设备通用” / 方案同时改计划与偏好：小事务 vocab_preferences_journal_v1，
+   *   准备值 → 比较最新原文 → 全成功才提交内存；失败整份回滚，回滚失败保留日志并启动提示恢复。
+   * - 备份 v3 导出每书实际有效偏好（只读快照，不写 shared/overrides 元数据）；导入后把被导入书
+   *   的可携带偏好标本书覆盖，设备 shared 不变，未导入书覆盖不动，导入 journal 含设备键旧原文。
+   */
+  const DEVICE_PREFS_KEY = "vocab_device_preferences_v1";
+  const DEVICE_PREFS_KIND = "vocab-device-preferences";
+  const DEVICE_PREFS_VERSION = 1;
+  const PREF_JOURNAL_KEY = "vocab_preferences_journal_v1";
+  /** 设备通用/本书覆盖的偏好字段 = 原 CARRY_SETTINGS 全部 19 项（O1 后由覆盖标记裁决来源）。 */
+  const PREFERENCE_FIELDS = Object.freeze([
+    "theme", "keys", "showPh", "showEx", "showFm", "autoSpk", "singleCharKeys",
+    "fontSize", "voiceURI", "speechRate", "actionKeys", "gestures", "actionLayout",
+    "cardDensity", "readingOrder", "showCardMeta", "showCardStage", "showCardPos", "secondaryActions"
+  ]);
+  const PREFERENCE_LABELS = Object.freeze({
+    theme: "颜色主题", keys: "自定义快捷键", showPh: "显示音标", showEx: "显示例句", showFm: "显示词形",
+    autoSpk: "自动发音", singleCharKeys: "单字符快捷键", fontSize: "阅读字号", voiceURI: "英语语音",
+    speechRate: "朗读语速", actionKeys: "继续与返回快捷键", gestures: "卡片滑动手势",
+    actionLayout: "左右手操作布局", cardDensity: "卡片密度", readingOrder: "判定后阅读顺序",
+    showCardMeta: "卡片词频套卷标签", showCardStage: "卡片复习阶段", showCardPos: "卡片词性",
+    secondaryActions: "固定次级动作"
+  });
+  const PREFERENCE_CARD_FIELDS = Object.freeze(["showPh", "showEx", "showFm", "keys", "singleCharKeys",
+    "fontSize", "cardDensity", "readingOrder", "showCardMeta", "showCardStage", "showCardPos",
+    "secondaryActions", "actionLayout"]);
+  /** 设备偏好运行态：shared/overrides 内存镜像 + 原文与状态；损坏/高版本时只读原文、禁写。 */
+  let devicePrefs = null;
+  let devicePrefsRaw = null;
+  let devicePrefsStatus = "pending";     // pending|ok|missing|damaged|unsupported|write-failed|unavailable
+  let devicePrefsError = "";
+  let devicePrefsLegacy = false;
+  let devicePrefsInitialized = false;
+  let devicePrefsWriteNotified = false;
+  let lastResolvedPrefs = {};
+  let prefJournalRecovered = false;
+  let prefJournalRecoveryFailed = false;
+
+  function clonePrefValue(value){
+    return (value && typeof value === "object") ? JSON.parse(JSON.stringify(value)) : value;
+  }
+  function prefValuesEqual(a, b){ return JSON.stringify(a) === JSON.stringify(b); }
+  function prefBookIds(){ return BOOK_DEFS.map(def => def.id); }
+  function defaultPreferenceShared(){
+    const out = {};
+    for (const field of PREFERENCE_FIELDS) out[field] = clonePrefValue(DEF.settings[field]);
+    return out;
+  }
+  function emptyPreferenceOverrides(){
+    const out = {};
+    for (const id of prefBookIds()) out[id] = [];
+    return out;
+  }
+  /** 严格字段校验（与设置方案同一口径；不把非法值静默修成默认）。 */
+  function validPreferenceValue(field, value){
+    switch (field) {
+      case "theme": return ["light", "dark", "auto"].includes(value);
+      case "keys": return isRecord(value) && Object.keys(value).length === Object.keys(DEFKEYS).length
+        && Object.keys(DEFKEYS).every(k => Object.prototype.hasOwnProperty.call(value, k)
+          && validKey(value[k]) && value[k] === normalizeKeyBinding(value[k]))
+        && Object.keys(value).every(k => Object.prototype.hasOwnProperty.call(DEFKEYS, k))
+        && new Set(Object.values(value)).size === Object.keys(DEFKEYS).length;
+      case "showPh": case "showEx": case "showFm": case "autoSpk": case "singleCharKeys":
+      case "showCardMeta": case "showCardStage": case "showCardPos": return typeof value === "boolean";
+      case "fontSize": return FONT_SIZE_VALUES.includes(value);
+      case "voiceURI": return typeof value === "string" && value === value.trim() && value.length <= 200;
+      case "speechRate": return typeof value === "number" && Number.isFinite(value)
+        && value >= SPEECH_RATE_MIN && value <= SPEECH_RATE_MAX
+        && Math.abs(value * 100 - Math.round(value * 100)) < 0.00000001;
+      case "actionKeys": return isRecord(value) && Object.keys(value).length === Object.keys(DEFACTIONKEYS).length
+        && Object.keys(value).every(k => Object.prototype.hasOwnProperty.call(DEFACTIONKEYS, k))
+        && Object.values(value).every(k => k === null || normalizeKeyBinding(k) === k);
+      case "gestures": {
+        if (!isRecord(value) || Object.keys(value).length !== 3
+          || typeof value.enabled !== "boolean" || !isRecord(value.recall) || !isRecord(value.revealed)) return false;
+        for (const phase of ["recall", "revealed"]) {
+          const allowed = phase === "recall" ? GESTURE_RECALL_ACTIONS : GESTURE_REVEALED_ACTIONS;
+          const sideMap = value[phase];
+          if (Object.keys(sideMap).length !== 2) return false;
+          for (const side of ["left", "right"]) {
+            if (!Object.prototype.hasOwnProperty.call(sideMap, side) || !allowed.includes(sideMap[side])) return false;
+          }
+        }
+        return true;
+      }
+      case "actionLayout": return ["standard", "left", "right"].includes(value);
+      case "cardDensity": return CARD_DENSITY_VALUES.includes(value);
+      case "readingOrder": return Array.isArray(value) && value.length === READING_ORDER_KEYS.length
+        && new Set(value).size === value.length && value.every(k => READING_ORDER_KEYS.includes(k));
+      case "secondaryActions": return Array.isArray(value) && value.length <= 2
+        && new Set(value).size === value.length && value.every(id => SECONDARY_ACTION_IDS.includes(id));
+      default: return false;
+    }
+  }
+  /**
+   * 严格解码设备偏好键。只对“本批新增字段缺失”做 DEF 兼容解码（先 O1 后 F1 的历史：
+   * 旧 version:1 键缺新字段仍合法），未知字段/类型错误/格式错误/高版本一律拒绝。
+   * 解码本身不写回原文。
+   */
+  function decodeDevicePreferences(raw){
+    if (raw === null || raw === undefined) return {ok: false, status: "missing"};
+    let parsed = null;
+    try { parsed = JSON.parse(raw); }
+    catch (e) { return {ok: false, status: "damaged", error: "偏好归属存储不是有效的 JSON"}; }
+    if (!isRecord(parsed)) return {ok: false, status: "damaged", error: "偏好归属存储格式不正确"};
+    if (typeof parsed.version === "number" && parsed.version > DEVICE_PREFS_VERSION) {
+      return {ok: false, status: "unsupported", error: "偏好归属存储版本高于当前页面"};
+    }
+    if (parsed.kind !== DEVICE_PREFS_KIND || parsed.version !== DEVICE_PREFS_VERSION) {
+      return {ok: false, status: "damaged", error: "偏好归属存储标识或版本不正确"};
+    }
+    if (Object.keys(parsed).some(k => !["kind", "version", "shared", "overrides"].includes(k))) {
+      return {ok: false, status: "damaged", error: "偏好归属存储含未知字段"};
+    }
+    if (!isRecord(parsed.shared)) return {ok: false, status: "damaged", error: "偏好归属缺少设备通用值"};
+    const shared = {};
+    let legacy = false;
+    for (const field of PREFERENCE_FIELDS) {
+      if (!Object.prototype.hasOwnProperty.call(parsed.shared, field)) {
+        shared[field] = clonePrefValue(DEF.settings[field]);
+        legacy = true;
+        continue;
+      }
+      const value = parsed.shared[field];
+      if (!validPreferenceValue(field, value)) {
+        return {ok: false, status: "damaged", error: "偏好归属值不合法：" + (PREFERENCE_LABELS[field] || field)};
+      }
+      shared[field] = clonePrefValue(value);
+    }
+    if (Object.keys(parsed.shared).some(k => !PREFERENCE_FIELDS.includes(k))) {
+      return {ok: false, status: "damaged", error: "偏好归属含未知字段"};
+    }
+    if (inputBindingConflict(shared.keys, shared.actionKeys)) {
+      return {ok: false, status: "damaged", error: "偏好归属的快捷键互相冲突"};
+    }
+    if (!isRecord(parsed.overrides)) return {ok: false, status: "damaged", error: "偏好归属缺少本书覆盖表"};
+    const overrides = emptyPreferenceOverrides();
+    for (const [bookId, list] of Object.entries(parsed.overrides)) {
+      if (!Object.prototype.hasOwnProperty.call(overrides, bookId)) {
+        return {ok: false, status: "damaged", error: "偏好归属含未知词书"};
+      }
+      if (!Array.isArray(list)) return {ok: false, status: "damaged", error: "偏好归属覆盖表格式不正确"};
+      const seen = new Set();
+      for (const field of list) {
+        if (typeof field !== "string" || !PREFERENCE_FIELDS.includes(field) || seen.has(field)) {
+          return {ok: false, status: "damaged", error: "偏好归属覆盖表含非法字段"};
+        }
+        seen.add(field);
+      }
+      overrides[bookId] = PREFERENCE_FIELDS.filter(field => seen.has(field));
+    }
+    return {ok: true, status: "ok", legacy: legacy,
+      prefs: {kind: DEVICE_PREFS_KIND, version: DEVICE_PREFS_VERSION, shared: shared, overrides: overrides}};
+  }
+  function readDevicePreferences(){
+    let raw = null;
+    try { raw = localStorage.getItem(DEVICE_PREFS_KEY); }
+    catch (e) {
+      devicePrefs = null; devicePrefsRaw = null; devicePrefsStatus = "unavailable";
+      devicePrefsError = "浏览器存储不可用";
+      return {status: "unavailable", error: devicePrefsError};
+    }
+    const decoded = decodeDevicePreferences(raw);
+    devicePrefsRaw = raw;
+    if (decoded.ok) {
+      devicePrefs = decoded.prefs;
+      devicePrefsStatus = "ok";
+      devicePrefsError = "";
+      devicePrefsLegacy = !!decoded.legacy;
+      return {status: "ok", prefs: devicePrefs, legacy: devicePrefsLegacy};
+    }
+    devicePrefs = null;
+    devicePrefsStatus = decoded.status || "damaged";
+    devicePrefsError = decoded.error || "";
+    return {status: devicePrefsStatus, error: devicePrefsError, raw: raw};
+  }
+  function persistDevicePreferences(prefs){
+    const text = JSON.stringify(prefs);
+    try {
+      localStorage.setItem(DEVICE_PREFS_KEY, text);
+      if (localStorage.getItem(DEVICE_PREFS_KEY) !== text) throw new Error("readback");
+    } catch (e) { return false; }
+    devicePrefs = clonePrefValue(prefs);
+    devicePrefsRaw = text;
+    devicePrefsStatus = "ok";
+    devicePrefsError = "";
+    devicePrefsLegacy = false;
+    return true;
+  }
+  function preferenceDeviceUsable(){
+    return devicePrefsStatus === "ok" || (devicePrefsStatus === "write-failed" && !!devicePrefs);
+  }
+  function preferenceStatusText(){
+    if (devicePrefsStatus === "write-failed") return "偏好归属尚未保存到本机（浏览器存储写入失败）";
+    if (devicePrefsStatus === "damaged") return "偏好归属存储损坏，已保留原文并暂停写入";
+    if (devicePrefsStatus === "unsupported") return "偏好归属存储版本高于当前页面，已保留原文并暂停写入";
+    if (devicePrefsStatus === "unavailable") return "浏览器存储不可用，偏好归属暂不可用";
+    if (devicePrefsStatus === "missing") return "偏好归属尚未建立";
+    return "偏好归属尚未准备好";
+  }
+  function markPreferenceWriteFailure(message){
+    if (devicePrefsStatus === "ok") devicePrefsStatus = "write-failed";
+    if (devicePrefsWriteNotified) return;
+    devicePrefsWriteNotified = true;
+    showAlert("偏好归属未能保存", (message || "外观、发音与按键等偏好暂按每书独立保存")
+      + "。当前页仍显示新值；刷新后可能回到旧值。学习进度与已被其他词书覆盖的偏好不受影响，请检查浏览器存储空间。",
+      {kind: "prefs"});
+  }
+  /**
+   * 一次性迁移（bootstrapSession 之前）：设备键不存在 → shared=DEF、每本已有旧主记录的书 19 项
+   * 全部标本书覆盖；只写设备键，不改任何主记录。写失败：本页保留迁移后的取值规则（旧书即各自
+   * 旧值），但明确提示归属未保存，且暂不写设备键。
+   */
+  function initDevicePreferences(force){
+    if (devicePrefsInitialized && !force) return devicePrefsStatus;
+    devicePrefsInitialized = true;
+    const got = readDevicePreferences();
+    if (got.status === "ok") return "ok";
+    if (got.status !== "missing") return got.status;   // 损坏/高版本/不可用：保留原文、禁写
+    const prefs = {kind: DEVICE_PREFS_KIND, version: DEVICE_PREFS_VERSION,
+      shared: defaultPreferenceShared(), overrides: emptyPreferenceOverrides()};
+    for (const def of BOOK_DEFS) {
+      const book = BOOKS[def.id];
+      if (!book || !book.available) continue;
+      let raw = null;
+      try { raw = localStorage.getItem(book.KEY); } catch (e) { continue; }
+      if (raw === null) continue;
+      // 损坏记录不归一化、不改写、不标覆盖；它自己的读取失败由原有保护流程处理。
+      try {
+        const parsed = JSON.parse(raw);
+        if (isRecord(parsed)) prefs.overrides[def.id] = PREFERENCE_FIELDS.slice();
+      } catch (e) { /* ignore */ }
+    }
+    if (persistDevicePreferences(prefs)) return "ok";
+    devicePrefs = prefs;
+    devicePrefsRaw = null;
+    devicePrefsStatus = "write-failed";
+    devicePrefsError = "偏好归属未能写入浏览器存储";
+    markPreferenceWriteFailure();
+    return "write-failed";
+  }
+  function preferenceOverrideList(bookId){
+    if (!devicePrefs || !devicePrefs.overrides) return [];
+    const list = devicePrefs.overrides[bookId];
+    return Array.isArray(list) ? list : [];
+  }
+  function isPreferenceOverridden(field, bookId){
+    return preferenceOverrideList(bookId || currentBookId).includes(field);
+  }
+  /** 运行时常量入口：effective = 覆盖 ? 本书 settings : shared；设备键不可用时回退本书 settings。 */
+  function resolveBookPreferences(bookState, bookId, prefs){
+    const source = prefs || (preferenceDeviceUsable() ? devicePrefs : null);
+    const settings = clonePrefValue((bookState && bookState.settings) || DEF.settings) || {};
+    if (!source || !isRecord(source.shared)) return settings;
+    const overrides = Array.isArray(source.overrides?.[bookId]) ? source.overrides[bookId] : [];
+    for (const field of PREFERENCE_FIELDS) {
+      if (overrides.includes(field)) continue;
+      if (Object.prototype.hasOwnProperty.call(source.shared, field)) {
+        settings[field] = clonePrefValue(source.shared[field]);
+      }
+    }
+    return settings;
+  }
+  /** 把某书 state 的 settings 解析为有效快照（就地修改；读载入/切书/导出只读快照共用）。 */
+  function applyBookPreferenceResolution(state, bookId){
+    if (!state || !state.settings || !preferenceDeviceUsable()) return false;
+    const resolved = resolveBookPreferences(state, bookId, devicePrefs);
+    let changed = false;
+    for (const field of PREFERENCE_FIELDS) {
+      if (!prefValuesEqual(state.settings[field], resolved[field])) {
+        state.settings[field] = resolved[field];
+        changed = true;
+      }
+    }
+    return changed;
+  }
+  function syncLastResolvedPreferences(){
+    lastResolvedPrefs = {};
+    for (const field of PREFERENCE_FIELDS) lastResolvedPrefs[field] = clonePrefValue(S.settings[field]);
+  }
+  function localInheritedPreferenceEdits(){
+    const fields = [];
+    if (!preferenceDeviceUsable()) return fields;
+    for (const field of PREFERENCE_FIELDS) {
+      if (isPreferenceOverridden(field)) continue;
+      if (!prefValuesEqual(S.settings[field], devicePrefs.shared[field])) fields.push(field);
+    }
+    return fields;
+  }
+  /** 远端 shared 变化/迁移后，只重解析本书未覆盖字段并刷新呈现（不换书/不 startSession/不关浮层）。 */
+  function reResolveInheritedPreferences(){
+    if (!preferenceDeviceUsable()) return false;
+    const previous = clonePrefValue(S.settings);
+    for (const field of PREFERENCE_FIELDS) {
+      if (isPreferenceOverridden(field)) continue;
+      S.settings[field] = clonePrefValue(devicePrefs.shared[field]);
+    }
+    const changed = !prefValuesEqual(previous, S.settings);
+    if (changed) {
+      noteInputPreferencesCommitted(previous);
+      syncLastResolvedPreferences();
+      refreshPreferenceDisplaySurfaces(previous);
+    }
+    return changed;
+  }
+  /** 偏好相关呈现的轻量刷新：主题/字号即时，卡片相关延后到无浮层时。 */
+  function refreshPreferenceDisplaySurfaces(previous){
+    try { applyTheme(); applyFontSize(); } catch (e) { /* ignore */ }
+    try {
+      if (PREFERENCE_CARD_FIELDS.some(field => !prefValuesEqual(previous?.[field], S.settings[field]))) {
+        sharedCardRefreshPending = currentBookId;
+      }
+      if (sharedCardRefreshPending === currentBookId && !activeSheet) renderCard();
+    } catch (e) { /* ignore */ }
+    renderPreferenceOwnershipControls();
+  }
+  /**
+   * 本地显式改动的继承字段写回设备 shared（save 路径）。写前重读最新原文：
+   * 另一页面刚改过设备键时，不拿本页旧缓存整份覆盖；本次偏好未写入并明确提示。
+   */
+  function flushInheritedPreferenceEdits(){
+    if (!preferenceDeviceUsable()) return true;
+    const fields = localInheritedPreferenceEdits();
+    if (!fields.length) return true;
+    let latestRaw = null;
+    try { latestRaw = localStorage.getItem(DEVICE_PREFS_KEY); }
+    catch (e) { markPreferenceWriteFailure("浏览器存储不可用"); return false; }
+    let base = devicePrefs;
+    if (latestRaw !== devicePrefsRaw) {
+      const decoded = decodeDevicePreferences(latestRaw);
+      if (!decoded.ok) {
+        devicePrefsStatus = decoded.status || "damaged";
+        devicePrefsError = decoded.error || "";
+        markPreferenceWriteFailure("另一页面刚更新或损坏了偏好归属存储，本次偏好未写入");
+        return false;
+      }
+      base = decoded.prefs;
+    }
+    // 同字段的远端更新不能被旧基线编辑覆盖；不同字段仍合并到最新设备原文。
+    // 拒绝的字段立即采纳最新值并清除待写差异，避免下一次学习自动保存又偷偷提交旧输入。
+    const conflicts = fields.filter(field =>
+      (!prefValuesEqual(base.shared[field], devicePrefs.shared[field])
+        && !prefValuesEqual(S.settings[field], base.shared[field]))
+      || ((base.overrides[currentBookId] || []).includes(field) !== isPreferenceOverridden(field)));
+    const accepted = fields.filter(field => !conflicts.includes(field));
+    if (accepted.length) {
+      const next = clonePrefValue(base);
+      for (const field of accepted) next.shared[field] = clonePrefValue(S.settings[field]);
+      if (!persistDevicePreferences(next)) {
+        markPreferenceWriteFailure("浏览器存储写入失败");
+        return false;
+      }
+    } else {
+      devicePrefs = clonePrefValue(base);
+      devicePrefsRaw = latestRaw;
+      devicePrefsStatus = "ok";
+      devicePrefsError = "";
+    }
+    // 远端其他未覆盖字段按最新 shared 重新解析；只保留本次实际被接受的编辑。
+    const previous = clonePrefValue(S.settings);
+    for (const field of PREFERENCE_FIELDS) {
+      if (accepted.includes(field) || isPreferenceOverridden(field)) continue;
+      S.settings[field] = clonePrefValue(devicePrefs.shared[field]);
+    }
+    // 若另一页把本字段切为本书覆盖，采用该书最新已保存值，不能把拒绝的旧编辑留在内存。
+    const overriddenConflicts = conflicts.filter(field => isPreferenceOverridden(field));
+    if (overriddenConflicts.length) {
+      try {
+        const latest = localStorage.getItem(KEY), saved = latest && normalizeState(JSON.parse(latest), currentBookId);
+        for (const field of overriddenConflicts) S.settings[field] = clonePrefValue(saved?.settings?.[field] ?? lastResolvedPrefs[field]);
+      } catch (e) {
+        for (const field of overriddenConflicts) S.settings[field] = clonePrefValue(lastResolvedPrefs[field]);
+      }
+    }
+    noteInputPreferencesCommitted(previous);
+    syncLastResolvedPreferences();
+    if (!prefValuesEqual(previous, S.settings)) refreshSharedSettingsSurfaces(true, previous);
+    if (conflicts.length) {
+      const message = "另一页面刚更新了“" + conflicts.map(field => PREFERENCE_LABELS[field] || field).join("、")
+        + "”，已同步最新值；本次旧值未覆盖，请核对后重试。";
+      toast(message);
+      const status = $("#preferenceOwnershipStatus");
+      if (status) status.textContent = message;
+    }
+    return conflicts.length === 0;
+  }
+  /**
+   * 主记录设置同步路径里的另一页“有效偏好快照”：未被本书覆盖的字段差异写回设备 shared。
+   * 若设备键已被另一页面更新，则以设备键为准，不把主记录旧物化快照写回 shared。
+   */
+  function adoptIncomingPreferenceSettings(materialized){
+    if (!preferenceDeviceUsable() || !isRecord(materialized)) return false;
+    const fields = [];
+    for (const field of PREFERENCE_FIELDS) {
+      if (isPreferenceOverridden(field)) continue;
+      if (!prefValuesEqual(materialized[field], devicePrefs.shared[field])) fields.push(field);
+    }
+    if (!fields.length) return false;
+    let latestRaw = null;
+    try { latestRaw = localStorage.getItem(DEVICE_PREFS_KEY); } catch (e) { return false; }
+    if (latestRaw !== devicePrefsRaw) {
+      const decoded = decodeDevicePreferences(latestRaw);
+      if (!decoded.ok) { devicePrefsStatus = decoded.status || "damaged"; return false; }
+      devicePrefs = decoded.prefs;
+      devicePrefsRaw = latestRaw;
+      devicePrefsStatus = "ok";
+      return false;
+    }
+    const next = clonePrefValue(devicePrefs);
+    for (const field of fields) next.shared[field] = clonePrefValue(materialized[field]);
+    return persistDevicePreferences(next);
+  }
+  /** 主记录里收到的设置（另一页的有效快照）→ 采纳 + 按覆盖标记重新解析。 */
+  function resolveIncomingPreferenceSettings(materialized){
+    if (!preferenceDeviceUsable() || !isRecord(materialized)) return clonePrefValue(materialized);
+    const out = clonePrefValue(materialized);
+    adoptIncomingPreferenceSettings(materialized);
+    for (const field of PREFERENCE_FIELDS) {
+      out[field] = isPreferenceOverridden(field)
+        ? clonePrefValue(materialized[field])
+        : clonePrefValue(devicePrefs.shared[field]);
+    }
+    return out;
+  }
+
+  /* ---- O1 小事务 / 恢复日志：设备键 + 受影响书主键，全成功才提交内存 ---- */
+  function prefFail(error){ return {ok: false, error: error}; }
+  function readPreferenceJournal(){
+    try {
+      const raw = localStorage.getItem(PREF_JOURNAL_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+  function validPreferenceJournal(journal){
+    return isRecord(journal) && isRecord(journal.keys)
+      && Object.keys(journal.keys).length > 0
+      && Object.keys(journal.keys).every(key => journal.keys[key] === null || typeof journal.keys[key] === "string");
+  }
+  function restorePreferenceJournalKeys(journal){
+    for (const [key, value] of Object.entries(journal.keys)) {
+      if (value === null || value === undefined) localStorage.removeItem(key);
+      else localStorage.setItem(key, value);
+    }
+    localStorage.removeItem(PREF_JOURNAL_KEY);
+  }
+  /** 启动恢复：上次偏好归属事务未完成 → 恢复涉及的键；失败保留日志并提示。 */
+  function recoverPreferenceJournal(){
+    let journal = null;
+    try {
+      const raw = localStorage.getItem(PREF_JOURNAL_KEY);
+      journal = raw ? JSON.parse(raw) : null;
+    } catch (e) { prefJournalRecoveryFailed = true; return false; }
+    if (!journal) return true;
+    if (!validPreferenceJournal(journal)) { prefJournalRecoveryFailed = true; return false; }
+    try {
+      restorePreferenceJournalKeys(journal);
+      prefJournalRecovered = true;
+      return true;
+    } catch (e) { prefJournalRecoveryFailed = true; return false; }
+  }
+  /**
+   * 提交一次偏好归属改动：设备键 + 当前书主键（可选）作为一个事务。
+   * 准备值 → 比较最新原文 → 写恢复日志 → 写入并回读核对 → 全成功才提交内存；失败整份回滚。
+   */
+  function commitPreferenceChange(nextPrefs, nextSettings, opts){
+    opts = opts || {};
+    if (!preferenceDeviceUsable()) return prefFail(preferenceStatusText() + "，暂按每书独立保存");
+    if (pendingReplacementToken) return prefFail("当前学习记录尚未安全保存，偏好归属未改动");
+    if (readPreferenceJournal()) return prefFail("上次偏好归属保存未完成，请刷新页面恢复后再试");
+    let latestDeviceRaw = null;
+    try { latestDeviceRaw = localStorage.getItem(DEVICE_PREFS_KEY); }
+    catch (e) { return prefFail("浏览器存储不可用，偏好归属未改动"); }
+    if (latestDeviceRaw !== devicePrefsRaw) return prefFail("另一页面刚更新了偏好归属，请等待同步后重试，本次未改动");
+    const deviceText = JSON.stringify(nextPrefs);
+    let mainText = null;
+    if (opts.saveBook !== false) {
+      let latestMainRaw = null;
+      try { latestMainRaw = localStorage.getItem(KEY); }
+      catch (e) { return prefFail("浏览器存储不可用，偏好归属未改动"); }
+      if (latestMainRaw !== lastMainRaw) return prefFail("另一页面已更新本书记录，请等待同步后重试，本次未改动");
+      mainText = serializeSharedState(Object.assign({}, S, {settings: nextSettings}), latestMainRaw, pendingReplacementToken);
+    }
+    const journal = {at: new Date().toISOString(), keys: {}};
+    journal.keys[DEVICE_PREFS_KEY] = latestDeviceRaw;
+    if (mainText !== null) journal.keys[KEY] = localStorage.getItem(KEY);
+    try { localStorage.setItem(PREF_JOURNAL_KEY, JSON.stringify(journal)); }
+    catch (e) { return prefFail("无法创建偏好归属恢复点（存储空间不足），本次未改动"); }
+    const rollback = () => {
+      try {
+        for (const [key, value] of Object.entries(journal.keys)) {
+          // 写入失败时该键可能尚未改变：跳过无变化的恢复，避免在配额不足时把可恢复错误升级为回滚失败。
+          const current = localStorage.getItem(key);
+          if ((current === null ? null : current) === (value === null || value === undefined ? null : value)) continue;
+          if (value === null || value === undefined) localStorage.removeItem(key);
+          else localStorage.setItem(key, value);
+        }
+        localStorage.removeItem(PREF_JOURNAL_KEY);
+        return true;
+      } catch (e) { return false; }
+    };
+    try {
+      localStorage.setItem(DEVICE_PREFS_KEY, deviceText);
+      if (localStorage.getItem(DEVICE_PREFS_KEY) !== deviceText) throw new Error("设备偏好写入校验失败");
+      if (mainText !== null) {
+        localStorage.setItem(KEY, mainText);
+        if (localStorage.getItem(KEY) !== mainText) throw new Error("主记录写入校验失败");
+      }
+    } catch (e) {
+      if (rollback()) return prefFail("偏好归属保存失败，已回滚到改动前");
+      showAlert("偏好归属保存失败", "自动回滚也未完成：恢复日志已保留，请刷新页面以尝试恢复；"
+        + "恢复前请勿继续修改偏好归属或导入备份。", {kind: "prefs", prefRecover: true});
+      return prefFail("偏好归属保存失败且自动回滚未完成，恢复日志已保留");
+    }
+    try { localStorage.removeItem(PREF_JOURNAL_KEY); } catch (e) { /* ignore */ }
+    // 提交内存
+    const previous = clonePrefValue(S.settings);
+    devicePrefs = clonePrefValue(nextPrefs);
+    devicePrefsRaw = deviceText;
+    devicePrefsStatus = "ok";
+    devicePrefsError = "";
+    devicePrefsLegacy = false;
+    if (mainText !== null) lastMainRaw = mainText;
+    if (nextSettings) {
+      S.settings = clonePrefValue(nextSettings);
+      noteInputPreferencesCommitted(previous);
+    }
+    lastSavedSignature = savedStateSignature(S);
+    syncLastResolvedPreferences();
+    storageOK = true;
+    blockedBooks.delete(currentBookId);
+    clearAlert("save");
+    return {ok: true, previousSettings: previous, deviceChanged: true};
+  }
+  function preferenceAffectedBooks(fields){
+    const names = [];
+    for (const def of BOOK_DEFS) {
+      const book = BOOKS[def.id];
+      if (!book || !book.available) continue;
+      if (fields.some(field => !isPreferenceOverridden(field, def.id))) names.push(book.name);
+    }
+    return names;
+  }
+  /**
+   * 显式入口：setPreferenceInheritance(fields[, inheritFromDevice])。
+   * 默认（不传/ false）= 把当前有效值冻结到本书并标记“本书单独”；
+   * true = 移除覆盖立即跟随设备 shared。成功后才提交内存并刷新呈现。
+   */
+  function setPreferenceInheritance(fields, inheritFromDevice){
+    if (!Array.isArray(fields) || !fields.length || fields.some(field => !PREFERENCE_FIELDS.includes(field))) {
+      return prefFail("未知的偏好字段");
+    }
+    if (readPreferenceJournal()) return prefFail("上次偏好归属保存未完成，请先刷新页面恢复");
+    if (!preferenceDeviceUsable()) return prefFail(preferenceStatusText() + "，暂按每书独立保存");
+    const next = clonePrefValue(devicePrefs);
+    const overrides = new Set(preferenceOverrideList(currentBookId));
+    const previous = clonePrefValue(S.settings);
+    const nextSettings = clonePrefValue(S.settings);
+    for (const field of fields) {
+      if (inheritFromDevice === true) {
+        if (!overrides.has(field)) continue;
+        overrides.delete(field);
+        nextSettings[field] = clonePrefValue(next.shared[field]);
+      } else {
+        // 冻结当前有效值到本书：覆盖标记 + 本书 settings 值（主记录随后一并保存）。
+        nextSettings[field] = clonePrefValue(nextSettings[field]);
+        overrides.add(field);
+      }
+    }
+    next.overrides[currentBookId] = PREFERENCE_FIELDS.filter(field => overrides.has(field));
+    const result = commitPreferenceChange(next, nextSettings);
+    if (!result.ok) return result;
+    refreshSharedSettingsSurfaces(true, previous);
+    renderPreferenceOwnershipControls();
+    const label = fields.map(field => PREFERENCE_LABELS[field] || field).join("、");
+    toast(inheritFromDevice === true
+      ? "已让「" + label + "」跟随设备通用值"
+      : "已把「" + label + "」设为本书单独（当前值已冻结到本书）");
+    return {ok: true, bookId: currentBookId, fields: fields.slice(),
+      mode: inheritFromDevice === true ? "device" : "book"};
+  }
+  /**
+   * 显式入口：applyPreferencePatch(patch, {target:"device"|"book"})。
+   * device = “将当前值设为设备通用”（只改 shared，不移除其他书已有覆盖）；
+   * book = 冻结到本书（建立/更新本书覆盖）。device 不可用时降级为只写本书记录。
+   */
+  function applyPreferencePatch(patch, opts){
+    opts = opts || {};
+    if (!isRecord(patch) || !Object.keys(patch).length) return prefFail("没有要修改的偏好");
+    const fields = Object.keys(patch);
+    if (fields.some(field => !PREFERENCE_FIELDS.includes(field))) return prefFail("只能修改可归属的界面偏好字段");
+    for (const field of fields) {
+      if (!validPreferenceValue(field, patch[field])) {
+        return prefFail("偏好值不合法：" + (PREFERENCE_LABELS[field] || field));
+      }
+    }
+    if (readPreferenceJournal()) return prefFail("上次偏好归属保存未完成，请先刷新页面恢复");
+    const previous = clonePrefValue(S.settings);
+    const target = opts.target === "device" ? "device" : "book";
+    if (!preferenceDeviceUsable()) {
+      // 安全降级仍需先保存后提交内存；不能返回失败却留下看似已生效的新值。
+      const saved = applySettingsPatch(patch);
+      if (!saved.ok) return prefFail(saved.error || "偏好保存失败，原配置保持不变");
+      refreshSharedSettingsSurfaces(true, previous);
+      renderPreferenceOwnershipControls();
+      return {ok: true, target: "book", fields: fields.slice(), fallback: true, affectedBooks: []};
+    }
+    const next = clonePrefValue(devicePrefs);
+    const overrides = preferenceOverrideList(currentBookId);
+    const nextSettings = clonePrefValue(S.settings);
+    if (target === "device") {
+      for (const field of fields) next.shared[field] = clonePrefValue(patch[field]);
+      for (const field of fields) {
+        if (!overrides.includes(field)) nextSettings[field] = clonePrefValue(patch[field]);
+      }
+    } else {
+      for (const field of fields) {
+        nextSettings[field] = clonePrefValue(patch[field]);
+        if (!overrides.includes(field)) overrides.push(field);
+      }
+      next.overrides[currentBookId] = PREFERENCE_FIELDS.filter(field => overrides.includes(field));
+    }
+    const result = commitPreferenceChange(next, nextSettings);
+    if (!result.ok) return result;
+    refreshSharedSettingsSurfaces(true, previous);
+    renderPreferenceOwnershipControls();
+    const affected = preferenceAffectedBooks(fields);
+    return {ok: true, target: target, fields: fields.slice(), affectedBooks: affected,
+      hasOtherOverrides: BOOK_DEFS.some(def => def.id !== currentBookId && preferenceOverrideList(def.id).length > 0)};
+  }
+  function retryDevicePreferenceWrite(){
+    if (devicePrefsStatus !== "write-failed" || !devicePrefs) {
+      renderPreferenceOwnershipControls();
+      return prefFail(preferenceStatusText());
+    }
+    if (!persistDevicePreferences(devicePrefs)) {
+      markPreferenceWriteFailure("仍然无法写入偏好归属");
+      renderPreferenceOwnershipControls();
+      return prefFail("偏好归属写入失败");
+    }
+    devicePrefsWriteNotified = false;
+    const previous = clonePrefValue(S.settings);
+    for (const field of PREFERENCE_FIELDS) {
+      if (isPreferenceOverridden(field)) continue;
+      S.settings[field] = clonePrefValue(devicePrefs.shared[field]);
+    }
+    syncLastResolvedPreferences();
+    refreshPreferenceDisplaySurfaces(previous);
+    clearAlert("prefs");
+    toast("偏好归属已保存到本机：之后可逐项选择“此设备通用/本书单独”");
+    renderPreferenceOwnershipControls();
+    return {ok: true};
+  }
+  /** 重置当前书记录时同步清掉它的本书覆盖（只写设备键；失败只提示，不阻断重置本身）。 */
+  function clearBookPreferenceOverrides(bookId){
+    if (!preferenceDeviceUsable()) return false;
+    if (!preferenceOverrideList(bookId).length) return true;
+    const next = clonePrefValue(devicePrefs);
+    next.overrides[bookId] = [];
+    if (!persistDevicePreferences(next)) {
+      markPreferenceWriteFailure("重置时未能清除本书偏好归属");
+      return false;
+    }
+    return true;
+  }
+  /** 导入成功后把被导入书可携带偏好标本书覆盖（设备 shared 不变，未导入书覆盖不动）。 */
+  function markImportedPreferenceOverrides(bookIds){
+    if (!preferenceDeviceUsable() || !bookIds || !bookIds.length) return;
+    const next = clonePrefValue(devicePrefs);
+    for (const id of bookIds) {
+      if (!Object.prototype.hasOwnProperty.call(next.overrides, id)) continue;
+      next.overrides[id] = PREFERENCE_FIELDS.slice();
+    }
+    const text = JSON.stringify(next);
+    // 导入 journal 已包含设备键旧原文：写入失败时由外层整份回滚。
+    localStorage.setItem(DEVICE_PREFS_KEY, text);
+    if (localStorage.getItem(DEVICE_PREFS_KEY) !== text) throw new Error("偏好归属写入校验失败");
+    devicePrefs = next;
+    devicePrefsRaw = text;
+    devicePrefsStatus = "ok";
+    devicePrefsLegacy = false;
+  }
+  /** 只读诊断：当前设备归属状态/迁移信息/当前书覆盖与恢复日志（测试与设置页共用）。 */
+  function getPreferenceOwnership(){
+    return {
+      status: devicePrefsStatus,
+      error: devicePrefsError,
+      usable: preferenceDeviceUsable(),
+      legacy: devicePrefsLegacy,
+      rawPresent: devicePrefsRaw !== null,
+      fields: PREFERENCE_FIELDS.slice(),
+      currentBook: currentBookId,
+      currentOverrides: preferenceOverrideList(currentBookId).slice(),
+      shared: devicePrefs ? clonePrefValue(devicePrefs.shared) : null,
+      overrides: devicePrefs ? clonePrefValue(devicePrefs.overrides) : null,
+      journal: !!readPreferenceJournal(),
+      journalKey: PREF_JOURNAL_KEY,
+      deviceKey: DEVICE_PREFS_KEY,
+      sessionStoreMissing: pageSessionStoreMissing
+    };
+  }
+  function preferenceOwnershipSummaryText(){    if (devicePrefsStatus === "write-failed") {
+      return preferenceStatusText() + "；当前页仍按迁移后的每书值显示，可点“重试保存偏好归属”。";
+    }
+    if (!preferenceDeviceUsable()) {
+      const reason = devicePrefsStatus === "damaged" || devicePrefsStatus === "unsupported"
+        ? "（原文已保留，不会覆写）" : "";
+      return preferenceStatusText() + reason + "。各词书仍使用自己记录里的偏好，属于来源裁决的安全降级。";
+    }
+    const overrides = preferenceOverrideList(currentBookId);
+    const otherOverrides = BOOK_DEFS.reduce((sum, def) => def.id === currentBookId ? sum : sum + preferenceOverrideList(def.id).length, 0);
+    let text = "当前书「" + (BOOKS[currentBookId]?.name || currentBookId) + "」："
+      + overrides.length + " 项本书单独 · " + (PREFERENCE_FIELDS.length - overrides.length) + " 项此设备通用";
+    if (otherOverrides) text += "；其他词书另有 " + otherOverrides + " 项本书单独";
+    text += "。";
+    if (devicePrefsLegacy) text += "已按旧版每书偏好完成一次迁移，旧值都保留为本书覆盖。";
+    if (bookModeMigrated === "follow") text += "本页词书模式已从旧版跟随设置迁移。";
+    return text;
+  }
+
+  /* ---- 归属控件动态注入：放在 SETTINGS_CATALOG 每项 target 所在行附近，不改各行原有 handlers ---- */
+  const prefOwnershipUi = {ready: false, lines: new Map(), retry: null};
+  function preferenceInsertionHome(field){
+    const entry = SETTINGS_CATALOG_MAP.get(field);
+    const target = entry ? $(entry.target) : null;
+    if (!target) return null;
+    if (target.id === "settings-keys") {
+      const anchor = $("#keyReset");
+      const row = anchor && typeof anchor.closest === "function" ? anchor.closest(".key-reset-row") : null;
+      return row || target;
+    }
+    if (target.tagName === "DETAILS") return target;
+    const row = typeof target.closest === "function" ? (target.closest(".set") || target.closest(".field")) : null;
+    return row || target;
+  }
+  function appendPreferenceOwnershipLine(home, line){
+    if (!home) return false;
+    try {
+      const parent = home.parentNode;
+      if (parent && typeof parent.insertBefore === "function") {
+        parent.insertBefore(line, home.nextSibling || null);
+        return true;
+      }
+      if (typeof home.appendChild === "function") { home.appendChild(line); return true; }
+    } catch (e) { /* ignore */ }
+    return false;
+  }
+  function bindPreferenceOwnershipLine(field, refs){
+    refs.main.onclick = () => {
+      if (!preferenceDeviceUsable()) { toast(preferenceStatusText()); return; }
+      const overridden = isPreferenceOverridden(field);
+      const result = setPreferenceInheritance([field], overridden);
+      if (!result.ok) toast(result.error);
+    };
+    refs.device.onclick = () => {
+      if (!preferenceDeviceUsable()) { toast(preferenceStatusText()); return; }
+      const patch = {};
+      patch[field] = clonePrefValue(S.settings[field]);
+      const result = applyPreferencePatch(patch, {target: "device"});
+      if (!result.ok) { toast(result.error); return; }
+      const names = (result.affectedBooks || []).filter(name => name !== BOOKS[currentBookId]?.name);
+      toast("已把当前值设为设备通用" + (names.length ? "：将影响 " + names.join("、") + "（已有本书单独设置的书保持覆盖）" : "（其他词书已有本书单独设置，保持覆盖）"));
+    };
+  }
+  function initPreferenceOwnershipUi(){
+    if (prefOwnershipUi.ready) return;
+    prefOwnershipUi.ready = true;
+    const retry = $("#preferenceOwnershipRetry");
+    if (retry) {
+      prefOwnershipUi.retry = retry;
+      retry.onclick = () => {
+        const result = retryDevicePreferenceWrite();
+        if (!result.ok) toast(result.error);
+      };
+    }
+    if (typeof document === "undefined" || typeof document.createElement !== "function") return;
+    for (const field of PREFERENCE_FIELDS) {
+      try {
+        const home = preferenceInsertionHome(field);
+        if (!home) continue;
+        const line = document.createElement("p");
+        line.setAttribute("class", "control-help pref-ownership-line");
+        line.setAttribute("id", "prefOwnLine_" + field);
+        line.setAttribute("data-pref-field", field);
+        const state = document.createElement("span");
+        state.setAttribute("id", "prefOwnState_" + field);
+        const sep1 = document.createElement("span");
+        sep1.textContent = " · ";
+        const main = document.createElement("button");
+        main.setAttribute("type", "button");
+        main.setAttribute("class", "text-action");
+        main.setAttribute("id", "prefOwnBtn_" + field);
+        const sep2 = document.createElement("span");
+        sep2.textContent = " · ";
+        const device = document.createElement("button");
+        device.setAttribute("type", "button");
+        device.setAttribute("class", "text-action");
+        device.setAttribute("id", "prefOwnDeviceBtn_" + field);
+        device.textContent = "设为设备通用";
+        line.appendChild(state);
+        line.appendChild(sep1);
+        line.appendChild(main);
+        line.appendChild(sep2);
+        line.appendChild(device);
+        const refs = {line: line, state: state, main: main, device: device};
+        bindPreferenceOwnershipLine(field, refs);
+        if (!appendPreferenceOwnershipLine(home, line)) continue;
+        prefOwnershipUi.lines.set(field, refs);
+      } catch (e) { /* 单个控件注入失败不影响归属裁决 */ }
+    }
+    renderPreferenceOwnershipControls();
+  }
+  function renderPreferenceOwnershipControls(){
+    if (!prefOwnershipUi.ready) return;
+    const usable = preferenceDeviceUsable();
+    for (const field of PREFERENCE_FIELDS) {
+      const refs = prefOwnershipUi.lines.get(field);
+      if (!refs) continue;
+      if (!usable) {
+        refs.state.textContent = "偏好归属：" + preferenceStatusText();
+        refs.main.textContent = "重试保存归属";
+        refs.device.hidden = true;
+        continue;
+      }
+      const overridden = isPreferenceOverridden(field);
+      refs.state.textContent = "偏好归属：" + (overridden ? "本书单独" : "此设备通用");
+      refs.main.textContent = overridden ? "跟随设备" : "改为本书单独";
+      refs.device.hidden = !overridden;
+    }
+    const status = $("#preferenceOwnershipStatus");
+    if (status) status.textContent = preferenceOwnershipSummaryText();
+    const retry = prefOwnershipUi.retry || $("#preferenceOwnershipRetry");
+    if (retry) {
+      retry.hidden = !(devicePrefsStatus === "write-failed" || devicePrefsStatus === "damaged" || devicePrefsStatus === "unsupported");
+    }
+  }
+
+  /* ---- O1 本页词书 / 默认 / 跟随 UI ---- */
+  let pendingFollowBookId = null;
+  let bookPageUiReady = false;
+  function pageBookMode(){
+    const stored = pageStoreGet(PAGE_BOOK_MODE_KEY);
+    return PAGE_BOOK_MODES.includes(stored) ? stored : "local";
+  }
+  function currentDefaultBookId(){
+    const id = areaRead(storageArea("main"), DEFAULT_BOOK_KEY);
+    return validBookIdRaw(id) ? id : null;
+  }
+  function pageBookUiState(){
+    return {
+      bookId: currentBookId,
+      mode: pageBookMode(),
+      defaultBook: currentDefaultBookId(),
+      defaultBookWriteFailed: defaultBookWriteFailed,
+      pageSessionAvailable: !pageSessionStoreMissing,
+      activeSignal: areaRead(storageArea("main"), ACTIVE_KEY),
+      migratedFollow: bookModeMigrated === "follow"
+    };
+  }
+  function setPageBookMode(mode){
+    if (!PAGE_BOOK_MODES.includes(mode)) return {ok: false, error: "未知的本页词书模式"};
+    const persisted = pageStoreSet(PAGE_BOOK_MODE_KEY, mode);
+    bookModeMigrated = null;
+    renderBookPageUi();
+    toast(!persisted
+      ? "本页词书模式只保存在当前页面内存中（浏览器会话存储不可用），刷新后可能恢复默认"
+      : mode === "follow"
+        ? "已开启跨页跟随：其他页面切书时，本页没有未完成组会同步；有现场时只提示，不自动丢进度"
+        : "本页仅使用自己的词书：其他页面的切书不会影响本页，也不改其他页面");
+    return {ok: true, mode: mode, persisted: persisted};
+  }
+  function setDefaultBookForNextOpen(bookId){
+    const id = bookId || currentBookId;
+    if (!validBookIdRaw(id)) return {ok: false, error: "该词书数据不可用"};
+    if (!areaWrite(storageArea("main"), DEFAULT_BOOK_KEY, id)) {
+      defaultBookWriteFailed = true;
+      renderBookPageUi();
+      toast("下次默认词书未能保存：浏览器存储不可用或空间不足");
+      return {ok: false, error: "浏览器存储不可用"};
+    }
+    defaultBookWriteFailed = false;
+    renderBookPageUi();
+    toast("已设为下次新开页面的默认词书：" + BOOKS[id].name + "。本页与其他已开页面不会因此切换。");
+    return {ok: true, bookId: id};
+  }
+  /** 切书时提交本页词书：始终写本页 sessionStorage；follow 模式才写旧 ACTIVE 作为跨页信号。 */
+  function commitPageBookSelection(bookId, opts){
+    opts = opts || {};
+    const pagePersisted = pageStoreSet(PAGE_BOOK_KEY, bookId);
+    let activeWritten = false;
+    if (opts.writeActiveSignal) {
+      activeWritten = areaWrite(storageArea("main"), ACTIVE_KEY, bookId);
+    }
+    renderBookPageUi();
+    return {pagePersisted: pagePersisted, activeWritten: activeWritten};
+  }
+  function renderBookPageUi(){
+    const state = pageBookUiState();
+    const localBtn = $("#bookPageModeLocal");
+    const followBtn = $("#bookPageModeFollow");
+    if (localBtn) {
+      localBtn.classList?.toggle("on", state.mode === "local");
+      localBtn.setAttribute?.("aria-pressed", String(state.mode === "local"));
+    }
+    if (followBtn) {
+      followBtn.classList?.toggle("on", state.mode === "follow");
+      followBtn.setAttribute?.("aria-pressed", String(state.mode === "follow"));
+    }
+    const status = $("#bookModeStatus");
+    if (status) {
+      let text = state.mode === "follow"
+        ? "同步到跟随页面：其他页面切书时，本页若已打开未完成组会先提示，不会悄悄丢现场。"
+        : "仅本页：这里的切书只影响当前页面，不会改变其他页面或下次默认。";
+      if (state.migratedFollow) text += "（已从旧版“所有页面跟随”迁移，可随时改为仅本页）";
+      if (!state.pageSessionAvailable) text += " 浏览器会话存储不可用：本页选择只保存在内存，刷新后可能丢失。";
+      if (state.defaultBookWriteFailed) text += " 默认词书未能写入本机存储。";
+      status.textContent = text;
+    }
+    const defaultEl = $("#bookDefaultStatus");
+    if (defaultEl) {
+      defaultEl.textContent = state.defaultBook
+        ? "下次新开页面默认：" + (BOOKS[state.defaultBook]?.name || state.defaultBook)
+        : "下次新开页面：尚未设置（按上次迁移值）";
+    }
+  }
+  function renderBookFollowNotice(){
+    const box = $("#bookFollowNotice");
+    if (!box) return;
+    if (!pendingFollowBookId || !validBookIdRaw(pendingFollowBookId)) { box.hidden = true; return; }
+    box.hidden = false;
+    const text = $("#bookFollowText");
+    if (text) {
+      text.textContent = "另一页切到了「" + BOOKS[pendingFollowBookId].name
+        + "」，本页已保留当前组，未自动切换。";
+    }
+  }
+  function applyBookFollowNotice(){
+    const id = pendingFollowBookId;
+    pendingFollowBookId = null;
+    renderBookFollowNotice();
+    if (!validBookIdRaw(id)) return false;
+    const ok = switchBook(id, {silent: true, persist: false, carry: false});
+    if (ok) toast("已同步切换到「" + BOOKS[id].name + "」");
+    return ok;
+  }
+  function initBookPageUi(){
+    if (bookPageUiReady) return;
+    bookPageUiReady = true;
+    const localBtn = $("#bookPageModeLocal");
+    const followBtn = $("#bookPageModeFollow");
+    if (localBtn) localBtn.onclick = () => setPageBookMode("local");
+    if (followBtn) followBtn.onclick = () => setPageBookMode("follow");
+    const setDefault = $("#bookSetDefault");
+    if (setDefault) setDefault.onclick = () => setDefaultBookForNextOpen(currentBookId);
+    const apply = $("#bookFollowApply");
+    const dismiss = $("#bookFollowDismiss");
+    if (apply) apply.onclick = applyBookFollowNotice;
+    if (dismiss) dismiss.onclick = () => { pendingFollowBookId = null; renderBookFollowNotice(); };
+    renderBookPageUi();
+    renderBookFollowNotice();
+  }
+
   const POSCHIPS = [
     {k:"n", t:"名词"}, {k:"v", t:"动词"}, {k:"a", t:"形容词"}, {k:"d", t:"副词"}, {k:"x", t:"其他"}
   ];
@@ -616,10 +1767,10 @@
    * 词性筛选单一判据。sel = 选中 tag 数组；空数组表示不限。
    * primary（默认）：只按主标签 x.p，行为与旧版一致；all：任一 tag 命中释义派生集合即通过。
    */
-  function posMatches(x, sel){
+  function posMatches(x, sel, mode = S.settings.posMode){
     const selected = Array.isArray(sel) ? sel : [];
     if (!selected.length) return true;
-    if (S.settings.posMode !== "all") {
+    if (mode !== "all") {
       for (const k of selected) {
         if (k === "x") { if (![0,1,2,3].includes(x.p)) return true; }
         else if (POSMAP[k] && POSMAP[k].includes(x.p)) return true;
@@ -725,6 +1876,13 @@
       candidate.proficient = readBookProficient(currentBook(), candidate.proficient);
       const replaced = raw === null || replacementToken(raw) !== replacementToken(lastMainRaw);
       if (pendingReplacementToken && !replaced) return false;
+      // O1：下一组前同步同样按“设备通用/本书覆盖”解析；换代不把物化快照装进 shared。
+      if (replaced) {
+        try { readDevicePreferences(); } catch (e) { /* ignore */ }
+        candidate.settings = resolveBookPreferences(candidate, currentBookId);
+      } else {
+        candidate.settings = resolveIncomingPreferenceSettings(candidate.settings);
+      }
       const before = S;
       const pendingTimeBefore = studyPendingMs;
       const incomingTime = candidate.timeSec || 0;
@@ -752,6 +1910,7 @@
       }
       lastMainRaw = raw;
       lastSavedSignature = savedStateSignature(S);
+      syncLastResolvedPreferences();
       trackAutoResumeLegacy(currentBookId, raw);
       storageOK = true;
       blockedBooks.delete(currentBookId);
@@ -767,7 +1926,9 @@
   function refreshSharedSettingsSurfaces(renderStudyCard = true, previous = {}){
     const differs = key => JSON.stringify(previous[key]) !== JSON.stringify(S.settings[key]);
     const scopeChanged = ["fmin", "fmax", "pmin", "kyOnly", "pos", "posMode"].some(differs);
-    const cardChanged = ["showPh", "showEx", "showFm", "keys", "singleCharKeys"].some(differs);
+    // O1：任一可归属偏好变化都可能影响卡片二次操作/呈现，统一走既有延迟重绘机制。
+    const cardChanged = PREFERENCE_FIELDS.some(differs);
+    noteInputPreferencesCommitted(previous);
     bindSet();
     if (scopeChanged) {
       if (activeSheet) sharedListRefreshPending = currentBookId;
@@ -780,6 +1941,9 @@
     if (cardChanged) sharedCardRefreshPending = currentBookId;
     if (sharedCardRefreshPending && renderStudyCard && !activeSheet && !popOpen) renderCard();
     renderAutoResume();
+    syncOpenWorkspaceFields();
+    applyActionLayout(); applyActionBindingHints();
+    if(activeSheet?.id === "helpSheet") renderHelp();
   }
   let lastSavedSignature = savedStateSignature(S);
   /**
@@ -897,7 +2061,7 @@
     && Number.isInteger(p[0]) && p[0] <= MASTER && Number.isInteger(p[2]) && Number.isInteger(p[3]);
   const integer = (n, fallback, min, max) => nonnegative(n)
     ? Math.min(max, Math.max(min, Math.floor(n))) : fallback;
-  const validKey = k => typeof k === "string" && /^[a-z0-9 ]$/i.test(k);
+  const validKey = k => normalizeKeyBinding(k) !== null;
   function resolveProficientWord(w, book){
     const idx = (book || currentBook()).wordIndex;
     if (idx.has(w)) return w;
@@ -1115,6 +2279,14 @@
     s.fontSize = normalizeFontSize(old.fontSize);
     s.voiceURI = normalizeVoiceURI(old.voiceURI);
     s.speechRate = normalizeSpeechRate(old.speechRate);
+    // F1 阅读与布局：旧记录缺字段 → 舒适/默认顺序/显示元信息/固定撤销与熟练；
+    // 单个非法子项只修该字段，不整份重置；不改学习计划、范围或曲线。
+    s.cardDensity = CARD_DENSITY_VALUES.includes(old.cardDensity) ? old.cardDensity : CARD_DENSITY_DEFAULT;
+    s.readingOrder = normalizeReadingOrder(old.readingOrder);
+    for (const k of ["showCardMeta", "showCardStage", "showCardPos"]) {
+      if (typeof old[k] === "boolean") s[k] = old[k];
+    }
+    s.secondaryActions = normalizeSecondaryActions(old.secondaryActions);
     // 设置页「开启推荐方案」提示只在当前书读取/切换时由 trackAutoResumeLegacy 维护，
     // 这里不再按归一化路径反复增删，避免普通保存/校准把真实旧记录提示清掉。
     if (isRecord(old.keys)) {
@@ -1123,6 +2295,7 @@
       }
       if (new Set(Object.values(s.keys)).size !== Object.keys(s.keys).length) s.keys = Object.assign({}, DEFKEYS);
     }
+    normalizeInputSettings(s,old);
     for (const [k, p] of Object.entries(o.progress)) {
       if (!validIndex(k, book) || !validProgress(p)) {
         throw new Error("单词进度格式不正确");
@@ -1191,6 +2364,9 @@
     // Permanent exclusions can still be recovered if the main backup is damaged.
     try { syncProficientFromStorage(); }
     catch (e) { storageOK = false; blockedBooks.add(book.id); }
+    // O1：主记录只提供“本书 settings”来源；未覆盖字段按设备通用值重新解析，不信任物化缓存。
+    applyBookPreferenceResolution(S, book.id);
+    syncLastResolvedPreferences();
     lastSavedSignature = savedStateSignature(S);
     loadSurvey();
   }
@@ -1210,6 +2386,10 @@
         const authoritative = latest === null ? freshState(currentBook()) : normalizeState(JSON.parse(latest), currentBookId);
         authoritative.proficient = readBookProficient(currentBook(), authoritative.proficient);
         S = authoritative;
+        // 换代（导入/重置/清空）由来源页写覆盖标记；本页先读最新设备键再解析，不把换代记录装进 shared。
+        try { readDevicePreferences(); } catch (e) { /* ignore */ }
+        applyBookPreferenceResolution(S, currentBookId);
+        syncLastResolvedPreferences();
         clearProfPending(currentBookId);
         pendingReplacementToken = null;
         studyPendingMs = 0;
@@ -1224,6 +2404,9 @@
         toast("另一窗口已替换记录，学习队列已同步");
         return true;
       }
+      // O1：先按“此设备通用/本书单独”裁决，把本页显式改动的继承偏好写回设备 shared；
+      // 写失败只提示归属未保存，学习判定/进度仍照常保存。
+      if (!replaceAll) flushInheritedPreferenceEdits();
       // 写入失败后保留待提交换代；同一旧代的设置/累计不能再合入这份显式替换。
       if (proficiencyChanged || pendingReplacementToken) {
         localStorage.setItem(PROF_KEY, JSON.stringify(S.proficient));
@@ -1253,12 +2436,15 @@
           const previousSettingsObject = S.settings;
           const previousSettings = JSON.stringify(S.settings);
           S.settings = mergeSharedSettings(S.settings, latestState.settings, baselineState.settings);
+          // O1：合并结果里“另一页的有效偏好快照”→ 设备 shared；再按覆盖标记解析本页快照。
+          S.settings = resolveIncomingPreferenceSettings(S.settings);
           mergeSharedCounters(latestState);
           const mergedRaw = serializeSharedState(S, latest, pendingReplacementToken);
           localStorage.setItem(KEY, mergedRaw);
           pendingReplacementToken = null;
           lastMainRaw = mergedRaw;
           lastSavedSignature = savedStateSignature(S);
+          syncLastResolvedPreferences();
           storageOK = true;
           blockedBooks.delete(currentBookId);
           clearAlert("save");
@@ -1268,6 +2454,7 @@
         // 内容（进度/熟练/日统计等）确实被别标签更新：整份采用最新存储，本页这次判定让位，
         // 但当日台账/临时加量取较大值，不能让别的标签的旧快照把本页已消费额度或已授予加量回退。
         S = latestState;
+        S.settings = resolveIncomingPreferenceSettings(S.settings);
         pendingReplacementToken = null;
         syncProficientFromStorage();
         const mergedLedger = reviewLedger();
@@ -1331,9 +2518,8 @@
   }
 
   /* ================= 多词书：切换 / 统计 / 备份 ================= */
-  /** 切换词书时携带的纯界面偏好（学习相关设置各书独立）；12 的字号/语音同属界面偏好 */
-  const CARRY_SETTINGS = ["theme", "keys", "showPh", "showEx", "showFm", "autoSpk", "singleCharKeys",
-    "fontSize", "voiceURI", "speechRate"];
+  /** 兼容旧称：O1 后这些字段改由“设备通用/本书覆盖”解析，不再在切书时无条件复制。 */
+  const CARRY_SETTINGS = PREFERENCE_FIELDS;
   function cloneSettingsValue(v){
     return (v && typeof v === "object") ? JSON.parse(JSON.stringify(v)) : v;
   }
@@ -1363,6 +2549,8 @@
     if (!BOOKS[id].available) return null;
     try {
       const state = readBookState(BOOKS[id]).state;
+      // O1：对外只读视图按“覆盖 ? 本书值 : 设备通用值”解析；不写内存/存储。
+      applyBookPreferenceResolution(state, id);
       try { state.proficient = readBookProficient(BOOKS[id], state.proficient); } catch (e) {}
       state.proficient = mergePendingProficient(state.proficient, id);
       return state;
@@ -1430,11 +2618,14 @@
       target.proficient = mergePendingProficient(target.proficient, id);
     } catch (e) { targetBlocked = true; }
     trackAutoResumeLegacy(id, targetRaw);
-    if (opts.carry !== false) {
-      for (const k of CARRY_SETTINGS) {
-        if (S.settings[k] !== undefined) target.settings[k] = cloneSettingsValue(S.settings[k]);
-      }
-    }
+    // O1：切书不再无条件复制 CARRY_SETTINGS；目标书未覆盖字段按设备通用值解析，
+    // 本书覆盖字段保留目标书自己的值（旧迁移明确把旧书值标为覆盖，不会被别的书抹平）。
+    applyBookPreferenceResolution(target, id);
+    syncLastResolvedPreferences();
+    // 先用旧词书关闭浮层，避免关闭时拿旧filt/活动行索引访问目标词库。
+    if (activeSheet) closeSheet();
+    // 旧列表DOM中的数字索引也不能被renderRows带到新书；焦点留在稳定入口。
+    if ($("#v-list")?.classList.contains("on")) $("#btnBooks")?.focus?.({preventScroll: true});
     currentBookId = id;
     sharedCardRefreshPending = false;
     sharedListRefreshPending = false;
@@ -1450,13 +2641,16 @@
     lastSavedSignature = savedStateSignature(S);
     if (targetBlocked) blockedBooks.add(id); else blockedBooks.delete(id);
     storageOK = !targetBlocked;
+    // O1：本页词书写 sessionStorage；只有 follow 模式才写旧 ACTIVE 作为跨页信号。
+    // 跨标签 silent 跟随（persist:false）不回写 ACTIVE，也不保存目标书，避免来回触发。
+    commitPageBookSelection(id, {writeActiveSignal: opts.persist !== false && pageBookMode() === "follow"});
     if (opts.persist !== false) {
-      try { localStorage.setItem(ACTIVE_KEY, id); } catch (e) { /* ignore */ }
-      save();   // 落盘携带的界面偏好（目标记录损坏时自动跳过）
+      save();   // 保存当前书学习记录与新书解析后的偏好快照（目标记录损坏时自动跳过）
     }
+    pendingFollowBookId = null;
+    renderBookFollowNotice();
     rebinding = null;
     detailWord = null;
-    if (activeSheet) closeSheet();
     bindSet();
     restoreListUi(id);
     applyFilter(false);
@@ -1469,12 +2663,32 @@
     if (!opts.silent) toast("已切换到「" + book.name + "」");
     return true;
   }
-  /** 跨标签页跟随别的标签切换词书（不再写回 ACTIVE_KEY，避免来回触发） */
+  /**
+   * 跨标签页词书信号 ACTIVE_KEY 的接收端（O1 §7）：
+   * - local 页完全忽略 ACTIVE；
+   * - follow 页在无未完成卡/特训/受控子组/本页等待/浮层时可 silent 跟随；
+   * - 有受保护现场时只提示「另一页切到了××，本页已保留当前组 [同步切换]」，用户明确点才切；
+   * - 相同 ID 不重复 startSession；开启 follow 不追历史 ACTIVE（只处理之后的变更事件）。
+   */
   function followActiveBook(){
+    if (pageBookMode() !== "follow") return false;   // 仅本页：忽略 ACTIVE，不动其他页也不被带动
     let id = null;
-    try { id = localStorage.getItem(ACTIVE_KEY); } catch (e) { return; }
-    if (!id || id === currentBookId || !bookOf(id) || !BOOKS[id].available) return;
-    switchBook(id, {silent: true, persist: false, carry: false});
+    try { id = localStorage.getItem(ACTIVE_KEY); } catch (e) { return false; }
+    if (!id || id === currentBookId || !validBookIdRaw(id)) return false;
+    const protectedScene = cur != null || drillMode || inSubgroup() || emptyWaitActive() || !!activeSheet;
+    if (protectedScene) {
+      showBookFollowNotice(id);
+      return false;
+    }
+    pendingFollowBookId = null;
+    renderBookFollowNotice();
+    return switchBook(id, {silent: true, persist: false, carry: false});
+  }
+  function showBookFollowNotice(bookId){
+    if (!validBookIdRaw(bookId) || bookId === currentBookId) return false;
+    pendingFollowBookId = bookId;
+    renderBookFollowNotice();
+    return true;
   }
   const APP_ID = "kaoyan-vocab";
   const JOURNAL_KEY = "vocab_import_journal_v1";
@@ -1518,6 +2732,7 @@
       } catch (e) {
         if (def.id === currentBookId) {
           warnings.push({id: def.id, name: book.name, reason: "memory-only"});
+          // 当前书就是已解析运行时快照（含尚未落盘的进度/偏好编辑），原样只读导出。
           books[def.id] = exportStateSnapshot(S, book, true);
         } else {
           warnings.push({id: def.id, name: book.name, reason: "storage-unavailable"});
@@ -1532,6 +2747,8 @@
             continue;
           }
         }
+        // 当前书 S 已是“覆盖 ? 本书值 : 设备通用值”解析后的快照，原样只读导出；
+        // 其他词书才需要按覆盖标记从存储重算（不修改内存/存储、不装 shared/overrides）。
         books[def.id] = exportStateSnapshot(S, book, true);
         if (profRaw !== null) {
           try { normalizeProficientByBook(JSON.parse(profRaw), book); }
@@ -1541,6 +2758,8 @@
       }
       if (raw === null) {
         const empty = freshState(book);
+        // O1：无记录的词书导出其实际有效偏好（未覆盖字段 = 设备通用值），只读、不写存储。
+        applyBookPreferenceResolution(empty, def.id);
         empty.proficient = mergePendingProficient(empty.proficient, def.id);
         books[def.id] = exportStateSnapshot(empty, book, false);
         continue;
@@ -1551,6 +2770,8 @@
         corrupted.push({id: def.id, name: book.name, raw: raw, proficient: profRaw, error: err.message});
         continue;
       }
+      // O1：备份 v3 的每书 settings 填该书实际有效偏好；归属关系本身不随备份往返。
+      applyBookPreferenceResolution(state, def.id);
       if (profRaw !== null) {
         try { state.proficient = normalizeProficientByBook(JSON.parse(profRaw), book); }
         catch (err) { warnings.push({id: def.id, name: book.name, reason: "proficient-unreadable"}); }
@@ -1681,6 +2902,8 @@
       keys[book.PROF_KEY] = localStorage.getItem(book.PROF_KEY);
     }
     keys[ACTIVE_KEY] = localStorage.getItem(ACTIVE_KEY);
+    // O1：导入后会被标本书覆盖，设备键旧原文也在恢复点里，失败时整份回滚。
+    keys[DEVICE_PREFS_KEY] = localStorage.getItem(DEVICE_PREFS_KEY);
     return keys;
   }
   function beginImportJournal(ids){
@@ -1693,7 +2916,10 @@
       throw new Error("浏览器存储不可用，导入未开始，现有记录未改动");
     }
     const originals = captureStorageKeys(ids);
-    try { localStorage.setItem(JOURNAL_KEY, JSON.stringify({at: new Date().toISOString(), keys: originals})); }
+    try {
+      localStorage.setItem(JOURNAL_KEY, JSON.stringify({at: new Date().toISOString(), keys: originals,
+        pageBook: pageStoreGet(PAGE_BOOK_KEY)}));
+    }
     catch (e) { throw new Error("无法创建导入恢复点（浏览器存储空间不足），导入未开始，现有记录未改动"); }
     return originals;
   }
@@ -1725,8 +2951,12 @@
       showAlert("导入恢复失败", "恢复日志无法读取或写入：" + (e.message || "存储不可用") + "。请不要继续导入，先导出救援备份。", {kind: "import"});
       return false;
     }
+    try { initDevicePreferences(true); } catch (e) { /* 恢复后按当前设备键/降级规则解析 */ }
     try {
-      currentBookId = pickActiveBook(localStorage.getItem(ACTIVE_KEY));
+      const pageBook = validBookIdRaw(journal.pageBook) ? journal.pageBook : pageStoreGet(PAGE_BOOK_KEY);
+      currentBookId = pickActiveBook(validBookIdRaw(pageBook) ? pageBook
+        : localStorage.getItem(ACTIVE_KEY));
+      pageStoreSet(PAGE_BOOK_KEY, currentBookId);
     } catch (e) { /* 保持当前书 */ }
     const active = currentBook();
     KEY = active.KEY; PROF_KEY = active.PROF_KEY; SURVEY_KEY = active.SURVEY_KEY;
@@ -1761,6 +2991,9 @@
       }
     }
     if (failed.length) throw new Error(importFailureMessage(new Error("导入未能全部保存"), failed.map(id => BOOKS[id].name)));
+    // O1：被导入书可携带偏好标本书覆盖（设备 shared 不变、未导入书覆盖不动）。
+    // 写入失败会抛出 → 外层用含设备键旧原文的导入恢复点整份回滚。
+    markImportedPreferenceOverrides(entries.map(entry => entry.id));
     // 15：仅在导入整份写入成功后丢弃旧会话快照；失败回滚时保持存储键与导入前完全一致。
     clearAllSessionSnapshots();
     const target = (typeof o.activeBook === "string"
@@ -1789,6 +3022,8 @@
     const beforeReplacementToken = pendingReplacementToken;
     const beforeStorageOK = storageOK;
     const beforePending = snapshotPendingProf();
+    const beforeDevicePrefs = preferenceDeviceUsable() ? clonePrefValue(devicePrefs) : null;
+    const beforeDeviceRaw = devicePrefsRaw;
     try {
       if (currentBookId === "kaoyan") {
         // Importing an older backup cannot silently undo permanent manual exclusions.
@@ -1797,6 +3032,9 @@
         S = imported;
         blockedBooks.delete(currentBookId);
         if (!save(true, true)) throw new Error("考研记录未能保存");
+        markImportedPreferenceOverrides(["kaoyan"]);
+        S.settings = resolveBookPreferences(S, "kaoyan");
+        syncLastResolvedPreferences();
         clearAllSessionSnapshots();   // 15：导入成功后才丢弃旧会话快照
         bindSet(); applyFilter(false); renderStats(); startSession();
         if (activeSheet) closeSheet();
@@ -1807,6 +3045,7 @@
         try { existing.proficient = readBookProficient(BOOKS.kaoyan, existing.proficient); } catch (e) { /* ignore */ }
         imported.proficient = Object.assign({}, existing.proficient, imported.proficient);
         if (!writeBookState("kaoyan", imported)) throw new Error("考研记录未能保存");
+        markImportedPreferenceOverrides(["kaoyan"]);
         clearAllSessionSnapshots();   // 15：导入成功后才丢弃旧会话快照
         if (activeSheet) closeSheet();
         renderBookList();
@@ -1822,6 +3061,11 @@
         pendingReplacementToken = beforeReplacementToken;
         storageOK = beforeStorageOK;
         restorePendingProf(beforePending);
+        // O1：恢复内存里的设备偏好镜像（存储已由恢复点整份回滚）。
+        if (beforeDevicePrefs) { devicePrefs = beforeDevicePrefs; devicePrefsRaw = beforeDeviceRaw; devicePrefsStatus = "ok"; }
+        else { try { readDevicePreferences(); } catch (e) { /* ignore */ } }
+        syncLastResolvedPreferences();
+        pageStoreSet(PAGE_BOOK_KEY, currentBookId);
         KEY = BOOKS[currentBookId].KEY; PROF_KEY = BOOKS[currentBookId].PROF_KEY;
         SURVEY_KEY = BOOKS[currentBookId].SURVEY_KEY;
         W = BOOKS[currentBookId].words; wordIndex = BOOKS[currentBookId].wordIndex;
@@ -1859,6 +3103,8 @@
     const beforeReplacementToken = pendingReplacementToken;
     const beforeStorageOK = storageOK;
     const beforePending = snapshotPendingProf();
+    const beforeDevicePrefs = preferenceDeviceUsable() ? clonePrefValue(devicePrefs) : null;
+    const beforeDeviceRaw = devicePrefsRaw;
     try {
       return importCommittedState(entries, o);
     } catch (err) {
@@ -1871,11 +3117,15 @@
           KEY = book.KEY; PROF_KEY = book.PROF_KEY; SURVEY_KEY = book.SURVEY_KEY;
           W = book.words; wordIndex = book.wordIndex;
         }
+        pageStoreSet(PAGE_BOOK_KEY, currentBookId);
         blockedBooks.clear(); beforeBlocked.forEach(id => blockedBooks.add(id));
         lastMainRaw = beforeRaw; lastSavedSignature = beforeSig;
         pendingReplacementToken = beforeReplacementToken;
         storageOK = beforeStorageOK;
         restorePendingProf(beforePending);
+        if (beforeDevicePrefs) { devicePrefs = beforeDevicePrefs; devicePrefsRaw = beforeDeviceRaw; devicePrefsStatus = "ok"; }
+        else { try { readDevicePreferences(); } catch (e) { /* ignore */ } }
+        syncLastResolvedPreferences();
         sessionSnapshotWriteSuspended = true;
         try { bindSet(); applyFilter(false); renderStats(); startSession(); updateBar(); renderBookList(); }
         finally { sessionSnapshotWriteSuspended = false; }
@@ -2281,6 +3531,214 @@
       : "加量数量需为 1–100 的整数";
   }
 
+  /* ================= 大版本首批：只读学习呈现与统一动作 =================
+   * 本块不接管原按钮/键位，不保存新状态。呈现模型只读，命令委托既有业务入口。
+   * 预算暂停仍由当前卡与今日台账派生；原 grantExtraNew 继续只负责授予。 */
+  const STUDY_ACTION_LABELS = {
+    know: "会", dont: "不会", next: "下一个", speak:"发音", star:"收藏", proficient:"熟练", undo:"撤销", listSearch:"词表搜索", continue: "继续下一组",
+    wait: "开始等待到期", enableWait: "启用便捷并在本页等待", stopWait: "退出本页等待",
+    return: "返回原组", addExtraAndStudy: "加量并学习", restoreAuto: "恢复今天自动续背", pauseAuto: "今天暂停自动续背"
+  };
+  let extraStudyBusy = false;
+  function studyActionBlockedBy(event,action,source){
+    source=source || (event?.type==="keydown"?"keyboard":event?.type?.startsWith("pointer")?"gesture":event?"button":"program");
+    if (event && (event.repeat || event.isComposing || event.defaultPrevented || event.keyCode===229
+      || event.key==="Dead" || event.key==="Unidentified" || event.getModifierState?.("AltGraph"))) return "input-event";
+    if (event && (/^(INPUT|SELECT|TEXTAREA)$/.test(event.target?.tagName || "") || event.target?.isContentEditable)) return "text-input";
+    if(["keyboard","gesture"].includes(source) && Boolean(window.getSelection?.()?.toString()))return "selection";
+    if (!$("#v-study")?.classList.contains("on")) return "not-study";
+    if (document.visibilityState === "hidden") return "hidden";
+    if (activeSheet) return "sheet";
+    if ($("#exPop") && !$("#exPop").hidden) return "lookup";
+    // 保存失败时仍允许本页手动回忆/改判/撤销；只有开组与授予/等待要求先处理持续错误。
+    if (["continue","wait","enableWait","addExtraAndStudy"].includes(action) && $("#appAlert") && !$("#appAlert").hidden) return "alert";
+    return null;
+  }
+  /** 只读暂停状态：不初始化/改写缓存，失败读时保留本页已知值与未落盘操作。 */
+  function studyPresentationPausedToday(){
+    if (autoResumePausePending.has(currentBookId)) return autoResumePausePending.get(currentBookId) === todayStr();
+    try {
+      const raw = JSON.parse(localStorage.getItem(AUTO_RESUME_PAUSE_KEY) || "null");
+      return !!(raw && raw[currentBookId] === todayStr());
+    } catch (e) { return autoResumePauseStore.map[currentBookId] === todayStr(); }
+  }
+  /** 候选唯一只读口径：不建立日记录/台账，不排序抽样或写缓存；开组仍按原业务复核。 */
+  function readOnlyCandidateStats(now = Date.now()){
+    now = now || Date.now();
+    let dueTotal = 0, freshPoolCount = 0;
+    for (let i = 0; i < W.length; i++) {
+      if (!inScope(i) || isProficient(i)) continue;
+      const p = st(i);
+      if (!hasMainProgress(p)) freshPoolCount++;
+      else if (p[0] < MASTER && p[1] <= now) dueTotal++;
+    }
+    const cap = getReviewCap();
+    let used = normalizeReviewDay(S.reviewDay).used;
+    if (cap > 0) {
+      try {
+        const raw = localStorage.getItem(KEY);
+        // 显式重置/导入的新一代不能和旧现场台账取大；等待命令入口权威同步。
+        if (raw && replacementToken(raw) === replacementToken(lastMainRaw)) used = Math.max(used, normalizeReviewDay(JSON.parse(raw).reviewDay).used);
+      } catch (e) { /* 只读保留已知预算；启动/判定沿用原有安全门控 */ }
+    }
+    const capLeft = cap === 0 ? Infinity : Math.max(0, cap - used);
+    const groupSize = Math.max(GROUP_SIZE_MIN, Math.min(GROUP_SIZE_MAX,
+      Number.isInteger(S.settings.groupSize) ? S.settings.groupSize : GROUP_SIZE_DEFAULT));
+    const extra = normalizeExtraDay(S.extraDay), learned = (S.days[todayStr()] || {}).n || 0;
+    const quota = Math.max(0, Math.min(EXTRA_NEW_TARGET_MAX, S.settings.dailyNew + extra.extra) - learned);
+    const plannedDue = Math.min(groupSize, dueTotal);
+    const dueActive = cap === 0 ? plannedDue : Math.min(plannedDue, capLeft);
+    const backlogGuarded = !!S.settings.backlogGuard && cap > 0 && dueTotal > capLeft;
+    const fresh = backlogGuarded ? 0 : Math.min(quota, freshPoolCount);
+    const freshActive = Math.min(Math.max(0, groupSize - plannedDue), fresh);
+    const capPausedNow = cap > 0 && capLeft <= 0 && dueTotal > 0;
+    return {available: capPausedNow ? 0 : dueActive + freshActive,
+      due: dueTotal, dueActive, fresh, freshActive, quota, groupSize, cap,
+      capLeft: capLeft === Infinity ? null : capLeft, backlogGuarded, capPaused: capPausedNow};
+  }
+  function deriveStudyPresentation(){
+    const mode = drillMode ? "drill" : extraSubgroup ? "extra" : newOnlySubgroup ? "newOnly" : "main";
+    const candidates = readOnlyCandidateStats();
+    const capPausedNow = !drillMode && cur != null && verdict === null && hasMainProgress(st(cur)) && candidates.cap > 0 && candidates.capLeft <= 0;
+    const waiting = emptyWaitActive(), empty = emptyMainPage(), paused = studyPresentationPausedToday();
+    const ar = currentAutoResume(), blockedBy = studyActionBlockedBy();
+    const state = capPausedNow ? "cap" : drillMode ? "drill" : inSubgroup() ? "subgroup"
+      : cur != null ? phase : waiting ? "wait" : empty ? "empty" : "done";
+    const canReturn = drillMode || inSubgroup() || (autoResumeReturnArmed && autoResumeReturnSnap && answered === 0);
+    const returnLabel = drillMode ? "退出特训" : inSubgroup() ? "返回原组" : autoResumeReturnFromWait ? "返回等待页" : "返回上一组结果";
+    const learned = (S.days[todayStr()] || {}).n || 0, extra = normalizeExtraDay(S.extraDay);
+    let extraReason = "context";
+    if (mode === "main" && (capPausedNow || (cur == null && !capGroupEnded))) {
+      const pending = capPausedNow ? new Set(Q.slice(qi)) : new Set();
+      let reserved = 0, available = extraCandidatesAvailable();
+      for (const i of pending) if (!hasMainProgress(st(i))) {
+        reserved++;
+        if (inScope(i) && !isProficient(i)) available--;
+      }
+      const target = Math.min(EXTRA_NEW_TARGET_MAX, S.settings.dailyNew + extra.extra);
+      const reusableExtra = extra.extra > 0 && target > learned + reserved;
+      extraReason = available <= 0 ? "no-candidates" : !capPausedNow && candidates.capPaused ? "review-cap"
+        : reusableExtra ? "" : !capPausedNow && learned < S.settings.dailyNew ? "plan-not-finished"
+        : target >= EXTRA_NEW_TARGET_MAX ? "target-cap" : "";
+    }
+    const candidateReason = candidates.available > 0 ? "" : candidates.capPaused ? "review-cap"
+      : candidates.backlogGuarded ? "backlog" : candidates.quota <= 0 ? "new-quota" : "no-candidates";
+    const allowed = {
+      know: cur != null && !capPausedNow, dont: cur != null && !capPausedNow,
+      next: cur != null && phase === "revealed", speak:cur!=null, star:cur!=null, proficient:cur!=null,
+      undo:undoStack.length>0, listSearch:true,
+      continue: cur == null && mode === "main" && candidates.available > 0,
+      wait: empty && !waiting && ar.enabled && !paused && storageOK && !autoResumeStorageError,
+      enableWait: empty && !waiting && !ar.enabled && !paused && storageOK && !autoResumeStorageError,
+      stopWait: waiting, return: !!canReturn,
+      addExtraAndStudy: extraReason === "",
+      restoreAuto: mode === "main" && ar.enabled && paused,
+      pauseAuto: mode === "main" && cur == null && ar.enabled && !paused
+    };
+    const preferredAction = cur != null ? (phase === "revealed" ? "next" : capPausedNow && canReturn ? "return" : null)
+      : canReturn ? "return" : waiting ? "stopWait" : candidates.available > 0 ? "continue"
+        : empty ? (paused && ar.enabled ? "restoreAuto" : ar.enabled ? "wait" : "enableWait") : "continue";
+    const actions=Object.entries(STUDY_ACTION_LABELS).map(([id,label])=>{
+      const actionBlock=studyActionBlockedBy(null,id);
+      return {id,label:id==="return"?returnLabel:label,enabled:!actionBlock && !!allowed[id],
+        reason:actionBlock || (allowed[id]?"":id==="addExtraAndStudy"?extraReason
+          :id==="continue" && cur==null && mode==="main"?candidateReason:"context")};
+    });
+    const primaryAction=actions.find(a=>a.id===preferredAction && a.enabled)?.id || null;
+    return {
+      state,mode,phase,reason:blockedBy || (capPausedNow?"review-cap":capGroupEnded?"cap-ended":paused?"auto-paused"
+        :cur==null && mode==="main"?candidateReason:""),
+      blockedBy,primaryAction,returnAction:canReturn?"return":null,candidates,actions
+    };
+  }
+  /** 单命令先用尚未学习的加量额度；失败重试/跨标签已授予不再追加。 */
+  function addExtraAndStudy(n, options = {}){
+    let granted = 0, reused = false, fromPause = false, available = 0;
+    const result = (ok, error = null, started = false) => ({ok, error, started, granted, reused,
+      mode: fromPause ? "extra" : "main", available, actual: started ? Q.length : 0,
+      extra: normalizeExtraDay(S.extraDay).extra, amount: n});
+    if (normalizeExtraGrant(n) === null) return result(false, "invalid-amount");
+    const blocked = studyActionBlockedBy(options.event,"addExtraAndStudy",options.source);
+    if (blocked) return result(false, blocked);
+    if (extraStudyBusy) return result(false, "busy");
+    let view = deriveStudyPresentation();
+    const eligibility = view.actions.find(action => action.id === "addExtraAndStudy");
+    if (!eligibility?.enabled) return result(false, eligibility?.reason || "context");
+    extraStudyBusy = true;
+    try {
+      // 保存失败的授予可能只在内存：先重试保存，不能直接刷新丢掉它。
+      if (!storageOK && !save()) return result(false, "storage");
+      fromPause = view.state === "cap";
+      if (fromPause) {
+        if (!save()) return result(false, "storage");
+        alignReviewLedgerFromStorage();
+      } else if (!refreshSharedBeforeNextGroup()) return result(false, "storage");
+      view = deriveStudyPresentation();
+      if (view.mode !== "main" || (cur != null && view.state !== "cap") || capGroupEnded) return result(false, "context");
+      fromPause = view.state === "cap";
+      const pending = fromPause ? new Set(Q.slice(qi)) : new Set();
+      let reserved = 0;
+      for (const i of pending) if (!hasMainProgress(st(i))) reserved++;
+      for (let i = 0; i < W.length; i++) if (inScope(i) && !isProficient(i) && !hasMainProgress(st(i)) && !pending.has(i)) available++;
+      if (!available) return result(false, "no-candidates");
+      if (!fromPause && candidateStatsNow().capPaused) return result(false, "review-cap");
+      const extra = normalizeExtraDay(S.extraDay), learned = (S.days[todayStr()] || {}).n || 0;
+      const remaining = Math.max(0, Math.min(EXTRA_NEW_TARGET_MAX, S.settings.dailyNew + extra.extra) - learned - reserved);
+      reused = extra.extra > 0 && remaining > 0;
+      if (!reused) {
+        const generation = replacementToken(lastMainRaw);
+        const grant = grantExtraNew(Math.min(n, available), {fromPause});
+        if (!grant.ok) return result(false, grant.error);
+        granted = grant.granted || 0; reused = !!grant.duplicate;
+        if (!storageOK) return result(false, "storage");
+        if (replacementToken(lastMainRaw) !== generation || (cur != null && !fromPause)) return result(false, "shared-change");
+      }
+      const started = fromPause ? startExtraSubgroup() : continueMainSession();
+      return result(!!started, started ? null : "unavailable", !!started);
+    } finally { extraStudyBusy = false; }
+  }
+  function runStudyAction(action, options = {}){
+    const outcome = (ok, error = null, started = false) => ({ok, action, error, started});
+    if (!Object.prototype.hasOwnProperty.call(STUDY_ACTION_LABELS, action)) return outcome(false, "unknown-action");
+    const blocked = studyActionBlockedBy(options.event,action,options.source);
+    if (blocked) return outcome(false, blocked);
+    if(action==="next" && cur!=null && phase!=="revealed"){tryNext(true);return outcome(false,"recall-gate");}
+    if(["know","dont"].includes(action) && cur!=null && computeCapPaused()){judge(action==="know");return outcome(false,"review-cap");}
+    if(options.source!=="gesture" && verdict!==null && ["know","dont","next","undo","proficient"].includes(action)
+      && swallowJudgeDoubleClick(options.event))return outcome(false,"duplicate-pointer");
+    const descriptor = deriveStudyPresentation().actions.find(item => item.id === action);
+    if (!descriptor?.enabled) return outcome(false, descriptor?.reason || "context");
+    if (action === "addExtraAndStudy") return Object.assign({action}, addExtraAndStudy(options.amount, options));
+    if (["know", "dont", "next"].includes(action)) {
+      if (action === "next") { tryNext(true); return outcome(true); }
+      const known = action === "know";
+      if (verdict === known) return outcome(false, "no-change");
+      if(verdict===null)markJudgeGesture(options.source==="gesture"?null:options.event);
+      judge(known);return outcome(verdict===known,verdict===known?null:"unavailable");
+    }
+    if(action==="speak"){speak(W[cur].w);return outcome(true);}
+    if(action==="star"){const i=cur;toggleStar(i);renderCard();toast(isStar(i)?"已收藏":"已取消收藏");return outcome(true);}
+    if(action==="proficient"){const i=cur;setProficient(i,true);return outcome(isProficient(i));}
+    if(action==="undo"){undo();return outcome(true);}
+    if(action==="listSearch"){show("list");$("#q")?.focus?.();return outcome(true);}
+    if (action === "continue") { const started = continueMainSession(); return outcome(started, started ? null : "unavailable", started); }
+    if (action === "return") {
+      if (!save()) return outcome(false, "storage");
+      if (!deriveStudyPresentation().returnAction) return outcome(false, "context");
+      const ok = drillMode ? exitDrill() : inSubgroup() ? endActiveSubgroup() : returnToPreviousResults();
+      return outcome(ok, ok ? null : "unavailable");
+    }
+    if (action === "enableWait") {
+      const updated = applyAutoResumePreset("quick");
+      if (!updated.ok || !storageOK) return outcome(false, "storage");
+    }
+    if (action === "wait" || action === "enableWait") { const ok = startEmptyWait(); return outcome(ok, ok ? null : "unavailable"); }
+    if (action === "stopWait") return outcome(stopEmptyWait());
+    if (action === "restoreAuto") return outcome(restoreAutoResumeToday());
+    if (action === "pauseAuto") { pauseAutoResumeToday(); return outcome(true); }
+    return outcome(false, "unknown-action");
+  }
+
 
   /**
    * 乱序模式下新词按随机顺序出现，每张首次作答的新词卡相当于一次随机抽查：
@@ -2423,8 +3881,39 @@
     }
   }
 
-  /** 最近一次「标为熟练」的反馈对象，供静态 #profFeedback 展示即时取消入口。 */
+  /** 最近一次「标为熟练」的反馈对象，仅用于短暂浮动确认，不进入学习记录。 */
   let profMark = null;
+  const PROF_FEEDBACK_MS = 6000;
+  let profFeedbackTarget = null, profFeedbackTimer = null, profFeedbackDeadline = 0;
+  let profFeedbackRemaining = PROF_FEEDBACK_MS;
+  const profFeedbackPauses = new Set();
+  function dismissProfFeedback(){
+    clearTimeout(profFeedbackTimer);
+    profFeedbackTimer = null;
+    profFeedbackTarget = null;
+    profFeedbackPauses.clear();
+    profMark = null;
+    const box = $("#profFeedback");
+    if (box) box.hidden = true;
+  }
+  function scheduleProfFeedback(){
+    clearTimeout(profFeedbackTimer);
+    if (!profMark || profFeedbackPauses.size) return;
+    profFeedbackDeadline = Date.now() + profFeedbackRemaining;
+    profFeedbackTimer = setTimeout(dismissProfFeedback, profFeedbackRemaining);
+  }
+  function pauseProfFeedback(reason){
+    if (!profMark || profFeedbackPauses.has(reason)) return;
+    if (!profFeedbackPauses.size) {
+      profFeedbackRemaining = Math.max(1200, profFeedbackDeadline - Date.now());
+      clearTimeout(profFeedbackTimer);
+    }
+    profFeedbackPauses.add(reason);
+  }
+  function resumeProfFeedback(reason){
+    if (!profFeedbackPauses.delete(reason) || profFeedbackPauses.size) return;
+    scheduleProfFeedback();
+  }
   /** A manual, permanent exclusion, independent of the spaced-repetition stage. */
   function setProficient(i, value){
     if (storageOK) { try { syncProficientFromStorage(); } catch (e) {} }
@@ -2452,7 +3941,8 @@
     const saved = save(true);
     renderCard(); updateScopeCount(); syncFreqControls(); applyFilter(false); renderStats(); updateBar();
     renderProfFeedback();
-    toast(saved ? (value ? "已移出背诵与复习；可点「取消熟练」恢复" : "已取消熟练，下组将按原进度安排学习")
+    // 成功标记由可取消的浮动确认说明，避免同时叠加普通 toast；保存失败沿用错误提示。
+    if (!saved || !value) toast(saved ? "已取消熟练，下组将按原进度安排学习"
       : "熟练状态已更新，但未能保存；请立即导出进度备份");
   }
   function resetProficient(){
@@ -2468,32 +3958,58 @@
   /**
    * 熟练反馈的「取消熟练」入口：复用正式取消逻辑 setProficient(i,false)。
    * 容器/按钮由 index.html 静态提供（#profFeedback / #profFeedbackText / #btnUnMaster），
-   * 不在 #acts 里，判定重绘不会把它清掉；节点缺失时完全容错跳过。
+   * 固定浮动、不占卡片网格行；6 秒后收起，悬停/键盘聚焦时暂停计时。
+   * 收起只清反馈，熟练标记保留；之后仍可从词表「熟练」中取消。
    */
   function renderProfFeedback(){
     const box = $("#profFeedback");
-    if (!box) { profMark = null; return; }
+    if (!box) { dismissProfFeedback(); return; }
     const text = $("#profFeedbackText"), btn = $("#btnUnMaster");
     const mark = profMark;
     const valid = !!(mark && mark.bookId === currentBookId && W[mark.i]
       && W[mark.i].w === mark.w && isProficient(mark.i));
     if (!valid) {
-      profMark = null;
-      box.hidden = true;
+      dismissProfFeedback();
       if (text) text.textContent = "";
       return;
     }
-    if (text) text.textContent = "「" + mark.w + "」已标为熟练，移出背诵与复习；可点「取消熟练」恢复。";
+    if (profFeedbackTarget !== mark) {
+      profFeedbackTarget = mark;
+      // 静态取消按钮/浮层节点不会随目标换词而重建，因此不会再次触发 focusin/pointerenter。
+      // 以真实焦点/悬停重建暂停原因，既保留正在使用的入口，也不继承已离开的旧原因。
+      const focused = !!box.contains?.(document.activeElement);
+      const hovered = typeof box.matches === "function" ? box.matches(":hover") : profFeedbackPauses.has("hover");
+      profFeedbackPauses.clear();
+      if (focused) profFeedbackPauses.add("focus");
+      if (hovered) profFeedbackPauses.add("hover");
+      profFeedbackRemaining = PROF_FEEDBACK_MS;
+      scheduleProfFeedback();
+    }
+    if (text) text.textContent = "「" + mark.w + "」已移出学习队列";
     box.hidden = false;
     if (btn && !btn.__unMasterBound) {
       btn.__unMasterBound = true;
       btn.onclick = () => {
         const target = profMark;
         if (!target || target.bookId !== currentBookId) return;
-        profMark = null;
+        dismissProfFeedback();
         setProficient(target.i, false);
         renderProfFeedback();
         $("#card")?.focus?.({ preventScroll: true });
+      };
+    }
+    if (!box.__profFeedbackBound) {
+      box.__profFeedbackBound = true;
+      box.addEventListener("pointerenter", () => pauseProfFeedback("hover"));
+      box.addEventListener("pointerleave", () => resumeProfFeedback("hover"));
+      box.addEventListener("focusin", () => pauseProfFeedback("focus"));
+      box.addEventListener("focusout", e => {
+        if (!box.contains?.(e.relatedTarget)) resumeProfFeedback("focus");
+      });
+      const close = $("#profFeedbackDismiss");
+      if (close) close.onclick = () => {
+        dismissProfFeedback();
+        $("#card")?.focus?.({preventScroll: true});
       };
     }
   }
@@ -3003,6 +4519,8 @@
     pop.hidden = true;
     pop.classList.remove("on");
     pop.setAttribute?.("aria-expanded", "false");
+    applyActionLayout();
+    applyActionBindingHints();
     if (previous && previous.trigger) previous.trigger.setAttribute?.("aria-expanded", "false");
     const refresh = sharedCardRefreshPending === currentBookId && !activeSheet;
     if (refresh) renderCard();
@@ -3118,18 +4636,17 @@
   } catch (e) {}
 
   /* ================= 词库筛选 ================= */
-  function passBaseFilters(x){
-    const s = S.settings;
+  function passBaseFilters(x, s = S.settings){
     if (s.pmin && x.c < s.pmin) return false;
     if (s.kyOnly && x.ky !== 1) return false;
     // 词性只走 posMatches 单一判据：队列/范围/直方图/列表/统计/TXT 共用。
-    return posMatches(x, s.pos || []);
+    return posMatches(x, s.pos || [], s.posMode);
   }
-  function inScope(i){
-    const x = W[i], s = S.settings;
+  function inScope(i, s = S.settings){
+    const x = W[i];
     if (x.f < (s.fmin || 1)) return false;
     if (s.fmax && x.f > s.fmax) return false;
-    return passBaseFilters(x);
+    return passBaseFilters(x, s);
   }
 
   /* ================= 词频分布曲线 + 双端滑块 ================= */
@@ -3609,7 +5126,7 @@
   let autoResumeEmptyWaitBook = null;   // 用户显式开启的本页等待资格；不持久化、不伪造完成组
   let autoResumeStarting = false;        // 自动开组进行中：startSession 不清返回现场
   // 「今天暂停自动续背」的 localStorage 缓存（AUTO_RESUME_PAUSE_KEY）；首次读取后常驻内存。
-  const autoResumePauseStore = {loaded: false, map: {}};
+  const autoResumePauseStore = {loaded: false, readable: false, map: {}};
   const autoResumePausePending = new Map(); // 暂停键写失败时的本页增删；强制重读也不能抹掉用户操作
   const autoResumeLegacyBooks = new Set();     // 旧记录缺 autoResume 的书：设置页提示推荐方案
   let autoResumeLastRenderKey = "";
@@ -3654,7 +5171,7 @@
     const a = document.createElement("a");
     const url = URL.createObjectURL(new Blob([content], {type: "text/plain;charset=utf-8"}));
     a.href = url;
-    a.download = currentBook().name + (source === "filter" ? "_筛选结果_" : "_背诵范围_") + count + "词_" + todayStr() + ".txt";
+    a.download = currentBook().name + (source === "filter" ? (statsDrill ? "_下钻筛选_" : "_筛选结果_") : "_背诵范围_") + count + "词_" + todayStr() + ".txt";
     document.body.appendChild(a);
     a.click();
     a.remove?.();
@@ -3743,7 +5260,7 @@
     if (!text) { toast("当前范围没有可导出的单词，请调整筛选条件"); return false; }
     if (activeSheet) closeSheet();
     txtSplitContext = {
-      bookId: currentBookId, prefix: currentBook().name + (source === "filter" ? "_筛选结果" : "_背诵范围"),
+      bookId: currentBookId, prefix: currentBook().name + (source === "filter" ? (statsDrill ? "_下钻筛选" : "_筛选结果") : "_背诵范围"),
       date: todayStr(), words: text.trimEnd().split("\n"), files: []
     };
     $("#txtSplitSource").textContent = currentBook().name + " · " + (source === "filter" ? "当前筛选结果" : "当前背诵范围")
@@ -3773,6 +5290,11 @@
     } catch (e) { toast(e.message || "打包失败，请逐份下载 TXT"); return false; }
   }
   const PRINT_SRC_LABEL = { wrong: "错词本", star: "收藏", filter: "筛选结果" };
+  /** 导出/打印来源标签：统计下钻时明确标注是临时下钻词集，不冒充学习范围。 */
+  function printSourceLabel(source){
+    if (source === "filter" && statsDrill) return "筛选结果（统计下钻：" + statsDrill.label + "）";
+    return PRINT_SRC_LABEL[source] || "错词本";
+  }
   function printStatusLabel(i){
     const p = st(i);
     return isProficient(i) ? "熟练" : isMastered(i) ? "已掌握" : (hasMainProgress(p) ? "第" + p[0] + "档" : "未学");
@@ -5215,6 +6737,31 @@
     }
     return true;
   }
+  function handleExtraStudyAmount(n, e){
+    if (isExtraPointerDuplicate(n, e)) return false;
+    lastExtraPointer = {n, at:Date.now()};
+    const r = runStudyAction("addExtraAndStudy",{amount:n,event:e});
+    if (r.ok) {
+      toast(r.reused ? "已使用尚未学习的加量额度，开始下一组。"
+        : "已增加 " + r.granted + " 个新词额度，并开始学习（本组 " + r.actual + " 张）。");
+      return true;
+    }
+    const errors = {storage:"记录暂时无法安全保存，请检查存储状态后重试。",context:"当前页面不能加量，请先完成本组或返回原组。",
+      "no-candidates":"当前范围没有可补充的新词。","review-cap":"今日复习预算已用完，可调整上限后继续。",
+      "shared-change":"其他页面已更新学习现场，请核对后重试。",unavailable:"暂时没有可开组的词，已授予额度会保留。",
+      "not-study":"请先返回背诵页。",hidden:"回到当前页面后再试。",sheet:"请先关闭浮层。",lookup:"请先关闭查词。",alert:"请先处理页面中的记录错误。"};
+    toast((r.granted ? "已增加 " + r.granted + " 个额度，但尚未开始学习。" : "") + (errors[r.error] || extraGrantErrorText(r.error)));
+    renderExtraSurfaces();
+    return false;
+  }
+  function handleExtraGrantOnly(n, fromPause, e){
+    if (isExtraPointerDuplicate(n,e)) return false;
+    lastExtraPointer={n,at:Date.now()};
+    const r=grantExtraNew(n,{fromPause});
+    toast(!r.ok?extraGrantErrorText(r.error):!storageOK?"额度暂存本页，保存失败；请检查记录状态。":"已增加 "+r.granted+" 个新词额度；点击继续时使用。");
+    renderExtraSurfaces();
+    return r.ok;
+  }
   /** 解析自定义输入：合法 1–100 整数 → 数字；否则 null（不写额度）。 */
   function parseExtraAmountInput(input){
     if (!input) return null;
@@ -5227,7 +6774,7 @@
       const btn = $(sel);
       if (!btn) return;
       btn.disabled = extraGrantDisabled();
-      btn.onclick = (e) => handleExtraGrantAmount(n, fromPause, e);
+      btn.onclick = (e) => handleExtraStudyAmount(n, e);
     });
     const customBtn = $("#extraNewCustom" + suffix);
     const box = $("#extraNewCustomBox" + suffix);
@@ -5247,8 +6794,13 @@
       go.onclick = (e) => {
         const amount = parseExtraAmountInput(input);
         if (amount === null) { toast("自定义加量需为 1–100 的整数"); return; }
-        handleExtraGrantAmount(amount, fromPause, e);
+        handleExtraStudyAmount(amount, e);
       };
+    }
+    const only = $("#extraNewGrantOnly" + suffix);
+    if (only) {
+      only.disabled=extraGrantDisabled();
+      only.onclick=e=>{const amount=parseExtraAmountInput(input);if(amount===null){toast("自定义加量需为1–100的整数");return;}handleExtraGrantOnly(amount,fromPause,e);};
     }
     if (input && input.value === "") input.value = "10";   // 默认 10（静态 HTML 也是 10）
   }
@@ -5482,6 +7034,53 @@
     fitWord($("#wordTitle"));
   }
 
+  /** 只在既有动作槽内换位，DOM、视觉与Tab顺序一致；不重绘词卡或学习状态。 */
+  function applyActionLayout(){
+    const root = $("#acts");
+    if (!root || activeSheet || ($("#exPop") && !$("#exPop").hidden)) return false;
+    const layout = ["left","right"].includes(S.settings.actionLayout) ? S.settings.actionLayout : "standard";
+    root.dataset.layout = layout;
+    const before = (first, second) => {
+      const a=$("#"+first), b=$("#"+second);
+      if(a && b && a.parentNode === root && b.parentNode === root && typeof root.insertBefore === "function")root.insertBefore(a,b);
+    };
+    if(verdict === null) before(layout === "right" ? "no" : "ok",layout === "right" ? "ok" : "no");
+    else {
+      before(layout === "left" ? "nx" : "fix",layout === "left" ? "fix" : "nx");
+      // F1：固定次级动作在第三行容器内换位，DOM 顺序与视觉/Tab 顺序一致。
+      orderSecondaryActionsRow();
+    }
+    return true;
+  }
+  /** 新增动作按键只补已有入口提示，不复制按钮，也不改变学习场景。 */
+  function applyActionBindingHints(){
+    if(typeof getInputPreferences !== "function" || activeSheet || ($("#exPop") && !$("#exPop").hidden))return;
+    const bindings=getInputPreferences().actionKeys;
+    const selectors={continue:["#again"],wait:["#startEmptyWait","#stopEmptyWait"],return:["#returnPrevResult","#extraExitBtn","#extraBack","#returnMainGroup","#exitDrillBtn"]};
+    for(const [action,items] of Object.entries(selectors))for(const selector of items){
+      if(action==="continue" && drillMode)continue;
+      const el=$(selector);if(!el || !el.querySelectorAll)continue;
+      el.querySelectorAll("[data-action-hint]").forEach(x=>x.remove?.());
+      const completedAction = cur == null && groupTotal > 0
+        && (action === "continue" || action === "return" && (drillMode || inSubgroup()));
+      const binding = bindings[action] || (completedAction ? S.settings.keys.next : null);
+      if(completedAction || binding && S.settings.singleCharKeys !== false){
+        const kbd=document.createElement("kbd");kbd.dataset.actionHint=action;
+        kbd.textContent=completedAction ? (S.settings.singleCharKeys === false ? "Enter" : keyName(binding) + " / Enter") : keyName(binding);
+        el.appendChild(kbd);
+      }
+    }
+    const list=$("[data-v='list']");
+    if(list)list.title=bindings.listSearch?"搜索词表（"+keyName(bindings.listSearch)+"）":"词表";
+  }
+  function completionShortcutHint(action){
+    if (S.settings.singleCharKeys === false) return "按 Enter " + (action === "return" ? "返回原学习现场" : "继续下一组")
+      + (undoStack.length ? "　·　Ctrl/Cmd+Z 撤销" : "");
+    const binding = S.settings.actionKeys[action] || S.settings.keys.next;
+    return "按 " + keyName(binding) + " / Enter" + (action === "return" ? " 返回原学习现场" : " 继续下一组")
+      + (undoStack.length ? "　·　Ctrl/Cmd+Z 撤销" : "");
+  }
+
   /* ================= 判定 → 翻页的同一指针连击保护 ================= */
   // 判定后 #acts 立刻换成释义态按钮，同一次双击的第二次点击会命中新按钮
   // （窄屏曾出现「不会」→「下一个」直接翻页）。这里不给所有输入加延迟：
@@ -5556,14 +7155,19 @@
     const c = $("#card"), a = $("#acts");
     const cardWord = currentBookId + ":" + cur;
     const wordChanged = c.dataset.renderedWord !== cardWord;
-    if (wordChanged) c.scrollTop = 0;
+    if (wordChanged) { c.scrollTop = 0; studyReadingScroll = null; }
     c.dataset.renderedWord = cardWord;
     c.classList.toggle("has-answer", cur !== null && verdict !== null);
+    // F1 卡片密度：只给卡片加内部密度 class，动作区/按钮/释义字号不动。
+    c.classList.toggle("card-compact", cur != null && S.settings.cardDensity === "compact");
     const oldFocus = document.activeElement;
     const restoreFocus = oldFocus && (c.contains?.(oldFocus) || a.contains?.(oldFocus));
     a.classList.toggle("revealed", cur !== null && verdict !== null);
     if (a.dataset) a.dataset.guard = "";   // 新一次渲染后旧的连击拦截标记失效
     const finishRender = () => {
+      cancelInputGesture();
+      applyActionLayout();
+      applyActionBindingHints();
       fitVisibleWords();
       const message = cur == null ? (emptyWaitActive() ? "本页正在等待可背词，可随时退出等待。" : groupTotal ? "本组学习结束。" : "当前暂无待背单词。") : W[cur].w + (verdict === null
         ? "，请先回忆，再选择会或不会。"
@@ -5580,6 +7184,14 @@
       renderPlanPendingNotice();
       renderAutoResume();
       renderResumeNotice();
+      // U3：整页统一滚动后，换词从词头继续；同卡改判/呈现调整保留阅读位置。
+      // 只在词头已被卷出学习主区时上移，不因首次渲染把统计条卷走。
+      const studyMain = $("#main");
+      if (wordChanged && cur != null && $("#v-study")?.classList.contains("on")
+          && studyMain?.scrollTop > 0 && c.getBoundingClientRect && studyMain.getBoundingClientRect) {
+        const cardTop = c.getBoundingClientRect().top, mainTop = studyMain.getBoundingClientRect().top;
+        if (cardTop < mainTop) studyMain.scrollTop = Math.max(0, studyMain.scrollTop + cardTop - mainTop);
+      }
       if ($("#v-set")?.classList.contains("on")) renderSettingsLifecycle();
     };
     const d = day();
@@ -5616,7 +7228,7 @@
         $("#again").onclick = () => startDrill();
         $("#exitDrillBtn").onclick = exitDrill;
         if (undoStack.length) $("#undoBtn").onclick = undo;
-        $("#hint").textContent = "";
+        $("#hint").textContent = completionShortcutHint("return");
         renderDrillEntry();
         finishRender();
         return;
@@ -5643,7 +7255,7 @@
         $("#extraBack").onclick = endActiveSubgroup;
         $("#goStats").onclick = () => show("stats");
         if (undoStack.length) $("#undoBtn").onclick = undo;
-        $("#hint").textContent = "";
+        $("#hint").textContent = completionShortcutHint("return");
         renderDrillEntry();
         finishRender();
         return;
@@ -5668,7 +7280,7 @@
               ? "<p>另有 <b>" + due + "</b> 个词已到复习时间</p>"
               : freshLeft && quotaLeft ? (isBacklogGuarded()
                   ? "<p>今天优先复习：到期词超出今日剩余复习额度，已暂停自动补新词；如需继续学新词，可点「仍学今日计划内新词」</p>"
-                  : "<p>还有新词可学，点击「继续下一组」开始</p>")
+                  : "<p>还有新词可学，可继续下一组</p>")
               : freshLeft ? "<p>今日新词目标已完成；到期复习可继续，新词明天更新</p>"
               : "<p>当前范围没有新词或到期复习；可调整筛选或管理熟练词</p>") +
           (hasPendingScopeSettings()
@@ -5686,13 +7298,13 @@
         (spellN ? '<button type="button" class="btn ghost" id="startSpellingBtn" title="用当前范围的词练拼写：不占新词额度、不记为学习进度">拼写专项（' + spellN + " 词）</button>" : "") +
         '<button type="button" class="btn ghost" id="goStats">查看统计</button>' +
         (undoStack.length ? '<button type="button" class="btn ghost sm" id="undoBtn">撤销上一步</button>' : "");
-      $("#again").onclick = continueMainSession;
+      $("#again").onclick = e => runStudyAction("continue",{event:e});
       $("#again").disabled = candidateStatsNow().available < 1;
       if (drillListN) $("#startDrillBtn").onclick = () => startDrill();
       if (spellN) $("#startSpellingBtn").onclick = () => startSpellingDrill();
       $("#goStats").onclick = () => show("stats");
       if (undoStack.length) $("#undoBtn").onclick = undo;
-      $("#hint").textContent = "";
+      $("#hint").textContent = groupTotal > 0 && candidateStatsNow().available > 0 ? completionShortcutHint("continue") : "";
       renderDrillEntry();
       finishRender();
       return;
@@ -5705,33 +7317,31 @@
       '<button type="button" class="star' + (isStar(cur) ? " on" : "") + '" id="star" ' +
       'aria-label="' + (isStar(cur) ? "取消收藏" : "收藏") + '" aria-pressed="' + isStar(cur) + '" title="收藏（' + keyName(K.star) + '）">★</button>';
 
-    let h = '<div class="word-face" role="group" aria-label="单词与复习阶段" tabindex="0"><div class="tagrow">';
-    h += '<span class="tag">词频 #' + x.r + "</span>";
-    h += '<span class="tag">' + x.f + " 次 / " + x.c + " 套卷</span>";
-    if (x.ky) h += '<span class="tag ky">' + esc(currentBook().tagLabel) + "</span>";
-    h += wordBookTags(x.w);
-    h += "</div>";
+    // F1：标签/阶段/词性由外观设置控制；词头始终在答案前，回忆阶段不生成释义块。
+    let h = '<div class="word-face" role="group" aria-label="' + (S.settings.showCardStage ? "单词与复习阶段" : "单词") + '" tabindex="0">';
+    h += cardMetaHtml(x);
     h += '<div class="word" lang="en">' + esc(x.w) + "</div>";
     if (S.settings.showPh) { const pron = pronHtml(x); if (pron) h += '<div class="ph">' + pron + "</div>"; }
-    h += '<div class="posline">' + esc(poslineText(x)) + "</div>";
-    h += dotsHtml(stage);
+    h += cardPosHtml(x);
+    h += cardStageHtml(stage);
     h += '<button type="button" class="spk" id="spk" aria-label="发音" title="发音（' + keyName(K.speak) + '）"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/></svg></button>';
     h += "</div>";
 
     if (verdict !== null) {
       h += '<div class="answer" role="region" aria-label="释义与例句" tabindex="0"><span class="answer-label">释义与用法</span>';
-      h += '<div class="mean">' + meaningHtml(x) + "</div>";
-      if (S.settings.showEx && x.ex) {
-        h += '<div class="ex" lang="en" data-ex-linked="1" tabindex="0" role="group" aria-expanded="false" aria-label="例句，左右方向键选词，回车查义">' + exHtml(x.ex, x) +
-          '<span class="src" lang="zh-CN">— ' + esc(srcBadge(x.src)) + "</span></div>";
-      } else if (S.settings.showEx) {
-        h += '<div class="ex ex-empty">暂无例句，可先记住释义与词形。</div>';
-      }
-      if (S.settings.showFm && x.fm) h += '<details class="answer-extra"><summary>词形变化</summary><div class="fm">' + esc(x.fm) + "</div></details>";
+      h += cardAnswerBodyHtml(x);
       h += "</div>";
     }
 
+    // F1：同一张卡只重绘呈现时保留已展开的词形 details 与卡内滚动；换词回默认。
+    const keepCardView = !wordChanged;
+    const fmOpenBefore = keepCardView && !!c.querySelector?.(".answer-extra")?.open;
+    const scrollBefore = keepCardView ? (c.scrollTop || 0) : 0;
     c.innerHTML = starBtn + h;
+    if (keepCardView) {
+      if (scrollBefore) c.scrollTop = scrollBefore;
+      if (fmOpenBefore) { const fm = c.querySelector?.(".answer-extra"); if (fm) fm.open = true; }
+    }
     if (wordChanged) {
       c.classList.remove("enter");
       c.classList.add("enter");
@@ -5739,12 +7349,10 @@
     }
     bindExLookup(c);
 
-    $("#spk").onclick = (e) => { e.stopPropagation(); speak(x.w); };
+    $("#spk").onclick = (e) => { e.stopPropagation(); runStudyAction("speak",{event:e,source:"button"}); };
     $("#star").onclick = (e) => {
       e.stopPropagation();
-      toggleStar(cur);
-      renderCard();
-      toast(isStar(cur) ? "已收藏" : "已取消收藏");
+      runStudyAction("star",{event:e,source:"button"});
     };
     if (S.settings.autoSpk && verdict === null && !autoSpoken) { autoSpoken = true; speak(x.w); }
 
@@ -5756,8 +7364,8 @@
         (drillMode ? '<button type="button" class="btn ghost sm" id="exitDrillBtn">退出特训</button>' : "") +
         // 23 临时加量子组没有组尾入口，用 #acts 里的返回按钮；07 纯新词子组统一用 #groupFooter 的 #returnMainGroup，避免同屏两个「返回原组」。
         (extraSubgroup ? '<button type="button" class="btn ghost sm" id="extraExitBtn">返回原组</button>' : "");
-      $("#no").onclick = (e) => { markJudgeGesture(e); judge(false); };
-      $("#ok").onclick = (e) => { markJudgeGesture(e); judge(true); };
+      $("#no").onclick = (e) => runStudyAction("dont",{event:e,source:"button"});
+      $("#ok").onclick = (e) => runStudyAction("know",{event:e,source:"button"});
       if ($("#returnPrevResult")) $("#returnPrevResult").onclick = returnToPreviousResults;
       if (extraSubgroup) $("#extraExitBtn").onclick = endExtraSubgroup;
       if (drillMode) {
@@ -5785,14 +7393,17 @@
         '<button type="button" class="btn ghost" id="fix">记错了，其实' + otherTxt +
           "<kbd>" + keyName(otherKey) + "</kbd></button>" +
         '<button type="button" class="btn primary sm" id="nx">下一个<kbd>' + keyName(K.next) + "</kbd></button>" +
-        '<button type="button" class="btn ghost sm" id="undoBtn" title="Ctrl/Cmd+Z">撤销</button>' + proficientBtn +
+        // F1：第三行固定次级动作 + 未固定撤销/熟练的「更多操作」（始终占原第三行槽位）。
+        secondaryActionsRowHtml() +
         (drillMode ? '<button type="button" class="btn ghost sm" id="exitDrillBtn">退出特训</button>' : "") +
         // 同 recall：newOnly 用组尾 #returnMainGroup 返回，避免重复入口。
         (extraSubgroup ? '<button type="button" class="btn ghost sm" id="extraExitBtn">返回原组</button>' : "");
-      $("#fix").onclick = (e) => { if (swallowJudgeDoubleClick(e)) return; judge(!wasOK); };
+      $("#fix").onclick = (e) => runStudyAction(wasOK?"dont":"know",{event:e,source:"button"});
       if (extraSubgroup) $("#extraExitBtn").onclick = endExtraSubgroup;
-      $("#nx").onclick = (e) => { if (swallowJudgeDoubleClick(e)) return; tryNext(true); };
-      $("#undoBtn").onclick = (e) => { if (swallowJudgeDoubleClick(e)) return; undo(); };
+      $("#nx").onclick = (e) => runStudyAction("next",{event:e,source:"button"});
+      const undoEl = $("#undoBtn");
+      if (undoEl) undoEl.onclick = (e) => runStudyAction("undo",{event:e,source:"button"});
+      bindSecondaryActionButtons();
       if (drillMode) {
         $("#exitDrillBtn").onclick = exitDrill;
         $("#hint").textContent = (wasOK ? "「会」→ 错次 -1" : "「不会」→ 错次 +1，留在错词本")
@@ -5807,10 +7418,9 @@
         $("#hint").textContent = "「不会」→ 本组稍后重考，" + formatStagesMs(activeRelearnMs()) + "后重新学习　·　Ctrl+Z 撤销";
       }
     }
-    $("#markProficient").onclick = (e) => {
-      // 释义态刚判定完的连击可能落在「熟练」上：同样只拦同一次指针连击。
-      if (verdict !== null && swallowJudgeDoubleClick(e)) return;
-      setProficient(cur, true);
+    const profEl = $("#markProficient");
+    if (profEl) profEl.onclick = (e) => {
+      runStudyAction("proficient",{event:e,source:"button"});
     };
     renderDrillEntry();
     finishRender();
@@ -6053,6 +7663,8 @@
     return listUiByBook[id];
   }
   function saveListUi(){
+    // 统计下钻是临时列表筛选层：不把下钻基线的控件值写入逐书保存的筛选，退出后恢复进入前筛选。
+    if (statsDrill) return;
     const ui = listUiFor(currentBookId);
     if ($("#q")) ui.q = $("#q").value;
     if ($("#fst")) ui.fst = $("#fst").value || "all";
@@ -6085,6 +7697,11 @@
    * 保留「共 N 词」子串（既有测试与读屏习惯），当前范围时补充全库词数说明作用域。
    */
   function listSummaryText(){
+    // 统计下钻是独立临时筛选层：摘要明确来源与「共 N 词」，不冒充用户保存的筛选。
+    if (statsDrill) {
+      return "统计下钻 · " + statsDrill.label + " · 共 " + filt.length + " 词（临时列表筛选，不改学习范围）"
+        + (storageOK ? "" : "　·　当前环境无法保存进度");
+    }
     const fs = $("#fst") ? $("#fst").value : "all";
     const sc = $("#fsc") ? $("#fsc").value || "scope" : "scope";
     const q = $("#q") ? String($("#q").value || "").trim() : "";
@@ -6104,31 +7721,44 @@
     el.textContent = "第 " + (pos + 1) + " 行，共 " + filt.length + " 行；" + x.w + "，" + listStatusText(filt[pos]);
   }
   function applyFilter(resetScroll = true){
-    const q = $("#q").value.trim().toLowerCase();
-    const fs = $("#fst").value, sc = $("#fsc").value;
+    dropStaleStatsDrill();
+    const drilled = !!statsDrill;
+    // 下钻层用统计同口径的独立词集，忽略当前控件值；控件只作为普通筛选的唯一入口。
+    const q = drilled ? "" : $("#q").value.trim().toLowerCase();
+    const fs = drilled ? "all" : $("#fst").value, sc = drilled ? "scope" : $("#fsc").value;
     const now = Date.now();
-    filt = [];
-    for (let i = 0; i < W.length; i++) {
-      const x = W[i];
-      if (sc === "scope" && !inScope(i)) continue;
-      if (sc === "high" && x.f < 5) continue;
-      if (sc === "cold" && x.f > 2) continue;
-      if (sc === "ky" && x.ky !== 1) continue;
-      const p = st(i);
-      const proficient = isProficient(i);
-      if (proficient && fs !== "proficient") continue;
-      if (fs === "proficient" && !proficient) continue;
-      if (fs === "active" && (proficient || isMastered(i))) continue;
-      if (fs === "new" && (proficient || hasMainProgress(p))) continue;
-      if (fs === "learn" && (proficient || !hasMainProgress(p) || p[0] >= MASTER)) continue;
-      if (fs === "due" && (proficient || !hasMainProgress(p) || p[0] >= MASTER || p[1] > now)) continue;
-      if (fs === "done" && (proficient || !isMastered(i))) continue;
-      if (fs === "wrong" && (proficient || !p || p[3] === 0)) continue;
-      if (fs === "star" && !isStar(i)) continue;
-      if (q && x.w.indexOf(q) < 0 && x.m.toLowerCase().indexOf(q) < 0) continue;
-      filt.push(i);
+    if (drilled) {
+      filt = statsDrillIndices();
+    } else {
+      filt = [];
+      for (let i = 0; i < W.length; i++) {
+        const x = W[i];
+        if (sc === "scope" && !inScope(i)) continue;
+        if (sc === "high" && x.f < 5) continue;
+        if (sc === "cold" && x.f > 2) continue;
+        if (sc === "ky" && x.ky !== 1) continue;
+        const p = st(i);
+        const proficient = isProficient(i);
+        if (proficient && fs !== "proficient") continue;
+        if (fs === "proficient" && !proficient) continue;
+        if (fs === "active" && (proficient || isMastered(i))) continue;
+        if (fs === "new" && (proficient || hasMainProgress(p))) continue;
+        if (fs === "learn" && (proficient || !hasMainProgress(p) || p[0] >= MASTER)) continue;
+        if (fs === "due" && (proficient || !hasMainProgress(p) || p[0] >= MASTER || p[1] > now)) continue;
+        if (fs === "done" && (proficient || !isMastered(i))) continue;
+        if (fs === "wrong" && (proficient || !p || p[3] === 0)) continue;
+        if (fs === "star" && !isStar(i)) continue;
+        if (q && x.w.indexOf(q) < 0 && x.m.toLowerCase().indexOf(q) < 0) continue;
+        filt.push(i);
+      }
     }
-    filt.sort((a, b) => (fs === "due" ? st(a)[1] - st(b)[1] : 0) || W[a].r - W[b].r);
+    if (drilled) {
+      const kind = statsDrill.kind;
+      filt.sort((a, b) => (kind === "due" ? st(a)[1] - st(b)[1] : 0) || W[a].r - W[b].r);
+    } else {
+      filt.sort((a, b) => (fs === "due" ? st(a)[1] - st(b)[1] : 0) || W[a].r - W[b].r);
+    }
+    pruneListSelection();
     $("#listCount").textContent = listSummaryText();
     const empty = $("#listEmpty");
     if (empty) empty.hidden = filt.length > 0;
@@ -6149,6 +7779,7 @@
     saveListUi();
     renderRows();
     renderDrillEntry();
+    renderListToolSurfaces();
   }
   /**
    * 虚拟列表渲染。restoreFocus=false 供 focusListRow 使用：方向键换行时旧行会被 innerHTML
@@ -6159,8 +7790,11 @@
     const sc = $("#listScroll"), top = sc.scrollTop, h = sc.clientHeight;
     const inner = $("#listInner"), focused = document.activeElement;
     const focusAction = focused?.dataset?.openWord !== undefined ? "open-word"
-      : focused?.dataset?.proficient !== undefined ? "proficient" : null;
-    const focusWord = focusAction === "open-word" ? focused.dataset.openWord : focused?.dataset?.proficient;
+      : focused?.dataset?.proficient !== undefined ? "proficient"
+      : focused?.dataset?.rowCheck !== undefined ? "row-check" : null;
+    const focusWord = focusAction === "open-word" ? focused.dataset.openWord
+      : focusAction === "proficient" ? focused?.dataset?.proficient
+      : focusAction === "row-check" ? focused?.dataset?.rowCheck : undefined;
     const hasFocus = focusAction && inner.contains?.(focused);
     if (!filt.length) {
       if (inner.innerHTML !== "") inner.innerHTML = "";
@@ -6181,9 +7815,18 @@
       const txt = listStatusText(i);
       const wordTab = active && listActiveAction === "open-word" ? "0" : "-1";
       const profTab = active && listActiveAction === "proficient" ? "0" : "-1";
-      html += '<div class="row' + (active ? " row-active" : "") + '" data-i="' + i + '" style="top:' + (k * RH) + 'px">' +
-        '<span class="c-rank">#' + x.r + "</span>" +
-        '<button type="button" class="c-word row-word" lang="en" data-open-word="' + i + '" tabindex="' + wordTab + '" aria-label="查看 ' + esc(x.w) + ' 详情">' + esc(x.w) + (isStar(i) ? " ★" : "") + "</button>" +
+      const selected = listOrganize && listSelection.has(i);
+      // 非整理模式保持原有「单词按钮本身就是网格单元」的 DOM，整理模式才包一层放选择按钮。
+      const wordButton = '<button type="button" class="' + (listOrganize ? "row-word" : "c-word row-word") +
+        '" lang="en" data-open-word="' + i + '" tabindex="' + wordTab + '" aria-label="查看 ' + esc(x.w) +
+        ' 详情">' + esc(x.w) + (isStar(i) ? " ★" : "") + "</button>";
+      const wordCell = listOrganize
+        ? '<span class="c-word has-check"><button type="button" class="row-check" role="checkbox" aria-checked="' +
+          (selected ? "true" : "false") + '" data-row-check="' + i + '" tabindex="-1" aria-label="' +
+          (selected ? "已选择 " : "选择 ") + esc(x.w) + '">✓</button>' + wordButton + "</span>"
+        : wordButton;
+      html += '<div class="row' + (active ? " row-active" : "") + (selected ? " row-selected" : "") + '" data-i="' + i + '" style="top:' + (k * RH) + 'px">' +
+        '<span class="c-rank">#' + x.r + "</span>" + wordCell +
         '<span class="c-ph">' + esc(x.ph || "") + "</span>" +
         '<span class="c-mean">' + esc(x.m || "—") + "</span>" +
         '<span class="c-st ' + cls + '">' + txt + '</span>' +
@@ -6228,12 +7871,13 @@
     const target = e.target;
     const isWord = target.dataset?.openWord !== undefined;
     const isProficientButton = target.dataset?.proficient !== undefined;
-    if (!isWord && !isProficientButton) return;
-    const word = +(isWord ? target.dataset.openWord : target.dataset.proficient);
+    const isRowCheck = target.dataset?.rowCheck !== undefined;
+    if (!isWord && !isProficientButton && !isRowCheck) return;
+    const word = +(isWord ? target.dataset.openWord : isProficientButton ? target.dataset.proficient : target.dataset.rowCheck);
     const pos = filt.indexOf(word);
     if (pos < 0) return;
     listActiveWord = word;
-    listActiveAction = isWord ? "open-word" : "proficient";
+    listActiveAction = isWord ? "open-word" : isProficientButton ? "proficient" : "row-check";
     if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Home" || e.key === "End") {
       let next = pos;
       if (e.key === "ArrowDown") next++;
@@ -6245,21 +7889,785 @@
       focusListRow(next, "open-word");
       return;
     }
+    const rowActions = listOrganize ? ["open-word", "row-check", "proficient"] : ["open-word", "proficient"];
     if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
       e.preventDefault();
-      focusListRow(pos, e.key === "ArrowRight" ? "proficient" : "open-word");
+      const at = Math.max(0, rowActions.indexOf(listActiveAction));
+      const nextAct = e.key === "ArrowRight"
+        ? rowActions[Math.min(rowActions.length - 1, at + 1)]
+        : rowActions[Math.max(0, at - 1)];
+      focusListRow(pos, nextAct);
       return;
     }
     if (e.key === "Tab") {
-      // 行内最多两个停靠点：单词 → 熟练操作 → 离开列表；Shift+Tab 反向。
-      if (!e.shiftKey && isWord) {
+      // Tab 顺序与视觉顺序一致：单词 →（整理模式：选择）→ 熟练操作 → 离开列表；Shift+Tab 反向。
+      const at = rowActions.indexOf(listActiveAction);
+      if (at < 0) return;
+      if (!e.shiftKey && at < rowActions.length - 1) {
         e.preventDefault();
-        focusListRow(pos, "proficient");
-      } else if (e.shiftKey && isProficientButton) {
+        focusListRow(pos, rowActions[at + 1]);
+      } else if (e.shiftKey && at > 0) {
         e.preventDefault();
-        focusListRow(pos, "open-word");
+        focusListRow(pos, rowActions[at - 1]);
       }
     }
+  }
+
+  /* ================= E 词表整理：保存筛选视图 / 多选批量整理 =================
+   * 全部为列表侧状态：视图存独立 localStorage 键（不进每书 state/备份 v3/设置目录/进度签名）；
+   * 整理选择与批量操作只在内存；批量熟练复用 setProficient 的权威语义（熟练键+主记录），
+   * 一次保存、失败整次回滚内存；不写学习进度/判定/复习预算/学习时长。
+   */
+  const LIST_VIEWS_KEY = "vocab_list_views_v1";
+  const LIST_VIEWS_KIND = "vocab-list-views";
+  const LIST_VIEWS_VERSION = 1;
+  const LIST_VIEWS_PER_BOOK = 12;
+  const LIST_VIEW_NAME_MAX = 30;
+  const LIST_VIEW_Q_MAX = 100;
+  const LIST_VIEW_FST = ["all", "active", "new", "learn", "due", "done", "proficient", "wrong", "star"];
+  const LIST_VIEW_FSC = ["scope", "all", "high", "cold", "ky"];
+  const listViewStore = {loaded: false, ready: false, corrupt: false, error: "", views: []};
+  let listViewStoreRaw = null;
+  let listViewDirty = true;
+  let listViewBookId = null;
+
+  function normalizeListViewItem(v){
+    if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+    const id = typeof v.id === "string" ? v.id.trim() : "";
+    const book = typeof v.book === "string" ? v.book : "";
+    const name = typeof v.name === "string" ? v.name.trim() : "";
+    if (!id || id.length > 40) return null;
+    if (!bookOf(book)) return null;
+    if (!name || name.length > LIST_VIEW_NAME_MAX) return null;
+    if (typeof v.q !== "string" || v.q.length > LIST_VIEW_Q_MAX) return null;
+    if (!LIST_VIEW_FST.includes(v.fst) || !LIST_VIEW_FSC.includes(v.fsc)) return null;
+    const at = Number.isFinite(v.at) && v.at > 0 ? Math.floor(v.at) : 0;
+    return {id: id, book: book, name: name, q: v.q, fst: v.fst, fsc: v.fsc, at: at};
+  }
+  /** 严格解析独立视图键：任何一条非法都视为整份损坏（保留原文、拒绝覆写，需显式重置）。 */
+  function parseListViewStore(raw){
+    if (raw === null || raw === undefined) return {ok: true, corrupt: false, views: []};
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch (e) {
+      return {ok: false, corrupt: true, views: [], error: "保存的筛选视图不是有效 JSON"};
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)
+      || parsed.kind !== LIST_VIEWS_KIND || parsed.version !== LIST_VIEWS_VERSION
+      || !Array.isArray(parsed.views)) {
+      return {ok: false, corrupt: true, views: [], error: "筛选视图存储格式不正确（kind/version/views）"};
+    }
+    const views = [], ids = new Set();
+    for (const item of parsed.views) {
+      const view = normalizeListViewItem(item);
+      if (!view) return {ok: false, corrupt: true, views: [], error: "筛选视图包含非法条目"};
+      if (ids.has(view.id)) return {ok: false, corrupt: true, views: [], error: "筛选视图存在重复标识"};
+      ids.add(view.id);
+      views.push(view);
+    }
+    return {ok: true, corrupt: false, views: views};
+  }
+  function loadListViewStore(force){
+    if (listViewStore.loaded && !force) return listViewStore;
+    listViewStore.loaded = true;
+    listViewStore.ready = false;
+    listViewStore.corrupt = false;
+    listViewStore.error = "";
+    listViewStore.views = [];
+    listViewStoreRaw = null;
+    try {
+      listViewStoreRaw = localStorage.getItem(LIST_VIEWS_KEY);
+    } catch (e) {
+      listViewStore.error = "当前环境无法读取本地存储，筛选视图暂不可用";
+      listViewStore.corrupt = true;   // 读不到原文时也不覆盖
+      listViewDirty = true;
+      return listViewStore;
+    }
+    const parsed = parseListViewStore(listViewStoreRaw);
+    listViewStore.ready = parsed.ok;
+    listViewStore.corrupt = parsed.corrupt;
+    listViewStore.error = parsed.error || "";
+    listViewStore.views = parsed.views;
+    listViewDirty = true;
+    return listViewStore;
+  }
+  function persistListViewStore(views){
+    if (!listViewStore.ready) return {ok: false, error: listViewStore.error || "筛选视图存储不可写"};
+    try {
+      const raw = JSON.stringify({kind: LIST_VIEWS_KIND, version: LIST_VIEWS_VERSION, views: views});
+      localStorage.setItem(LIST_VIEWS_KEY, raw);
+      listViewStoreRaw = raw;
+      listViewStore.views = views;
+      return {ok: true};
+    } catch (e) {
+      return {ok: false, error: "筛选视图保存失败：浏览器存储不可用或空间不足"};
+    }
+  }
+  function currentBookListViews(){ return listViewStore.views.filter(v => v.book === currentBookId); }
+  function newListViewId(){ return "v" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+  function setListViewStatus(text, error){
+    const status = $("#listViewsStatus");
+    if (!status) return;
+    status.dataset.error = error ? "true" : "";
+    status.textContent = text || "";
+  }
+  function listViewMetaText(view){
+    const scope = view.fsc === "scope" ? "当前范围" : (LIST_SCOPE_LABEL[view.fsc] || "全库");
+    const status = LIST_STATUS_LABEL[view.fst] || "全部";
+    return (view.q ? "搜索「" + view.q + "」 · " : "") + scope + " · " + status;
+  }
+  function renderListViewRows(){
+    loadListViewStore();
+    listViewBookId = currentBookId;
+    const list = $("#listViewsList"), saveBtn = $("#btnSaveListView"),
+      resetBtn = $("#btnResetListViews"), input = $("#listViewName");
+    const corrupt = listViewStore.corrupt || !listViewStore.ready;
+    if (list) {
+      if (corrupt) list.innerHTML = "";
+      else {
+        list.innerHTML = currentBookListViews().map(v =>
+          '<div class="list-view-row" data-view-row="' + esc(v.id) + '">' +
+            '<button type="button" class="list-view-apply" data-view-apply="' + esc(v.id) + '" aria-label="应用视图 ' + esc(v.name) + '">' + esc(v.name) + "</button>" +
+            '<p class="list-view-meta">' + esc(listViewMetaText(v)) + "</p>" +
+            '<input class="list-view-rename" data-view-rename-input="' + esc(v.id) + '" value="' + esc(v.name) + '" maxlength="' + LIST_VIEW_NAME_MAX + '" aria-label="重命名视图 ' + esc(v.name) + '">' +
+            '<button type="button" class="btn ghost sm" data-view-rename="' + esc(v.id) + '">保存名称</button>' +
+            '<button type="button" class="btn ghost sm" data-view-delete="' + esc(v.id) + '">删除</button>' +
+          "</div>").join("");
+      }
+    }
+    if (saveBtn) saveBtn.disabled = corrupt || !!statsDrill;
+    if (input) input.disabled = corrupt || !!statsDrill;
+    if (resetBtn) resetBtn.hidden = !listViewStore.corrupt;
+    if (listViewStore.corrupt) {
+      setListViewStatus("筛选视图存储已损坏，已保留原文并拒绝覆写：" + listViewStore.error
+        + "。可点下方「重置损坏的视图存储」恢复为空列表。", true);
+    } else if (!listViewStore.ready) {
+      setListViewStatus(listViewStore.error || "筛选视图暂不可用", true);
+    } else if (statsDrill) {
+      setListViewStatus("统计下钻是临时筛选；返回统计或退出下钻后才能保存视图。", false);
+    } else {
+      setListViewStatus("《" + currentBook().name + "》已保存 " + currentBookListViews().length + " / " + LIST_VIEWS_PER_BOOK + " 个视图", false);
+    }
+    listViewDirty = false;
+  }
+  function saveCurrentListView(){
+    loadListViewStore();
+    const input = $("#listViewName");
+    const name = input ? String(input.value || "").trim() : "";
+    if (listViewStore.corrupt || !listViewStore.ready) {
+      setListViewStatus(listViewStore.error || "筛选视图存储不可用，未保存", true);
+      return false;
+    }
+    if (statsDrill) {
+      setListViewStatus("统计下钻是临时筛选，先返回统计或退出下钻再保存视图", true);
+      return false;
+    }
+    if (!name) { setListViewStatus("请输入 1–30 字的视图名称", true); input?.focus?.(); return false; }
+    if (name.length > LIST_VIEW_NAME_MAX) { setListViewStatus("视图名称最多 " + LIST_VIEW_NAME_MAX + " 字", true); input?.focus?.(); return false; }
+    const views = currentBookListViews();
+    if (views.length >= LIST_VIEWS_PER_BOOK) {
+      setListViewStatus("《" + currentBook().name + "》最多保存 " + LIST_VIEWS_PER_BOOK + " 个视图，请先删除一个", true);
+      return false;
+    }
+    if (views.some(v => v.name === name)) {
+      setListViewStatus("已有同名视图，请换一个名称或先重命名", true);
+      return false;
+    }
+    const fst = $("#fst") ? ($("#fst").value || "all") : "all";
+    const view = {
+      id: newListViewId(), book: currentBookId, name: name,
+      q: $("#q") ? String($("#q").value || "") : "",
+      fst: fst, fsc: fst === "proficient" ? "all" : ($("#fsc") ? ($("#fsc").value || "scope") : "scope"),
+      at: Date.now()
+    };
+    const res = persistListViewStore(listViewStore.views.concat([view]));
+    if (!res.ok) { setListViewStatus(res.error, true); return false; }
+    if (input) input.value = "";
+    renderListViewRows();
+    setListViewStatus("已保存视图「" + name + "」（仅《" + currentBook().name + "》）；应用只改列表筛选，不动学习设置与队列。");
+    toast("已保存筛选视图：" + name);
+    return true;
+  }
+  function findSavedListView(id){
+    return listViewStore.views.find(v => v.id === id && v.book === currentBookId) || null;
+  }
+  function applySavedListView(id){
+    loadListViewStore();
+    const view = findSavedListView(id);
+    if (!view) { setListViewStatus("视图不存在或不属于当前词书", true); return false; }
+    listSelection.clear();
+    listBatchPreview = null;
+    if (statsDrill) exitStatsDrill({restore: true, render: false});
+    if ($("#q")) $("#q").value = view.q;
+    if ($("#fst")) $("#fst").value = view.fst;
+    if ($("#fsc")) $("#fsc").value = view.fst === "proficient" ? "all" : view.fsc;
+    applyFilter();
+    const menu = $("#listViewsMenu");
+    if (menu) menu.open = false;
+    const first = $("#listInner")?.querySelector?.("[data-open-word]");
+    (first || $("#listScroll"))?.focus?.({preventScroll: true});
+    toast("已应用视图：" + view.name);
+    return true;
+  }
+  function renameSavedListView(id){
+    loadListViewStore();
+    const view = findSavedListView(id);
+    const input = $("#listViewsList")?.querySelector?.('[data-view-rename-input="' + id + '"]');
+    if (!view) { setListViewStatus("视图不存在或不属于当前词书", true); return false; }
+    if (listViewStore.corrupt || !listViewStore.ready) { setListViewStatus(listViewStore.error || "筛选视图存储不可用", true); return false; }
+    const name = input ? String(input.value || "").trim() : "";
+    if (!name || name.length > LIST_VIEW_NAME_MAX) {
+      setListViewStatus("视图名称需为 1–" + LIST_VIEW_NAME_MAX + " 字", true);
+      input?.focus?.();
+      return false;
+    }
+    if (name === view.name) { setListViewStatus("名称未变化"); return true; }
+    if (currentBookListViews().some(v => v.id !== id && v.name === name)) {
+      setListViewStatus("已有同名视图，请换一个名称", true);
+      return false;
+    }
+    const next = listViewStore.views.map(v => v.id === id ? Object.assign({}, v, {name: name}) : v);
+    const res = persistListViewStore(next);
+    if (!res.ok) { setListViewStatus(res.error, true); return false; }
+    renderListViewRows();
+    setListViewStatus("已重命名为「" + name + "」");
+    toast("视图已重命名：" + name);
+    return true;
+  }
+  function deleteSavedListView(id){
+    loadListViewStore();
+    const view = findSavedListView(id);
+    if (!view) { setListViewStatus("视图不存在或不属于当前词书", true); return false; }
+    if (listViewStore.corrupt || !listViewStore.ready) { setListViewStatus(listViewStore.error || "筛选视图存储不可用", true); return false; }
+    if (!confirm("删除保存的筛选视图「" + view.name + "」？只删除这个视图，不改学习记录、词库或当前列表筛选。")) return false;
+    const res = persistListViewStore(listViewStore.views.filter(v => v.id !== id));
+    if (!res.ok) { setListViewStatus(res.error, true); return false; }
+    renderListViewRows();
+    setListViewStatus("已删除视图「" + view.name + "」");
+    toast("已删除视图：" + view.name);
+    return true;
+  }
+  function resetListViewStore(){
+    if (!listViewStore.corrupt) return false;
+    if (!confirm("筛选视图存储已损坏，原样保留以便排查。重置会丢弃这份损坏数据并恢复为空视图列表；不影响学习记录、词库或备份。继续？")) return false;
+    try { localStorage.removeItem(LIST_VIEWS_KEY); }
+    catch (e) { setListViewStatus("无法重置：浏览器存储不可用", true); return false; }
+    listViewStore.loaded = false;
+    loadListViewStore(true);
+    listViewDirty = true;
+    renderListViewRows();
+    if (listViewStore.ready) { setListViewStatus("已重置损坏的筛选视图存储（当前为空视图列表）"); toast("已重置损坏的筛选视图存储"); }
+    return true;
+  }
+
+  /* ---- E2 整理模式：已选行 vs 当前筛选全部结果 ---- */
+  let listOrganize = false;
+  const listSelection = new Set();
+  let listBatchPreview = null;   // {op, value, ids, sig, effective, text}
+  let listSelectionBookId = null;
+  function ensureListSelectionBook(){
+    if (listSelectionBookId !== currentBookId) {
+      listSelection.clear();
+      listBatchPreview = null;
+      listSelectionBookId = currentBookId;
+    }
+  }
+  function validListSelectionIndices(){
+    ensureListSelectionBook();
+    const ids = [];
+    for (const i of listSelection) if (Number.isInteger(i) && i >= 0 && i < W.length) ids.push(i);
+    ids.sort((a, b) => a - b);
+    return ids;
+  }
+  function pruneListSelection(){
+    ensureListSelectionBook();
+    if (!listSelection.size) return;
+    const allowed = new Set(filt);
+    let changed = false;
+    for (const i of Array.from(listSelection)) if (!allowed.has(i)) { listSelection.delete(i); changed = true; }
+    if (changed) listBatchPreview = null;
+  }
+  function listSelectionSummaryText(){
+    const total = filt.length, n = listSelection.size;
+    if (!n) return "尚未选择词。可点「选择当前筛选全部 " + total + " 词」，或点行内复选框逐个选择。";
+    const all = total > 0 && n === total;
+    return (all ? "已选择当前筛选全部 " + n + " 词" : "已选 " + n + " / 当前筛选 " + total + " 词")
+      + (all ? "（包含虚拟列表未渲染的行）" : "；全选可覆盖整个筛选结果，不只是已渲染行");
+  }
+  function renderListBatchPreview(){
+    const box = $("#listBatchPreview"), text = $("#listBatchPreviewText"), confirmBtn = $("#btnBatchConfirm");
+    if (!box) return;
+    const showBox = !!(listOrganize && listBatchPreview);
+    box.hidden = !showBox;
+    if (!showBox) return;
+    if (text) text.textContent = listBatchPreview.text;
+    if (confirmBtn) confirmBtn.disabled = !listBatchPreview.effective;
+  }
+  function renderListOrganizeBar(){
+    ensureListSelectionBook();
+    const bar = $("#listOrganizeBar"), btn = $("#btnToggleOrganize"), summary = $("#listSelectionSummary");
+    if (btn) {
+      btn.textContent = listOrganize ? "退出整理" : "整理";
+      btn.setAttribute?.("aria-pressed", String(listOrganize));
+    }
+    if (bar) bar.hidden = !listOrganize;
+    if (!listOrganize) { renderListBatchPreview(); return; }
+    const n = listSelection.size;
+    const selectAll = $("#btnSelectAllFiltered"), clear = $("#btnClearSelection"),
+      star = $("#btnBatchStar"), unstar = $("#btnBatchUnstar"),
+      prof = $("#btnBatchProficient"), unprof = $("#btnBatchUnproficient");
+    if (selectAll) {
+      selectAll.disabled = filt.length === 0;
+      selectAll.textContent = "选择当前筛选全部 " + filt.length + " 词";
+    }
+    [clear, star, unstar, prof, unprof].forEach(el => { if (el) el.disabled = n === 0; });
+    if (summary) summary.textContent = listSelectionSummaryText();
+    renderListBatchPreview();
+  }
+  function renderListToolSurfaces(){
+    renderListDrillChip();
+    renderListOrganizeBar();
+    renderListExportHint();
+    if (listViewDirty || listViewBookId !== currentBookId) renderListViewRows();
+  }
+  function renderListExportHint(){
+    const hint = $("#listExportHint");
+    if (!hint) return;
+    let text = "";
+    if (statsDrill) {
+      text = "当前为统计下钻的临时筛选：「导出筛选结果」「拆分导出」和打印生词本只包含下钻词集；完整学习范围请在设置页导出。";
+    } else if (listOrganize && listSelection.size) {
+      text = "已选 " + listSelection.size + " 词仅用于批量整理；导出与打印仍按当前筛选与来源，不受选择影响。";
+    }
+    hint.hidden = !text;
+    hint.textContent = text;
+  }
+  function renderListDrillChip(){
+    const chip = $("#listDrillChip"), src = $("#listDrillSource"), count = $("#listDrillCount");
+    if (!chip) return;
+    const on = !!statsDrill;
+    chip.hidden = !on;
+    if (!on) return;
+    if (src) src.textContent = "统计下钻 · " + statsDrill.label;
+    if (count) count.textContent = "共 " + filt.length + " 词 · 只影响列表";
+  }
+  function enterListOrganize(){
+    ensureListSelectionBook();
+    listOrganize = true;
+    if (listActiveAction === "proficient" || listActiveAction === "row-check") listActiveAction = "open-word";
+    renderRows();
+    renderListToolSurfaces();
+    const ann = $("#listAnnouncement");
+    if (ann) ann.textContent = "已进入整理模式，当前筛选共 " + filt.length + " 词";
+    toast("整理模式：可全选当前筛选结果批量操作");
+  }
+  function exitListOrganize(){
+    listOrganize = false;
+    listSelection.clear();
+    listBatchPreview = null;
+    if (listActiveAction === "row-check") listActiveAction = "open-word";
+    renderRows();
+    renderListToolSurfaces();
+  }
+  function toggleListSelection(i){
+    ensureListSelectionBook();
+    if (!Number.isInteger(i)) return false;
+    const value = !listSelection.has(i);
+    if (value) listSelection.add(i); else listSelection.delete(i);
+    listBatchPreview = null;
+    const box = $("#listInner")?.querySelector?.('[data-row-check="' + i + '"]');
+    if (box) {
+      box.setAttribute?.("aria-checked", value ? "true" : "false");
+      box.setAttribute?.("aria-label", (value ? "已选择 " : "选择 ") + (W[i] ? W[i].w : ""));
+      const row = box.closest?.(".row");
+      if (row) row.classList.toggle("row-selected", value);
+    }
+    renderListOrganizeBar();
+    renderListExportHint();
+    const ann = $("#listAnnouncement");
+    if (ann) ann.textContent = "已选 " + listSelection.size + " 词，当前筛选共 " + filt.length + " 词";
+    return value;
+  }
+  function selectAllFilteredList(){
+    ensureListSelectionBook();
+    listSelection.clear();
+    for (const i of filt) listSelection.add(i);
+    listBatchPreview = null;
+    renderRows();
+    renderListToolSurfaces();
+    const ann = $("#listAnnouncement");
+    if (ann) ann.textContent = "已选择当前筛选全部 " + filt.length + " 词（包含虚拟列表未渲染的行）";
+    toast("已选择当前筛选全部 " + filt.length + " 词");
+  }
+  function clearListSelection(){
+    ensureListSelectionBook();
+    listSelection.clear();
+    listBatchPreview = null;
+    renderRows();
+    renderListToolSurfaces();
+    const ann = $("#listAnnouncement");
+    if (ann) ann.textContent = "已清空选择";
+  }
+  function batchSetStar(value){
+    const ids = validListSelectionIndices();
+    if (!ids.length) { toast("请先选择词"); return {ok: false, changed: 0}; }
+    const before = Object.assign({}, S.stars || {});
+    let changed = 0;
+    S.stars = S.stars || {};
+    for (const i of ids) {
+      const has = !!S.stars[i];
+      if (has === !!value) continue;
+      if (value) S.stars[i] = 1; else delete S.stars[i];
+      changed++;
+    }
+    if (!changed) {
+      toast(value ? "所选词都已在收藏中" : "所选词都未收藏");
+      return {ok: true, changed: 0};
+    }
+    const saved = save();
+    if (!saved) {
+      S.stars = before;
+      renderRows();
+      renderListToolSurfaces();
+      toast("批量收藏未保存，已恢复原状态；请先导出进度备份");
+      return {ok: false, changed: 0};
+    }
+    const lost = ids.filter(i => !!S.stars[i] !== !!value).length;
+    renderRows();
+    renderListToolSurfaces();
+    toast((value ? "已收藏 " : "已取消收藏 ") + changed + " 词（含未渲染行）"
+      + (lost ? "；另有 " + lost + " 词因另一窗口替换记录未生效" : ""));
+    return {ok: true, changed: changed};
+  }
+  function buildBatchProficiencyPreview(value){
+    const ids = validListSelectionIndices();
+    if (!ids.length) { toast("请先选择词"); return null; }
+    let effective = 0;
+    for (const i of ids) if (isProficient(i) !== !!value) effective++;
+    const unchanged = ids.length - effective;
+    const curIncluded = value && cur != null && ids.includes(cur);
+    const text = value
+      ? "将把所选 " + ids.length + " 个词中的 " + effective + " 个标为熟练，并移出背诵/复习/乱序队列"
+        + (unchanged ? "；另有 " + unchanged + " 个词已是熟练，保持不变" : "")
+        + "。" + (curIncluded ? "当前正在学习的词在所选范围内，确认后会跳到下一张。" : "")
+        + "只改熟练标记，不改学习进度、到期时间、复习预算或学习时长。"
+      : "将取消所选 " + ids.length + " 个词中的 " + effective + " 个熟练标记，按原学习进度恢复背诵/复习安排（不重置进度、不复活撤销栈）"
+        + (unchanged ? "；另有 " + unchanged + " 个词本来就不是熟练，保持不变" : "") + "。";
+    return {op: value ? "proficient" : "unproficient", value: !!value, ids: ids, sig: ids.join(","), effective: effective, text: text};
+  }
+  function openBatchProficiencyPreview(value){
+    const preview = buildBatchProficiencyPreview(value);
+    if (!preview) return null;
+    listBatchPreview = preview;
+    renderListOrganizeBar();
+    return preview;
+  }
+  /** 批量熟练：与 setProficient 同语义，但整批一次保存；失败整次回滚内存并尽力恢复独立熟练键。 */
+  function batchSetProficient(value){
+    const ids = validListSelectionIndices();
+    if (!ids.length) { toast("请先选择词"); return {ok: false, changed: 0}; }
+    if (storageOK) { try { syncProficientFromStorage(); } catch (e) { /* 保留当前内存名单 */ } }
+    const todo = ids.filter(i => W[i] && isProficient(i) !== !!value);
+    if (!todo.length) {
+      toast(value ? "所选词都已是熟练" : "所选词都不是熟练");
+      return {ok: true, changed: 0};
+    }
+    clearSessionSnapshot(currentBookId);
+    const rollback = {
+      proficient: JSON.parse(JSON.stringify(S.proficient || {})),
+      profRaw: (function(){ try { return localStorage.getItem(PROF_KEY); } catch (e) { return undefined; } })(),
+      pending: snapshotPendingProf(),
+      Q: Q.slice(), qi: qi, undoStack: undoStack.slice(),
+      mainSnapUndo: mainSnap ? mainSnap.undoStack : null,
+      profMark: profMark
+    };
+    let curMarked = false;
+    for (const i of todo) {
+      const word = W[i].w;
+      if (value) {
+        profMark = {bookId: currentBookId, i: i, w: word};
+        S.proficient[word] = Date.now();
+        markProfPending(currentBookId, word, true, S.proficient[word]);
+        if (cur === i) {
+          curMarked = true;
+          if (phase === "revealed") qi++;
+        }
+        Q = Q.slice(0, qi).concat(Q.slice(qi).filter(k => k !== i));
+        undoStack = [];
+        if (mainSnap) mainSnap.undoStack = [];
+      } else {
+        if (profMark && profMark.i === i && profMark.bookId === currentBookId) profMark = null;
+        delete S.proficient[word];
+        markProfPending(currentBookId, word, false);
+        undoStack = [];
+        if (mainSnap) mainSnap.undoStack = [];
+      }
+    }
+    const saved = save(true);
+    if (!saved) {
+      // 整次回滚内存：不留下半写状态；独立熟练键尽力恢复为写入前原文。
+      S.proficient = rollback.proficient;
+      Q = rollback.Q; qi = rollback.qi; undoStack = rollback.undoStack;
+      if (mainSnap) mainSnap.undoStack = rollback.mainSnapUndo || [];
+      profMark = rollback.profMark;
+      restorePendingProf(rollback.pending);
+      try {
+        if (rollback.profRaw === null) localStorage.removeItem(PROF_KEY);
+        else if (rollback.profRaw !== undefined) localStorage.setItem(PROF_KEY, rollback.profRaw);
+      } catch (e) { /* 保持当前可读状态 */ }
+      if (curMarked) renderCard();
+      renderRows(); renderStats(); renderListToolSurfaces(); renderProfFeedback(); updateScopeCount();
+      toast("批量熟练未保存，已恢复原状态；请先导出进度备份");
+      return {ok: false, changed: 0};
+    }
+    const lost = todo.filter(i => isProficient(i) !== !!value).length;
+    if (curMarked) nextCard();
+    renderCard(); updateScopeCount(); syncFreqControls(); applyFilter(false); renderStats(); updateBar();
+    renderProfFeedback(); renderListToolSurfaces();
+    toast((value ? "已标为熟练 " : "已取消熟练 ") + todo.length + " 词（含未渲染行）"
+      + (value ? "，已移出背诵与复习" : "，将按原进度恢复")
+      + (lost ? "；另有 " + lost + " 词因另一窗口替换记录未生效" : ""));
+    return {ok: true, changed: todo.length};
+  }
+  function confirmListBatchProficiency(){
+    if (!listBatchPreview) return false;
+    const sig = listBatchPreview.sig, value = listBatchPreview.value;
+    const ids = validListSelectionIndices();
+    if (ids.join(",") !== sig) {
+      listBatchPreview = null;
+      renderListOrganizeBar();
+      toast("选择已变化，请重新预览后再确认");
+      return false;
+    }
+    listBatchPreview = null;
+    renderListBatchPreview();
+    batchSetProficient(value);
+    renderListOrganizeBar();
+    return true;
+  }
+
+  /* ================= G 统计下钻：临时列表筛选层 =================
+   * 下钻只改词表临时筛选：不改 settings.fmin/fmax/pmin/kyOnly/pos、不重建当前组、
+   * 不写 q/fst/fsc 的逐书持久值；退出后恢复进入前列表筛选。
+   */
+  let statsDrill = null;        // {kind:"due"|"freq"|"stage", bookId, label, dayIndex/tier/stage}
+  let statsDrillReturn = null;  // 进入前列表筛选/滚动与统计现场
+  let statsSelForecast = -1, statsSelStage = -1;
+  function dropStaleStatsDrill(){
+    if (statsDrill && statsDrill.bookId !== currentBookId) {
+      statsDrill = null;
+      statsDrillReturn = null;
+      listViewDirty = true;
+    }
+  }
+  /** 与统计面板共用同一口径的下钻词集（当前范围、非熟练、pos/套卷/大纲、按本地日桶）。 */
+  function statsDrillIndices(){
+    const out = [];
+    if (!statsDrill) return out;
+    const start = startOfLocalDay(Date.now());
+    const tier = statsDrill.kind === "freq" ? FREQ_TIERS.find(t => t.key === statsDrill.tier) : null;
+    for (let i = 0; i < W.length; i++) {
+      if (!inScope(i) || isProficient(i)) continue;
+      const p = st(i);
+      if (statsDrill.kind === "due") {
+        if (!hasMainProgress(p) || p[0] >= MASTER) continue;
+        const bucket = Math.round((startOfLocalDay(p[1]) - start) / 86400000);
+        if (statsDrill.dayIndex === 0 ? bucket <= 0 : bucket === statsDrill.dayIndex) out.push(i);
+      } else if (statsDrill.kind === "freq") {
+        if (!tier) continue;
+        if (W[i].f >= tier.min && W[i].f <= tier.max) out.push(i);
+      } else if (statsDrill.kind === "stage") {
+        if (!hasMainProgress(p)) continue;
+        if (Math.min(p[0], MASTER) !== statsDrill.stage) continue;
+        out.push(i);
+      }
+    }
+    return out;
+  }
+  /** 阶段分布（统计页与下钻共用唯一口径）：只统计当前范围非熟练词。 */
+  function stageDistribution(){
+    const dist = new Array(MASTER + 1).fill(0);
+    let learning = 0, mastered = 0, unseen = 0, wrong = 0;
+    for (let i = 0; i < W.length; i++) {
+      if (!inScope(i) || isProficient(i)) continue;
+      const p = st(i);
+      if (p && p[3] > 0) wrong++;
+      if (!hasMainProgress(p)) { unseen++; continue; }
+      dist[Math.min(p[0], MASTER)]++;
+      if (p[0] < MASTER) learning++; else mastered++;
+    }
+    return {dist: dist, learning: learning, mastered: mastered, unseen: unseen, wrong: wrong};
+  }
+  function drillDueDayLabel(idx, fc){
+    return fc.dates[idx] + (idx === 0 ? "（今天）" : idx === 1 ? "（明天）" : "") + " 到期词";
+  }
+  function updateForecastDrillUi(){
+    const btn = $("#btnDrillDueDay"), note = $("#forecastDrillNote");
+    if (!btn) return;
+    const fc = dueForecast(14);
+    const idx = statsSelForecast;
+    const ok = idx >= 0 && idx < fc.counts.length;
+    const count = ok ? fc.counts[idx] : 0;
+    const label = ok ? drillDueDayLabel(idx, fc) : "";
+    btn.textContent = ok ? "查看" + drillDueDayLabel(idx, fc) + " (" + count + ")" : "查看该日到期词";
+    btn.disabled = !ok || count === 0;
+    btn.title = !ok ? "先在上方选择日期" : count ? "进入词表临时筛选「" + label + "」，不改学习范围" : label + "没有可查看的到期词";
+    if (note) {
+      note.textContent = !ok ? "选择某个日期柱后，可查看该本地日桶内的到期词。"
+        : count ? label + "：" + count + " 词（当前背诵范围、未熟练、未掌握）。"
+        : label + "没有到期词可查看（不是历史学习记录，无法还原当天具体单词）。";
+    }
+  }
+  function updateStageDrillUi(){
+    const btn = $("#btnDrillStage"), note = $("#stagesDrillNote");
+    if (!btn) return;
+    const dist = stageDistribution().dist;
+    const idx = statsSelStage;
+    const ok = idx >= 0 && idx < dist.length;
+    const count = ok ? dist[idx] : 0;
+    const name = !ok ? "" : (idx === MASTER ? "已掌握" : idx === 0 ? "重学（第零档）" : "第" + idx + "档");
+    btn.textContent = ok ? "查看" + name + "词 (" + count + ")" : "查看该档词";
+    btn.disabled = !ok || count === 0;
+    btn.title = !ok ? "先在上方选择档位" : count ? "进入词表临时筛选「" + name + "」，不改学习范围" : name + "没有可查看的词";
+    if (note) {
+      note.textContent = !ok ? "选择某个档位后，可查看该档内的已学词（与上方统计口径一致）。"
+        : count ? name + "：" + count + " 词（当前背诵范围、未熟练、有主学习进度）。"
+        : name + "没有可查看的词。";
+    }
+  }
+  function statsPointSelected(root, point){
+    if (!root || !point) return;
+    if (root.id === "forecast") {
+      statsSelForecast = Array.from(root.querySelectorAll?.("[data-fc-label]") || []).indexOf(point);
+      updateForecastDrillUi();
+    } else if (root.id === "stages") {
+      statsSelStage = Array.from(root.querySelectorAll?.("[data-stage-label]") || []).indexOf(point);
+      updateStageDrillUi();
+    }
+  }
+  function enterStatsDrill(desc){
+    if (!desc || ["due", "freq", "stage"].indexOf(desc.kind) < 0) return false;
+    if (statsDrill && statsDrill.bookId === currentBookId) return false;
+    const ui = listUiFor(currentBookId);
+    const trigger = desc.trigger || {};
+    statsDrillReturn = {
+      bookId: currentBookId,
+      q: ui.q, fst: ui.fst, fsc: ui.fsc,
+      scrollTop: ui.scrollTop || 0,
+      activeWord: ui.activeWord, activeAction: ui.activeAction || "open-word",
+      mainScrollTop: $("#main") ? ($("#main").scrollTop || 0) : 0,
+      panelId: trigger.panelId || "", rootId: trigger.rootId || "",
+      selector: trigger.selector || "", hintId: trigger.hintId || "",
+      index: Number.isInteger(trigger.index) ? trigger.index : -1
+    };
+    statsDrill = {kind: desc.kind, bookId: currentBookId, label: desc.label};
+    if (desc.kind === "due") statsDrill.dayIndex = desc.dayIndex;
+    if (desc.kind === "freq") statsDrill.tier = desc.tier;
+    if (desc.kind === "stage") statsDrill.stage = desc.stage;
+    listSelection.clear();
+    listBatchPreview = null;
+    listViewDirty = true;
+    show("list");
+    // 下钻层用独立词集，控件设为中性避免与临时筛选混淆；保存的逐书筛选在 statsDrillReturn 里。
+    if ($("#q")) $("#q").value = "";
+    if ($("#fst")) $("#fst").value = "all";
+    if ($("#fsc")) $("#fsc").value = "scope";
+    applyFilter();
+    const first = $("#listInner")?.querySelector?.("[data-open-word]");
+    (first || $("#listScroll"))?.focus?.({preventScroll: true});
+    renderListViewRows();
+    return true;
+  }
+  function exitStatsDrill(opts){
+    opts = opts || {};
+    const ret = statsDrillReturn;
+    const had = !!statsDrill;
+    statsDrill = null;
+    statsDrillReturn = null;
+    if (opts.restore && ret && ret.bookId === currentBookId) {
+      const ui = listUiFor(currentBookId);
+      ui.q = ret.q; ui.fst = ret.fst; ui.fsc = ret.fsc;
+      ui.scrollTop = ret.scrollTop; ui.activeWord = ret.activeWord; ui.activeAction = ret.activeAction;
+      if ($("#q")) $("#q").value = ret.q;
+      if ($("#fst")) $("#fst").value = ret.fst;
+      if ($("#fsc")) $("#fsc").value = ret.fsc;
+      listActiveWord = ret.activeWord;
+      listActiveAction = ret.activeAction || "open-word";
+      if ($("#listScroll")) $("#listScroll").scrollTop = ret.scrollTop || 0;
+    }
+    listSelection.clear();
+    listBatchPreview = null;
+    listViewDirty = true;
+    if (opts.render !== false) applyFilter(false);
+    renderListToolSurfaces();
+    return had;
+  }
+  function returnFromStatsDrill(){
+    const ret = statsDrillReturn;
+    if (!statsDrill || !ret || ret.bookId !== currentBookId) {
+      statsDrill = null;
+      statsDrillReturn = null;
+      show("stats");
+      return false;
+    }
+    exitStatsDrill({restore: true, render: false});
+    show("stats");
+    if ($("#main")) $("#main").scrollTop = ret.mainScrollTop || 0;
+    const panel = ret.panelId ? $("#" + ret.panelId) : null;
+    if (panel) panel.open = true;
+    const root = ret.rootId ? $("#" + ret.rootId) : null;
+    if (root && ret.selector) {
+      const nodes = Array.from(root.querySelectorAll?.(ret.selector) || []);
+      const point = nodes[ret.index] || nodes[0] || null;
+      if (point) {
+        selectStatsPoint(root, ret.selector, ret.hintId ? $("#" + ret.hintId) : null, point);
+        point.focus?.({preventScroll: true});
+      } else if (panel?.querySelector) {
+        panel.querySelector("summary")?.focus?.({preventScroll: true});
+      }
+    }
+    if ($("#main")) $("#main").scrollTop = ret.mainScrollTop || 0;
+    return true;
+  }
+  function drillDueDay(){
+    const fc = dueForecast(14), idx = statsSelForecast;
+    if (idx < 0 || idx >= fc.counts.length || !fc.counts[idx]) return false;
+    return enterStatsDrill({
+      kind: "due", dayIndex: idx, label: "本地日 " + drillDueDayLabel(idx, fc),
+      trigger: {panelId: "statsForecastPanel", rootId: "forecast", selector: "[data-fc-label]", index: idx, hintId: "forecastHint"}
+    });
+  }
+  function drillFreqTier(key){
+    const row = frequencyMastery().rows.find(r => r.key === key);
+    if (!row || !row.total) return false;
+    return enterStatsDrill({
+      kind: "freq", tier: key, label: "词频层 · " + row.label + "（" + row.range + "）",
+      trigger: {panelId: "statsFreqPanel"}
+    });
+  }
+  function drillStage(){
+    const dist = stageDistribution().dist, idx = statsSelStage;
+    if (idx < 0 || idx >= dist.length || !dist[idx]) return false;
+    const name = idx === MASTER ? "已掌握" : idx === 0 ? "重学（第零档）" : "第" + idx + "档";
+    return enterStatsDrill({
+      kind: "stage", stage: idx, label: "阶段 · " + name,
+      trigger: {panelId: "statsStagesPanel", rootId: "stages", selector: "[data-stage-label]", index: idx, hintId: "stagesHint"}
+    });
+  }
+  /** 用户在列表里显式改筛选/搜索：先退出下钻并恢复进入前筛选，再套用本次改动。 */
+  function onListFilterControlChanged(id){
+    const user = {
+      q: $("#q") ? $("#q").value : "",
+      fst: $("#fst") ? ($("#fst").value || "all") : "all",
+      fsc: $("#fsc") ? ($("#fsc").value || "scope") : "scope"
+    };
+    listSelection.clear();
+    listBatchPreview = null;
+    if (statsDrill) exitStatsDrill({restore: true, render: false});
+    if (id === "q" && $("#q")) $("#q").value = user.q;
+    else if (id === "fst" && $("#fst")) $("#fst").value = user.fst;
+    else if (id === "fsc" && $("#fsc")) $("#fsc").value = user.fsc;
+    if ($("#fst") && $("#fst").value === "proficient" && $("#fsc")) $("#fsc").value = "all";
+    applyFilter();
   }
 
   /* ================= 统计 ================= */
@@ -6280,6 +8688,8 @@
     const label = point.dataset.dayLabel || point.dataset.fcLabel || point.dataset.stageLabel
       || point.getAttribute?.("aria-label") || "";
     if (hint) hint.textContent = label;
+    // G：选中日期柱/阶段档后同步该面板的「查看该日/该档词」入口与空集说明。
+    statsPointSelected(root, point);
   }
   function bindStatsChart(id, selector, hintId, grid){
     const root = $(id);
@@ -6473,11 +8883,21 @@
         parts.push("峰值 " + pl + " · " + fc.peakCount + " 词");
       }
       $("#forecastSummary").textContent = parts.join(" · ");
-      $("#forecastHint").textContent = "点击柱形查看日期与到期词数";
+      $("#forecastHint").textContent = "点击柱形查看日期与到期词数，再点「查看该日到期词」进入词表";
     } else {
       $("#forecastSummary").textContent = "未来 14 天没有到期复习";
       $("#forecastHint").textContent = "学完第一批词后，这里会出现未来两周的复习负荷曲线";
     }
+    // G：下钻按钮跟随已选日期柱；未选日期或该日 0 词时禁用并说明（空样本面板整体隐藏）。
+    if (statsSelForecast >= fc.counts.length) statsSelForecast = -1;
+    const nodes = Array.from(el.querySelectorAll?.("[data-fc-label]") || []);
+    if (statsSelForecast >= 0 && nodes[statsSelForecast]) {
+      nodes.forEach((node, i) => {
+        node.setAttribute?.("aria-pressed", String(i === statsSelForecast));
+        node.tabIndex = i === statsSelForecast ? 0 : -1;
+      });
+    }
+    updateForecastDrillUi();
   }
   function renderFreqMastery(){
     const el = $("#freqMastery");
@@ -6503,7 +8923,11 @@
           '<i class="fm-mastered" style="width:' + mp + '%"></i>' +
           '<i class="fm-learning" style="width:' + lp + '%"></i>' +
           '<i class="fm-unseen" style="width:' + up + '%"></i>' +
-        "</div></div>";
+        "</div>" +
+        // G：词频层直达词表（临时筛选，与统计同口径）。
+        '<button type="button" class="fm-drill" data-drill-freq="' + esc(r.key) + '"' +
+          (r.total ? "" : " disabled") + ' aria-label="查看' + esc(r.label) + "层 " + r.total + ' 个词">查看该层词 (' + r.total + ")</button>" +
+      "</div>";
     }).join("");
     const parts = ["全范围 " + pctOf(data.mastered, data.total) + "%"];
     const high = data.rows.find(r => r.key === "high");
@@ -6519,16 +8943,10 @@
   }
   function renderStats(){
     const tot = inScopeCount(), mas = scopedMasteredCount();
-    let learning = 0, wrong = 0, unseen = 0;
-    const dist = new Array(MASTER + 1).fill(0);
-    for (let i = 0; i < W.length; i++) {
-      if (!inScope(i) || isProficient(i)) continue;
-      const p = st(i);
-      if (p && p[3] > 0) wrong++;
-      if (!hasMainProgress(p)) { unseen++; continue; }
-      dist[Math.min(p[0], MASTER)]++;
-      if (p[0] < MASTER) learning++;
-    }
+    // 阶段分布与下钻共用 stageDistribution()，保证「统计看到的 N」与词表下钻词集完全一致。
+    const stageInfo = stageDistribution();
+    const learning = stageInfo.learning, wrong = stageInfo.wrong, unseen = stageInfo.unseen;
+    const dist = stageInfo.dist;
     renderMasteryMeter(tot, mas, learning);
     const k = Object.keys(S.days).filter(k => S.days[k].r > 0).sort();
     const okAll = k.reduce((a, d) => a + S.days[d].ok, 0);
@@ -6555,6 +8973,16 @@
       const label = (i === MASTER ? "已掌握" : i === 0 ? "重学（第零档）" : "第" + i + "档") + "：" + v + " 词";
       return '<button type="button" class="chart-bar" tabindex="' + (i === 0 ? "0" : "-1") + '" aria-pressed="false" aria-describedby="stagesHint" data-stage-label="' + esc(label) + '" aria-label="' + esc(label) + '" title="' + esc(label) + '"><span class="stage-plot"><span class="stage-fill" style="height:' + (v ? Math.max(3, v / mx * 100) : 0) + '%"><i>' + (v || "") + '</i></span></span><u>' + (i === MASTER ? "掌握" : i === 0 ? "重学" : i) + "</u></button>";
     }).join("");
+    // G：档位下钻按钮跟随已选档位；0 词禁用并说明（与统计分布同一口径）。
+    if (statsSelStage >= stageDist.length) statsSelStage = -1;
+    const stageNodes = Array.from($("#stages").querySelectorAll?.("[data-stage-label]") || []);
+    if (statsSelStage >= 0 && stageNodes[statsSelStage]) {
+      stageNodes.forEach((node, i) => {
+        node.setAttribute?.("aria-pressed", String(i === statsSelStage));
+        node.tabIndex = i === statsSelStage ? 0 : -1;
+      });
+    }
+    updateStageDrillUi();
 
     const last = [];
     let sumN = 0, sumR = 0, sumOk = 0, sumNo = 0;
@@ -6603,7 +9031,7 @@
   function renderPrintBook(){
     const source = ($("#printSource") && $("#printSource").value) || "wrong";
     const entries = printBookEntries(source);
-    const label = PRINT_SRC_LABEL[source] || "错词本";
+    const label = printSourceLabel(source);
     const date = todayStr();
     const body = $("#printBody");
     const count = $("#printCount");
@@ -6639,7 +9067,8 @@
   function openPrintBook(){
     const sel = $("#printSource");
     if (sel) {
-      if (wrongWordIndices().length) sel.value = "wrong";
+      if ($("#v-list")?.classList.contains("on")) sel.value = "filter";
+      else if (wrongWordIndices().length) sel.value = "wrong";
       else if (printBookEntries("star").length) sel.value = "star";
       else sel.value = "filter";
     }
@@ -6651,7 +9080,7 @@
     const entries = printBookEntries(source);
     const md = printBookMarkdown(entries, {
       date: todayStr(),
-      sourceLabel: PRINT_SRC_LABEL[source] || "错词本"
+      sourceLabel: printSourceLabel(source)
     });
     $("#printMarkdownCopy")?.remove?.();
     let ok = false;
@@ -6712,15 +9141,46 @@
     if (drillMode) return !!(mainSnap && (mainSnap.cur != null || mainSnap.qi < mainSnap.Q.length));
     return cur != null || (Q.length > 0 && qi < Q.length);
   }
-  /** 当前设置是否已偏离本组开始时的范围/计划（偏离后 UI 提示「下一组生效」）。 */
-  function hasPendingScopeSettings(){
+  /** 只读比较冻结主组与下组配置；scopeSig 保持原格式，曲线直接按已有快照字段比较。 */
+  function pendingSessionSettings(){
     const plan = mainSessionPlan();
-    if (!plan || plan.bookId !== currentBookId || typeof plan.scopeSig !== "string") return false;
-    return plan.scopeSig !== currentScopeSignature();
+    const diff = {scope: false, stageCount: 0, relearn: false};
+    if (!plan || plan.bookId !== currentBookId) return diff;
+    diff.scope = typeof plan.scopeSig === "string" && plan.scopeSig !== currentScopeSignature();
+    const cfg = currentStageConfig();
+    if (Array.isArray(plan.stagesMs) && plan.stagesMs.length === cfg.stages.length) {
+      diff.stageCount = cfg.stages.reduce((n, minutes, i) => n + (plan.stagesMs[i] !== minutes * MINUTE_MS ? 1 : 0), 0);
+    }
+    diff.relearn = Number.isFinite(plan.relearnMs) && plan.relearnMs !== cfg.relearn * MINUTE_MS;
+    return diff;
+  }
+  /** 保留原入口名称：范围、计划、曲线与重学间隔偏离都统一提示「下一组生效」。 */
+  function hasPendingScopeSettings(){
+    const diff = pendingSessionSettings();
+    return diff.scope || diff.stageCount > 0 || diff.relearn;
+  }
+  /** 与复习节奏区同样按实际参数识别名称；stagePreset 纯展示，不会制造参数差异。 */
+  function rhythmConfigLabel(stages, relearn){
+    const key = presetKeyOf(stages, relearn);
+    return key === "custom" ? "自定义" : STAGE_PRESETS[key].label;
+  }
+  /** 有限长摘要：不在学习页重复十档编辑器；重学间隔明确给出本组值与下组值。 */
+  function pendingRhythmText(){
+    const plan = mainSessionPlan(), diff = pendingSessionSettings(), parts = [];
+    if (!plan || (!diff.stageCount && !diff.relearn)) return "";
+    const cfg = currentStageConfig();
+    if (diff.stageCount) {
+      const before = rhythmConfigLabel(plan.stagesMs.map(ms => ms / MINUTE_MS), plan.relearnMs / MINUTE_MS);
+      const after = rhythmConfigLabel(cfg.stages, cfg.relearn);
+      parts.push("复习曲线：" + (before === after ? after : before + " → " + after) + "（" + diff.stageCount + " 档变更）");
+    }
+    if (diff.relearn) parts.push("不会后重学：" + formatMinutes(plan.relearnMs / MINUTE_MS) + " → " + formatMinutes(cfg.relearn));
+    return parts.join("；");
   }
   /** 08 范围摘要：与设置控件逐项对应，供设置页「下一组预览」展示。 */
   function scopeSummaryText(){
     const s = S.settings;
+    const cfg = currentStageConfig();
     const orderText = {freq: "按词频顺序", shuffle: "随机乱序", wrong: "错词优先"}[s.order] || "按词频顺序";
     const freqText = (!s.fmax && s.fmin <= 1) ? "全部词频"
       : (s.fmax ? "词频 " + s.fmin + "–" + s.fmax : "词频 ≥" + s.fmin);
@@ -6733,7 +9193,8 @@
       s.kyOnly ? "仅" + currentBook().tagLabel : "大纲不限",
       posText,
       getPosMode() === "all" ? "按全部词性" : "按主要词性",
-      "每日 " + s.dailyNew + " 新词", "每组 " + s.groupSize + " 词"
+      "每日 " + s.dailyNew + " 新词", "每组 " + s.groupSize + " 词",
+      "复习曲线 " + rhythmConfigLabel(cfg.stages, cfg.relearn), "不会后重学 " + formatMinutes(cfg.relearn)
     ].join(" · ");
   }
   /** 设置页生命周期区：下一组预览 + 当前组快照说明 + 显式重开按钮。 */
@@ -6749,10 +9210,16 @@
     const plan = mainSessionPlan();
     const active = mainGroupActiveForSettings();
     const busy = drillMode || inSubgroup();
+    const rhythmDiff = pendingRhythmText();
+    const detail = $("#settingsLifecycleDetails");
+    if (detail && active && hasPendingScopeSettings()) detail.open = true;
+    const startLabel = $("#btnStartFromSettings");
+    if (startLabel) startLabel.textContent = active ? "继续当前组 ↗" : "开始背诵 ↗";
     if (curEl) {
       if (busy) {
         curEl.innerHTML = "错词特训/受控子组进行中：改设置仍只应用到下一组；退出后回到原组现场，不会重建进行中的卡。"
-          + (hasPendingScopeSettings() ? " 当前已有<b>设置更改待应用</b>。" : "");
+          + (hasPendingScopeSettings() ? " 当前已有<b>设置更改待应用</b>。" : "")
+          + (rhythmDiff ? " " + esc(rhythmDiff) + "。" : "");
       } else if (active && plan && plan.bookId === currentBookId) {
         const sc = plan.scopeCount != null ? plan.scopeCount : "—";
         const dn = plan.dailyNewTarget != null ? plan.dailyNewTarget : S.settings.dailyNew;
@@ -6760,7 +9227,8 @@
         curEl.innerHTML = "当前组：开始时的范围 <b>" + sc + "</b> 词 · 每日 <b>" + dn + "</b> 新词 · 每组 <b>"
           + (plan.groupSize || S.settings.groupSize) + "</b> 张 · 本组进度 <b>" + done + "/" + groupTotal
           + "</b>（分母固定，重考不扩大）"
-          + (hasPendingScopeSettings() ? " · <b>设置已更改，将在下一组生效</b>" : " · 与当前设置一致");
+          + (hasPendingScopeSettings() ? " · <b>设置已更改，将在下一组生效</b>" : " · 与当前设置一致")
+          + (rhythmDiff ? " · " + esc(rhythmDiff) : "");
       } else {
         curEl.innerHTML = "当前没有进行中的组：设置保存后，点「继续背诵」或「开始背诵」时按新设置开组。";
       }
@@ -6813,12 +9281,15 @@
     box.hidden = false;
     const text = $("#planPendingText");
     if (text) {
-      text.innerHTML = "设置已更改：新范围/计划将在下一组生效。本组仍按开始时的范围 <b>"
+      const diff = pendingSessionSettings(), rhythmDiff = pendingRhythmText();
+      const categories = [diff.scope ? "范围/计划" : "", diff.stageCount || diff.relearn ? "复习节奏" : ""].filter(Boolean).join("与");
+      text.innerHTML = "设置已更改：新" + categories + "将在下一组生效。本组仍按开始时的范围 <b>"
         + (plan && plan.scopeCount != null ? plan.scopeCount : "—") + "</b> 词统计，进度分母固定 <b>"
         + groupTotal + "</b> 张。"
         + (targetPending ? "本组每日新词计划 <b>" + plan.dailyNewTarget
           + "</b>；下一组已保存计划 <b>" + S.settings.dailyNew + "</b>（今日临时 "
-          + extraDayLedger().extra + "，下组目标 " + effectiveNewTarget() + "）。" : "");
+          + extraDayLedger().extra + "，下组目标 " + effectiveNewTarget() + "）。" : "")
+        + (rhythmDiff ? esc(rhythmDiff) + "。" : "");
     }
     const btn = $("#planPendingApply");
     if (btn) btn.onclick = applySettingsRestart;
@@ -6864,6 +9335,13 @@
       S.settings.fontSize = d.fontSize;
       S.settings.voiceURI = d.voiceURI;
       S.settings.speechRate = d.speechRate;
+      // F1 阅读与布局字段同属外观类；恢复只改呈现，不重建当前组/不清进度。
+      S.settings.cardDensity = d.cardDensity;
+      S.settings.readingOrder = d.readingOrder.slice();
+      S.settings.showCardMeta = d.showCardMeta;
+      S.settings.showCardStage = d.showCardStage;
+      S.settings.showCardPos = d.showCardPos;
+      S.settings.secondaryActions = d.secondaryActions.slice();
       S.settings.keys = Object.assign({}, DEFKEYS);
       // AGENTS 契约：恢复默认按键不得自动重新启用单字符快捷键；该开关保持用户当前选择。
     } else {
@@ -6897,7 +9375,1244 @@
     if ($("#v-stats")?.classList.contains("on")) renderStats();
   }
 
+  /* ================= 学习方案：纯配置目录与原子写入（下一大版本 A/B） =================
+   * 本区只管理已存在的 settings 字段。方案目录独立存储，不进入学习备份 v3、
+   * 主进度签名、今日暂停、临时加量或会话快照；不更改旧记录默认分支。
+   */
+  const SETTINGS_PROFILES_KEY = "vocab_settings_profiles_v1";
+  const SETTINGS_PROFILES_KIND = "vocab-settings-profiles";
+  const SETTINGS_PROFILES_MAX = 30;
+  const SETTINGS_CATEGORIES = Object.freeze([
+    {id: "plan", label: "学习计划"}, {id: "scope", label: "词库范围"},
+    {id: "rhythm", label: "复习曲线"}, {id: "appearance", label: "外观与显示"},
+    {id: "speech", label: "设备发音"}, {id: "keys", label: "操作偏好"}
+  ].map(x => Object.freeze(x)));
+  const SETTINGS_CATALOG = Object.freeze([
+    ["dailyNew", "每日新词", "plan", "next", "book", "#dailyNew", "新词 目标 配额"],
+    ["order", "出词顺序", "plan", "next", "book", "#order", "乱序 随机 词频 错词优先"],
+    ["dailyReviewCap", "每日复习上限", "plan", "now", "book", "#reviewCapCustom", "次数 预算 配额 不限"],
+    ["groupSize", "每组词数", "plan", "next", "book", "#groupSize", "分组 数量"],
+    ["backlogGuard", "积压保护", "plan", "next", "book", "#backlogGuard", "到期 优先复习 补新词"],
+    ["autoResume", "自动续背", "plan", "now", "book", "#autoResumePresets", "连续 等待 挂机 阈值 倒计时"],
+    ["fmin", "最低词频", "scope", "next", "book", "#fmin", "频段 次数 下界"],
+    ["fmax", "最高词频", "scope", "next", "book", "#fmax", "频段 次数 上界 不限"],
+    ["pmin", "最低套卷数", "scope", "next", "book", "#pmin", "真题 套数 筛选"],
+    ["kyOnly", "仅考试大纲词", "scope", "next", "book", "#kyOnly", "大纲 范围"],
+    ["pos", "词性筛选", "scope", "next", "book", "#posChips", "名词 动词 形容词 副词 其他"],
+    ["posMode", "词性口径", "scope", "next", "book", "#posMode", "主词性 全部词性 释义"],
+    ["stages", "十档复习间隔", "rhythm", "next", "book", "#rhythmStages", "曲线 记忆 均衡 强化 自定义"],
+    ["relearn", "不会后重学间隔", "rhythm", "next", "book", "#rhythmRelearn", "遗忘 分钟 跨组"],
+    ["stagePreset", "复习曲线名称", "rhythm", "next", "book", "#rhythmPresets", "预设 轻负荷 密集"],
+    ["theme", "颜色主题", "appearance", "now", "carry", "#themeSeg", "浅色 深色 跟随系统"],
+    ["showPh", "显示音标", "appearance", "now", "carry", "#showPh", "读音"],
+    ["showEx", "显示例句", "appearance", "now", "carry", "#showEx", "原句"],
+    ["showFm", "显示词形", "appearance", "now", "carry", "#showFm", "变化 屈折"],
+    ["fontSize", "阅读字号", "appearance", "now", "carry", "#fontSizeSeg", "大字 标准 释义"],
+    ["cardDensity", "卡片密度", "appearance", "now", "carry", "#cardDensitySeg", "紧凑 舒适 间距"],
+    ["readingOrder", "判定后阅读顺序", "appearance", "now", "carry", "#readingOrderControls", "释义 例句 词形 顺序"],
+    ["showCardMeta", "显示词频套卷标签", "appearance", "now", "carry", "#showCardMeta", "词频 套卷 书源"],
+    ["showCardStage", "显示复习阶段", "appearance", "now", "carry", "#showCardStage", "阶段 点"],
+    ["showCardPos", "显示卡片词性", "appearance", "now", "carry", "#showCardPos", "词性 名词 动词"],
+    ["secondaryActions", "固定次级动作", "appearance", "now", "carry", "#secondaryActionsControls", "撤销 熟练 发音 收藏"],
+    ["autoSpk", "自动发音", "speech", "now", "carry", "#autoSpk", "读音 朗读"],
+    ["voiceURI", "英语语音", "speech", "now", "carry", "#voiceSelect", "设备 声音 英式 美式"],
+    ["speechRate", "朗读语速", "speech", "now", "carry", "#speechRate", "发音 快慢"],
+    ["singleCharKeys", "单字符快捷键", "keys", "now", "carry", "#singleCharKeys", "键盘 开关"],
+    ["keys", "自定义快捷键", "keys", "now", "carry", "#settings-keys", "会 不会 下一个 发音 收藏 熟练 按键" ],
+    ["actionKeys", "继续与返回快捷键", "keys", "now", "carry", "#actionKeysSettings", "等待 继续 返回 搜索 Shift 组合键"],
+    ["gestures", "卡片滑动手势", "keys", "now", "carry", "#gestureSettings", "触摸 左右 关闭 反转 判定"],
+    ["actionLayout", "左右手操作布局", "keys", "now", "carry", "#actionLayoutSettings", "左手 右手 按钮 顺序"]
+  ].map(a => Object.freeze({key: a[0], label: a[1], category: a[2], effect: a[3], scope: a[4],
+    target: a[5], search: a[1] + " " + a[6], defaultValue: cloneSettingsValue(DEF.settings[a[0]])})));
+  const SETTINGS_CATALOG_MAP = new Map(SETTINGS_CATALOG.map(x => [x.key, x]));
+  let settingsProfileSequence = 0;
+  function settingsProfileFail(error, extra){ return Object.assign({ok: false, error: error}, extra || {}); }
+  function settingsProfileCategories(input, allowed){
+    if (!Array.isArray(input) || !input.length || input.length > SETTINGS_CATEGORIES.length
+      || new Set(input).size !== input.length || input.some(x => !SETTINGS_CATEGORIES.some(c => c.id === x)
+        || (allowed && !allowed.includes(x)))) return null;
+    return SETTINGS_CATEGORIES.map(c => c.id).filter(id => input.includes(id));
+  }
+  function settingsFieldsForCategories(categories){ return SETTINGS_CATALOG.filter(x => categories.includes(x.category)).map(x => x.key); }
+  function settingsProfileName(name){
+    return typeof name === "string" && name === name.trim() && [...name].length >= 1 && [...name].length <= 40
+      && !/[\u0000-\u001f\u007f]/.test(name);
+  }
+  function settingsProfileSame(a, b){ return JSON.stringify(a) === JSON.stringify(b); }
+  /** 严格校验已选字段；不同于学习记录兼容读取，绝不把非法配置静默修成默认值。 */
+  function validateSettingsSelection(settings, fields, book){
+    if (!isRecord(settings) || !book || !book.available) return "词书或配置不可用";
+    const between = (v, a, b) => typeof v === "number" && Number.isInteger(v) && v >= a && v <= b;
+    for (const key of fields) {
+      if (!Object.prototype.hasOwnProperty.call(settings, key)) return "缺少配置：" + (SETTINGS_CATALOG_MAP.get(key)?.label || key);
+      const v = settings[key];
+      let valid = true;
+      switch (key) {
+        case "dailyNew": valid = between(v, 1, 500); break;
+        case "groupSize": valid = between(v, 1, 100); break;
+        case "dailyReviewCap": valid = between(v, 0, 1000); break;
+        case "fmin": valid = between(v, 1, 9999); break;
+        case "fmax": valid = between(v, 0, 9999); break;
+        case "pmin": valid = between(v, 0, book.paperCount || book.defaultPmin || 2); break;
+        case "order": valid = ["freq", "shuffle", "wrong"].includes(v); break;
+        case "posMode": valid = ["primary", "all"].includes(v); break;
+        case "theme": valid = ["light", "dark", "auto"].includes(v); break;
+        case "fontSize": valid = ["standard", "large"].includes(v); break;
+        case "voiceURI": valid = typeof v === "string" && v.length <= 200 && v === v.trim(); break;
+        case "speechRate": valid = typeof v === "number" && Number.isFinite(v) && v >= 0.5 && v <= 1.5
+          && Math.abs(v * 100 - Math.round(v * 100)) < 0.00000001; break;
+        case "pos": valid = Array.isArray(v) && v.length <= POS_TAGS.length && new Set(v).size === v.length && v.every(x => POS_TAGS.includes(x)); break;
+        case "keys": valid = isRecord(v) && Object.keys(v).length === Object.keys(DEFKEYS).length
+          && Object.keys(DEFKEYS).every(k => validKey(v[k]) && v[k] === v[k].toLowerCase())
+          && Object.keys(v).every(k => Object.prototype.hasOwnProperty.call(DEFKEYS, k))
+          && new Set(Object.values(v)).size === Object.keys(DEFKEYS).length; break;
+        case "actionKeys": valid = isRecord(v) && Object.keys(v).length === Object.keys(DEFACTIONKEYS).length
+          && Object.keys(v).every(k=>Object.prototype.hasOwnProperty.call(DEFACTIONKEYS,k))
+          && Object.values(v).every(k=>k===null || normalizeKeyBinding(k)===k); break;
+        case "gestures": valid = isRecord(v) && Object.keys(v).length===3 && Object.keys(v).every(k=>["enabled","recall","revealed"].includes(k))
+          && typeof v.enabled==="boolean" && ["recall","revealed"].every(phase=>isRecord(v[phase])
+            && Object.keys(v[phase]).length===2 && Object.keys(v[phase]).every(k=>["left","right"].includes(k))
+            && Object.values(v[phase]).every(a=>(phase==="recall"?GESTURE_RECALL_ACTIONS:GESTURE_REVEALED_ACTIONS).includes(a))); break;
+        case "actionLayout": valid = ["standard","left","right"].includes(v); break;
+        case "cardDensity": valid = CARD_DENSITY_VALUES.includes(v); break;
+        case "readingOrder": valid = Array.isArray(v) && v.length === READING_ORDER_KEYS.length
+          && new Set(v).size === v.length && v.every(k => READING_ORDER_KEYS.includes(k)); break;
+        case "secondaryActions": valid = Array.isArray(v) && v.length <= 2 && new Set(v).size === v.length
+          && v.every(id => SECONDARY_ACTION_IDS.includes(id)); break;
+        case "showCardMeta": case "showCardStage": case "showCardPos": valid = typeof v === "boolean"; break;
+        case "autoResume": valid = isRecord(v) && Object.keys(v).length === 4
+          && Object.keys(v).every(k => ["enabled", "threshold", "idleMs", "countdownMs"].includes(k))
+          && typeof v.enabled === "boolean" && between(v.threshold, 1, 50)
+          && between(v.idleMs, 30000, 600000) && between(v.countdownMs, 3000, 60000); break;
+        case "stages": case "relearn": valid = normalizeStageConfig(settings.stages, settings.relearn).ok; break;
+        case "stagePreset": valid = typeof v === "string" && v === presetKeyOf(settings.stages, settings.relearn); break;
+        default: valid = ["backlogGuard", "kyOnly", "showPh", "showEx", "showFm", "autoSpk", "singleCharKeys"].includes(key) && typeof v === "boolean";
+      }
+      if (!valid) return (SETTINGS_CATALOG_MAP.get(key)?.label || key) + "的值不合法"
+        + (key === "pmin" ? "（" + book.name + "最多 " + book.paperCount + " 套卷）" : "");
+    }
+    if ((fields.includes("fmin") || fields.includes("fmax")) && settings.fmax !== 0 && settings.fmax < settings.fmin) return "最高词频不能小于最低词频";
+    if(fields.includes("keys") || fields.includes("actionKeys")) {
+      const conflict=inputBindingConflict(settings.keys||DEFKEYS,settings.actionKeys||DEFACTIONKEYS);
+      if(conflict)return "快捷键冲突："+conflict.label+"共用了"+keyName(conflict.binding);
+    }
+    return null;
+  }
+  /** 旧方案兼容解码只补明确新增批次字段；读取旧方案不写回目录，不修原有缺失或坏值。 */
+  const APPEARANCE_COMPAT_FIELDS = ["cardDensity", "readingOrder", "showCardMeta", "showCardStage", "showCardPos", "secondaryActions"];
+  function decodeSettingsProfile(profile){
+    const out=cloneSettingsValue(profile);
+    if(isRecord(out) && Array.isArray(out.categories) && isRecord(out.settings)) {
+      if(out.categories.includes("keys")) {
+        for(const key of ["actionKeys","gestures","actionLayout"])
+          if(!Object.prototype.hasOwnProperty.call(out.settings,key))out.settings[key]=cloneSettingsValue(DEF.settings[key]);
+      }
+      // F1 批次：v51 外观方案只有 theme/showPh/showEx/showFm/fontSize，缺 F1 六字段；
+      // 只补这六个明确新增字段，原本应有字段缺失或未知字段仍整份拒绝。
+      if(out.categories.includes("appearance")) {
+        for(const key of APPEARANCE_COMPAT_FIELDS)
+          if(!Object.prototype.hasOwnProperty.call(out.settings,key))out.settings[key]=cloneSettingsValue(DEF.settings[key]);
+      }
+    }
+    return out;
+  }
+  function validateSettingsProfile(profile){
+    profile=decodeSettingsProfile(profile);
+    if (!isRecord(profile) || Object.keys(profile).some(k => !["id", "name", "bookId", "categories", "settings", "createdAt", "updatedAt"].includes(k))) return "方案结构不正确";
+    if (typeof profile.id !== "string" || !/^[a-zA-Z0-9_-]{1,100}$/.test(profile.id)) return "方案标识不正确";
+    if (!settingsProfileName(profile.name)) return "方案名称需为 1–40 个字";
+    if (!bookOf(profile.bookId)?.available) return "方案来源词书不可用";
+    const categories = settingsProfileCategories(profile.categories);
+    if (!categories || !isRecord(profile.settings)) return "方案类别不正确";
+    const fields = settingsFieldsForCategories(categories);
+    if (Object.keys(profile.settings).length !== fields.length || Object.keys(profile.settings).some(k => !fields.includes(k))) return "方案中含有未选择类别或非配置字段";
+    if (![profile.createdAt, profile.updatedAt].every(v => typeof v === "number" && Number.isSafeInteger(v) && v > 0)
+      || profile.updatedAt < profile.createdAt) return "方案时间不正确";
+    return validateSettingsSelection(profile.settings, fields, bookOf(profile.bookId));
+  }
+  function parseSettingsProfilesEnvelope(value){
+    if (typeof value === "string" && value.length > 524288) return settingsProfileFail("配置方案文件过大（最多 512 KB）");
+    let parsed;
+    try { parsed = typeof value === "string" ? JSON.parse(value) : cloneSettingsValue(value); }
+    catch (e) { return settingsProfileFail("配置方案文件不是有效的 JSON"); }
+    if (!isRecord(parsed) || parsed.kind !== SETTINGS_PROFILES_KIND || parsed.version !== 1
+      || Object.keys(parsed).some(k => !["kind", "version", "profiles"].includes(k))
+      || !Array.isArray(parsed.profiles) || parsed.profiles.length > SETTINGS_PROFILES_MAX) return settingsProfileFail("配置方案格式或版本不支持（最多 30 个方案）");
+    const ids = new Set(), names = new Set();
+    for (let profileIndex=0;profileIndex<parsed.profiles.length;profileIndex++) {
+      const profile=decodeSettingsProfile(parsed.profiles[profileIndex]);
+      parsed.profiles[profileIndex]=profile;
+      if (typeof profile?.id === "string" && profile.id.startsWith("builtin_")) return settingsProfileFail("个人方案不能使用内置方案标识");
+      const error = validateSettingsProfile(profile);
+      if (error) return settingsProfileFail(error);
+      const name = profile.name.toLocaleLowerCase();
+      if (ids.has(profile.id) || names.has(name)) return settingsProfileFail("方案标识或名称重复");
+      ids.add(profile.id); names.add(name);
+    }
+    return {ok: true, profiles: parsed.profiles, envelope: parsed};
+  }
+  function readSettingsProfiles(){
+    let raw;
+    try { raw = localStorage.getItem(SETTINGS_PROFILES_KEY); }
+    catch (e) { return settingsProfileFail("无法读取配置方案存储", {raw: null, profiles: []}); }
+    if (raw === null) return {ok: true, raw: null, profiles: []};
+    const result = parseSettingsProfilesEnvelope(raw);
+    if (!result.ok) return settingsProfileFail("配置方案存储损坏，已保留原文：" + result.error, {raw: raw, profiles: []});
+    return {ok: true, raw: raw, profiles: result.profiles};
+  }
+  function writeSettingsProfiles(profiles, previousRaw){
+    const envelope = {kind: SETTINGS_PROFILES_KIND, version: 1, profiles: profiles};
+    const checked = parseSettingsProfilesEnvelope(envelope);
+    if (!checked.ok) return checked;
+    try {
+      // 同步操作前再比原文；另一页面刚写入时拒绝覆盖，下一次操作重读最新目录。
+      if (localStorage.getItem(SETTINGS_PROFILES_KEY) !== previousRaw) return settingsProfileFail("另一页面刚更新了方案，请重试");
+      localStorage.setItem(SETTINGS_PROFILES_KEY, JSON.stringify(envelope));
+    } catch (e) { return settingsProfileFail("配置方案保存失败，原方案保持不变"); }
+    return {ok: true, profiles: cloneSettingsValue(profiles)};
+  }
+  function newSettingsProfileId(profiles){
+    let id;
+    do { settingsProfileSequence++; id = "p_" + Date.now().toString(36) + "_" + settingsProfileSequence.toString(36) + "_" + Math.random().toString(36).slice(2, 9); }
+    while (profiles.some(p => p.id === id));
+    return id;
+  }
+  function saveSettingsProfile(name, categories, options){
+    const stored = readSettingsProfiles(); if (!stored.ok) return stored;
+    const picked = settingsProfileCategories(categories);
+    const cleanName = typeof name === "string" ? name.trim() : name;
+    if (!picked || !settingsProfileName(cleanName)) return settingsProfileFail("请选择类别，并填写 1–40 个字的方案名称");
+    const replaceId = options && options.replaceId;
+    const old = replaceId ? stored.profiles.find(p => p.id === replaceId) : null;
+    if (replaceId && !old) return settingsProfileFail("待替换的方案不存在");
+    if (!old && stored.profiles.length >= SETTINGS_PROFILES_MAX) return settingsProfileFail("最多保存 30 个方案，请先删除不再使用的方案");
+    if (stored.profiles.some(p => p.id !== replaceId && p.name.toLocaleLowerCase() === cleanName.toLocaleLowerCase())) return settingsProfileFail("已有同名方案，请换一个名称");
+    const settings = {};
+    for (const key of settingsFieldsForCategories(picked)) settings[key] = cloneSettingsValue(S.settings[key]);
+    const now = Date.now();
+    const profile = {id: old ? old.id : newSettingsProfileId(stored.profiles), name: cleanName, bookId: currentBookId,
+      categories: picked, settings: settings, createdAt: old ? old.createdAt : now, updatedAt: Math.max(now, old ? old.createdAt : now)};
+    const error = validateSettingsProfile(profile); if (error) return settingsProfileFail(error);
+    const profiles = old ? stored.profiles.map(p => p.id === old.id ? profile : p) : stored.profiles.concat(profile);
+    const result = writeSettingsProfiles(profiles, stored.raw);
+    return result.ok ? Object.assign(result, {profile: cloneSettingsValue(profile)}) : result;
+  }
+  function renameSettingsProfile(id, name){
+    const stored = readSettingsProfiles(); if (!stored.ok) return stored;
+    const source = stored.profiles.find(p => p.id === id), cleanName = typeof name === "string" ? name.trim() : name;
+    if (!source || !settingsProfileName(cleanName)) return settingsProfileFail("方案不存在，或名称不符合 1–40 个字要求");
+    if (stored.profiles.some(p => p.id !== id && p.name.toLocaleLowerCase() === cleanName.toLocaleLowerCase())) return settingsProfileFail("已有同名方案，请换一个名称");
+    const profile = Object.assign({}, source, {name: cleanName, updatedAt: Math.max(Date.now(), source.updatedAt)});
+    const result = writeSettingsProfiles(stored.profiles.map(p => p.id === id ? profile : p), stored.raw);
+    return result.ok ? Object.assign(result, {profile: cloneSettingsValue(profile)}) : result;
+  }
+  function duplicateSettingsProfile(id, name){
+    const stored = readSettingsProfiles(); if (!stored.ok) return stored;
+    const source = stored.profiles.find(p => p.id === id), cleanName = typeof name === "string" ? name.trim() : name;
+    if (!source || !settingsProfileName(cleanName)) return settingsProfileFail("方案不存在，或名称不符合 1–40 个字要求");
+    if (stored.profiles.length >= SETTINGS_PROFILES_MAX) return settingsProfileFail("最多保存 30 个方案");
+    if (stored.profiles.some(p => p.name.toLocaleLowerCase() === cleanName.toLocaleLowerCase())) return settingsProfileFail("已有同名方案，请换一个名称");
+    const profile = Object.assign({}, cloneSettingsValue(source), {id: newSettingsProfileId(stored.profiles), name: cleanName,
+      createdAt: Date.now(), updatedAt: Date.now()});
+    const result = writeSettingsProfiles(stored.profiles.concat(profile), stored.raw);
+    return result.ok ? Object.assign(result, {profile: cloneSettingsValue(profile)}) : result;
+  }
+  function deleteSettingsProfile(id){
+    const stored = readSettingsProfiles(); if (!stored.ok) return stored;
+    if (!stored.profiles.some(p => p.id === id)) return settingsProfileFail("方案不存在");
+    return writeSettingsProfiles(stored.profiles.filter(p => p.id !== id), stored.raw);
+  }
+  function previewSettingsPatch(patch){
+    if (!isRecord(patch) || !Object.keys(patch).length || Object.keys(patch).some(k => !SETTINGS_CATALOG_MAP.has(k))) return settingsProfileFail("只能修改已有配置字段");
+    const fields = Object.keys(patch), next = cloneSettingsValue(S.settings);
+    for (const key of fields) next[key] = cloneSettingsValue(patch[key]);
+    if ((fields.includes("stages") || fields.includes("relearn")) && !fields.includes("stagePreset")) {
+      const cfg = normalizeStageConfig(next.stages, next.relearn);
+      if (!cfg.ok) return settingsProfileFail(cfg.error.message);
+      next.stagePreset = presetKeyOf(next.stages, next.relearn);
+      fields.push("stagePreset");
+    }
+    const error = validateSettingsSelection(next, fields, currentBook());
+    if (error) return settingsProfileFail(error);
+    const changes = SETTINGS_CATALOG.filter(x => fields.includes(x.key) && !settingsProfileSame(S.settings[x.key], next[x.key]))
+      .map(x => ({key: x.key, label: x.label, category: x.category, effect: x.effect,
+        before: cloneSettingsValue(S.settings[x.key]), after: cloneSettingsValue(next[x.key])}));
+    return {ok: true, settings: next, changes: changes,
+      scopeCount: W.reduce((n, x, i) => n + (inScope(i, next) && !isProficient(i) ? 1 : 0), 0), targetBook: currentBookId};
+  }
+  function previewSettingsProfile(profile, selectedCategories){
+    profile=decodeSettingsProfile(profile);
+    const error = validateSettingsProfile(profile); if (error) return settingsProfileFail(error);
+    const categories = settingsProfileCategories(selectedCategories || profile.categories, profile.categories);
+    if (!categories) return settingsProfileFail("请选择方案已包含的类别");
+    const patch = {};
+    for (const key of settingsFieldsForCategories(categories)) patch[key] = cloneSettingsValue(profile.settings[key]);
+    const result = previewSettingsPatch(patch);
+    const preferenceFields = Object.keys(patch).filter(key => PREFERENCE_FIELDS.includes(key));
+    const ownershipChanges = preferenceDeviceUsable()
+      ? preferenceFields.filter(key => !isPreferenceOverridden(key)) : [];
+    return Object.assign(result, {sourceBook: profile.bookId, targetBook: currentBookId, crossBook: profile.bookId !== currentBookId,
+      categories: categories, profileId: profile.id, profileName: profile.name,
+      preferenceScope: "book", preferenceFields: preferenceFields, ownershipChanges: ownershipChanges});
+  }
+  function applySettingsPatch(patch, options){
+    options = options || {};
+    const preview = previewSettingsPatch(patch); if (!preview.ok) return preview;
+    // 方案明确应用当前书：即使值相同，也冻结所选偏好为本书覆盖；普通现场编辑仍按来源保存。
+    const bookPreferenceFields = options.preferenceScope === "book" && preferenceDeviceUsable()
+      ? Object.keys(patch).filter(key => PREFERENCE_FIELDS.includes(key)) : [];
+    const ownershipChanges = bookPreferenceFields.filter(key => !isPreferenceOverridden(key));
+    if (!preview.changes.length && !ownershipChanges.length) return preview;
+    if (blockedBooks.has(currentBookId) || pendingReplacementToken) return settingsProfileFail("当前学习记录尚未安全保存，配置保持不变");
+    // 独立熟练键仍是权威；未送达的熟练变化先交既有同步链处理，不能借配置覆盖。
+    try {
+      const latestProficient = readBookProficient(currentBook(), S.proficient);
+      if (!settingsProfileSame(mergePendingProficient(latestProficient, currentBookId), S.proficient)) return settingsProfileFail("熟练标记刚在另一页面更新，请等待同步后重试");
+    } catch (e) { return settingsProfileFail("配置保存失败，原配置与当前学习现场保持不变"); }
+    if (bookPreferenceFields.length) {
+      const nextPrefs = clonePrefValue(devicePrefs), overrides = new Set(preferenceOverrideList(currentBookId));
+      bookPreferenceFields.forEach(field => overrides.add(field));
+      nextPrefs.overrides[currentBookId] = PREFERENCE_FIELDS.filter(field => overrides.has(field));
+      const committed = commitPreferenceChange(nextPrefs, preview.settings);
+      if (!committed.ok) return settingsProfileFail(committed.error);
+      finishSettingsPatchCommit(preview, committed.previousSettings);
+      return Object.assign(preview, {preferenceScope: "book", preferenceFields: bookPreferenceFields,
+        ownershipChanges: ownershipChanges});
+    }
+    // O1：偏好字段按来源裁决——未覆盖字段改设备 shared（同时保存本书记录快照），
+    // 本书覆盖字段改本书自己的值；涉及设备键 + 主键时走小事务/恢复日志。
+    const prefFields = preview.changes.map(change => change.key).filter(key => PREFERENCE_FIELDS.includes(key));
+    const devicePrefFields = prefFields.filter(field => preferenceDeviceUsable() && !isPreferenceOverridden(field));
+    if (devicePrefFields.length) {
+      const nextPrefs = clonePrefValue(devicePrefs);
+      for (const field of devicePrefFields) nextPrefs.shared[field] = clonePrefValue(preview.settings[field]);
+      const committed = commitPreferenceChange(nextPrefs, preview.settings);
+      if (!committed.ok) return settingsProfileFail(committed.error);
+      finishSettingsPatchCommit(preview, committed.previousSettings);
+      return preview;
+    }
+    let serialized;
+    try {
+      const latest = localStorage.getItem(KEY);
+      if (latest !== lastMainRaw) return settingsProfileFail("另一页面已更新本书记录，请等待同步后重试，配置保持不变");
+      serialized = serializeSharedState(Object.assign({}, S, {settings: preview.settings}), latest);
+      localStorage.setItem(KEY, serialized);
+    } catch (e) { return settingsProfileFail("配置保存失败，原配置与当前学习现场保持不变"); }
+    const previous = S.settings;
+    S.settings = preview.settings;
+    noteInputPreferencesCommitted(previous);
+    lastMainRaw = serialized; lastSavedSignature = savedStateSignature(S);
+    storageOK = true; clearAlert("save");
+    syncLastResolvedPreferences();
+    finishSettingsPatchCommit(preview, previous);
+    return preview;
+  }
+  /** applySettingsPatch 成功后的呈现刷新（保持原有即时偏好/方案工作台行为）。 */
+  function finishSettingsPatchCommit(preview, previous){
+    autoResumeCheckCache = null;
+    if (preview.changes.some(x => x.key === "autoResume")) {
+      autoResumeLegacyBooks.delete(currentBookId);
+      // 切换配置不得抹掉用户今天的暂停，仅重新计时。
+      resetAutoResumeRuntime();
+    }
+    applyTheme(); applyFontSize();
+    renderPreferenceOwnershipControls();
+    if (typeof refreshSettingsWorkspace === "function") refreshSettingsWorkspace(previous, preview.changes);
+  }
+  function applySettingsProfile(profile, selectedCategories){
+    profile=decodeSettingsProfile(profile);
+    const preview = previewSettingsProfile(profile, selectedCategories); if (!preview.ok) return preview;
+    const patch = {};
+    for (const key of settingsFieldsForCategories(preview.categories)) patch[key] = cloneSettingsValue(profile.settings[key]);
+    const result = applySettingsPatch(patch, {preferenceScope: "book"});
+    return Object.assign(result, {sourceBook: profile.bookId, targetBook: currentBookId, crossBook: profile.bookId !== currentBookId,
+      categories: preview.categories, profileId: profile.id, profileName: profile.name,
+      preferenceScope: "book", preferenceFields: preview.preferenceFields, ownershipChanges: preview.ownershipChanges});
+  }
+  /** 内置起点仅包含计划/曲线；读取不改个人方案目录，也不覆盖范围、显示或操作。 */
+  function getBuiltinSettingsProfiles(){
+    return [
+      {id: "builtin_daily", name: "日常均衡", dailyNew: 20, dailyReviewCap: 100, groupSize: 30, rhythm: "balanced"},
+      {id: "builtin_light", name: "轻量稳步", dailyNew: 10, dailyReviewCap: 60, groupSize: 20, rhythm: "light"}
+    ].map(item => {
+      const settings = {};
+      for (const key of settingsFieldsForCategories(["plan", "rhythm"])) settings[key] = cloneSettingsValue(DEF.settings[key]);
+      settings.dailyNew = item.dailyNew; settings.dailyReviewCap = item.dailyReviewCap; settings.groupSize = item.groupSize;
+      settings.stages = STAGE_PRESETS[item.rhythm].stages.slice(); settings.relearn = STAGE_PRESETS[item.rhythm].relearn;
+      settings.stagePreset = item.rhythm;
+      return {id: item.id, name: item.name, bookId: currentBookId, categories: ["plan", "rhythm"], settings: settings, createdAt: 1, updatedAt: 1};
+    });
+  }
+  function exportSettingsProfiles(ids){
+    const stored = readSettingsProfiles(); if (!stored.ok) return stored;
+    if (ids !== undefined && (!Array.isArray(ids) || !ids.length || new Set(ids).size !== ids.length || ids.some(id => !stored.profiles.some(p => p.id === id)))) return settingsProfileFail("请选择有效的方案");
+    const profiles = ids === undefined ? stored.profiles : stored.profiles.filter(p => ids.includes(p.id));
+    if (!profiles.length) return settingsProfileFail("还没有可导出的方案");
+    return {ok: true, envelope: {kind: SETTINGS_PROFILES_KIND, version: 1, profiles: cloneSettingsValue(profiles)}};
+  }
+  function prepareSettingsProfilesImport(value){
+    const incoming = parseSettingsProfilesEnvelope(value); if (!incoming.ok) return incoming;
+    if (!incoming.profiles.length) return settingsProfileFail("配置文件没有方案");
+    const stored = readSettingsProfiles(); if (!stored.ok) return stored;
+    const added = [], skipped = [];
+    for (const profile of incoming.profiles) {
+      const old = stored.profiles.find(p => p.id === profile.id);
+      if (old) {
+        if (settingsProfileSame(old, profile)) { skipped.push(profile); continue; }
+        return settingsProfileFail("方案标识冲突：" + profile.name + "；请先在原设备复制并命名后再导入");
+      }
+      if (stored.profiles.some(p => p.name.toLocaleLowerCase() === profile.name.toLocaleLowerCase())) return settingsProfileFail("已有同名方案：" + profile.name + "；请先重命名后再导入");
+      added.push(profile);
+    }
+    if (stored.profiles.length + added.length > SETTINGS_PROFILES_MAX) return settingsProfileFail("导入后超过 30 个方案，请先删除不再使用的方案");
+    return {ok: true, added: cloneSettingsValue(added), skipped: cloneSettingsValue(skipped), count: added.length,
+      profiles: stored.profiles.concat(added), raw: stored.raw};
+  }
+  function importSettingsProfiles(value){
+    const prepared = prepareSettingsProfilesImport(value); if (!prepared.ok) return prepared;
+    if (!prepared.added.length) return {ok: true, count: 0, skipped: prepared.skipped, profiles: prepared.profiles};
+    const result = writeSettingsProfiles(prepared.profiles, prepared.raw);
+    return Object.assign(result, result.ok ? {count: prepared.count, added: prepared.added, skipped: prepared.skipped} : {});
+  }
+  // 与既有 __vocab 同为可检查钩子；对外只给副本，不暴露方案目录的可变缓存。
+  window.__vocabSettingsProfiles = {
+    key: SETTINGS_PROFILES_KEY, kind: SETTINGS_PROFILES_KIND, max: SETTINGS_PROFILES_MAX,
+    getCatalog: () => cloneSettingsValue(SETTINGS_CATALOG), getCategories: () => cloneSettingsValue(SETTINGS_CATEGORIES),
+    getBuiltinSettingsProfiles, readSettingsProfiles, saveSettingsProfile, renameSettingsProfile, duplicateSettingsProfile, deleteSettingsProfile,
+    previewSettingsPatch, applySettingsPatch, previewSettingsProfile, applySettingsProfile,
+    exportSettingsProfiles, prepareSettingsProfilesImport, importSettingsProfiles
+  };
+
   /* ================= 设置 ================= */
+  /* 学习配置工作台：独立界面偏好；不写学习进度或会话快照。 */
+  const WORKSPACE_PREFS_KEY = "vocab_settings_workspace_v1";
+  const QUICK_KEYS = ["dailyNew", "groupSize", "dailyReviewCap", "autoResume", "fontSize", "autoSpk",
+    "theme", "showPh", "showEx", "showFm", "speechRate", "backlogGuard", "order", "singleCharKeys"];
+  const QUICK_DEFAULTS = QUICK_KEYS.slice(0, 6);
+  let workspacePane = "quick", workspaceImportRaw = null, workspaceImportSequence = 0;
+  function workspacePrefs(){
+    try {
+      const raw = localStorage.getItem(WORKSPACE_PREFS_KEY);
+      if (raw === null) return {ok: true, pins: QUICK_DEFAULTS.slice()};
+      const p = JSON.parse(raw);
+      if (!p || p.version !== 1 || !Array.isArray(p.pins) || p.pins.length > QUICK_KEYS.length
+          || new Set(p.pins).size !== p.pins.length || p.pins.some(k => !QUICK_KEYS.includes(k))) throw Error();
+      return {ok: true, pins: p.pins.slice()};
+    } catch (e) { return {ok: false, pins: QUICK_DEFAULTS.slice()}; }
+  }
+  function workspaceStatus(text, error = false){
+    const el = $("#workspaceStatus");
+    if (el) {
+      el.textContent = text || ""; el.dataset.error = error ? "true" : "false";
+      const r=el.getBoundingClientRect?.();
+      if(text && activeSheet?.id === "settingsWorkspaceSheet" && r && (r.bottom<60 || r.top>window.innerHeight))toast(text);
+    }
+  }
+  function settingLabel(key){ return SETTINGS_CATALOG.find(x => x.key === key)?.label || key; }
+  function settingsValueText(key, value){
+    if (typeof value === "boolean") return value ? "开启" : "关闭";
+    if (key === "dailyReviewCap" && value === 0) return "不限";
+    if (key === "fmax" && value === 0) return "不限";
+    if (key === "stages") return value.map(formatMinutes).join(" / ");
+    if (key === "relearn") return formatMinutes(value);
+    if (key === "autoResume") return value.enabled
+      ? value.threshold + " 张 / 等待 " + value.idleMs / 1000 + " 秒 / 倒计时 " + value.countdownMs / 1000 + " 秒" : "关闭";
+    if (key === "pos") return value.length ? value.map(k => (POSCHIPS.find(c => c.k === k) || {}).t || k).join("、") : "不限";
+    if (key === "keys") return Object.keys(value).map(k => keyName(value[k])).join(" / ");
+    if (key === "actionKeys") return Object.entries(value).map(([action,binding]) => (STUDY_ACTION_LABELS[action] || action) + "：" + (binding ? keyName(binding) : "未绑定")).join("；");
+    if (key === "gestures") {
+      const name=action=>action==="none"?"不操作":STUDY_ACTION_LABELS[action] || action;
+      return (value.enabled?"开启":"关闭，保留映射")+"；回忆左"+name(value.recall.left)+" / 右"+name(value.recall.right)+"；判定后左"+name(value.revealed.left)+" / 右"+name(value.revealed.right);
+    }
+    if (key === "actionLayout") return {standard:"标准布局",left:"左手布局",right:"右手布局"}[value] || String(value);
+    if (key === "voiceURI") return value || "设备自动选择";
+    const enums = {order:{shuffle:"随机乱序",freq:"按词频",wrong:"错词优先"},theme:{light:"浅色",dark:"深色",auto:"跟随系统"},fontSize:{standard:"标准",large:"大字"},posMode:{primary:"主要词性",all:"全部词性"}};
+    return enums[key]?.[value] || String(value);
+  }
+  function pendingSettingsDetails(){
+    const p = mainSessionPlan();
+    if (!p || p.bookId !== currentBookId) return [];
+    const before = parseScopeSig(p.scopeSig);
+    if (!before) return [];
+    const rows = [];
+    for (const key of ["dailyNew","order","fmin","fmax","pmin","kyOnly","pos","posMode","groupSize","backlogGuard"]) {
+      if (before[key] !== undefined && JSON.stringify(before[key]) !== JSON.stringify(S.settings[key]))
+        rows.push({key, label: settingLabel(key), before: before[key], after: S.settings[key], effect: "next"});
+    }
+    const cfg = currentStageConfig();
+    if (Array.isArray(p.stagesMs) && JSON.stringify(p.stagesMs) !== JSON.stringify(cfg.stages.map(n => n * MINUTE_MS)))
+      rows.push({key:"stages", label:settingLabel("stages"), before:p.stagesMs.map(n=>n/MINUTE_MS), after:cfg.stages, effect:"next"});
+    if (p.relearnMs !== cfg.relearn * MINUTE_MS)
+      rows.push({key:"relearn", label:settingLabel("relearn"), before:p.relearnMs/MINUTE_MS, after:cfg.relearn, effect:"next"});
+    return rows;
+  }
+  function diffRowsHtml(rows){
+    return '<ul class="config-diff">' + rows.map(d => '<li><span>' + esc(d.label)
+      + '</span><span>' + esc(settingsValueText(d.key,d.before)) + ' → <b>' + esc(settingsValueText(d.key,d.after))
+      + '</b><small>' + (d.effect === "next" ? "下一组" : "立即") + '</small></span></li>').join("") + '</ul>';
+  }
+  function renderQuickPending(){
+    const el = $("#quickPendingDiff");
+    if (!el) return;
+    const rows = pendingSettingsDetails();
+    const active = mainGroupActiveForSettings();
+    el.innerHTML = rows.length ? '<p>' + (active ? '本组保持原计划；以下更改从下一组生效：' : '本组已结束；下一组将使用以下更改：') + '</p>' + diffRowsHtml(rows)
+      : '<p>' + (active ? '当前组与已保存计划一致。更改计划不会打断当前卡。' : '当前没有进行中的组；计划将在下次开始时使用。') + '</p>';
+    const conflict = autoResumeConfigConflict(currentAutoResume());
+    if (conflict) {
+      const note = document.createElement("p"); note.className="workspace-warning";
+      note.textContent = "自动续背设置需要调整：" + conflict;
+      const locate = document.createElement("button"); locate.type="button"; locate.className="text-action";
+      locate.textContent="调整等待阈值"; locate.onclick=()=>focusSetting("#autoResumeThreshold");
+      const quick = document.createElement("button"); quick.type="button"; quick.className="text-action";
+      quick.textContent="改用便捷续背";
+      quick.onclick=()=>{const r=applySettingsPatch({autoResume:{enabled:true,threshold:1,idleMs:30000,countdownMs:3000}});workspaceStatus(r.ok?"已改用便捷续背"+(autoResumePausedToday()?"；今天的暂停仍保留。":"。"):r.error,!r.ok);if(r.ok){renderQuickSettings();($("#quick-autoResume")||$("#workspaceQuickTab"))?.focus?.({preventScroll:true});}};
+      note.appendChild(locate); note.appendChild(quick); el.appendChild(note);
+    }
+    if (autoResumePausedToday()) {
+      const note = document.createElement("p");
+      note.textContent = "今天已暂停自动续背；切换方案仍保留这次暂停。";
+      if (currentAutoResume().enabled) {
+        const b = document.createElement("button"); b.type="button"; b.className="text-action";
+        b.textContent="恢复今天自动续背";
+        b.onclick=()=>{restoreAutoResumeToday();renderQuickPending();};
+        note.appendChild(b);
+      }
+      el.appendChild(note);
+    }
+  }
+  function syncOpenWorkspaceFields(){
+    if (activeSheet?.id !== "settingsWorkspaceSheet") return;
+    if (workspacePane === "quick") {
+      if (document.activeElement?.dataset?.quickKey) workspaceStatus("另一页面更新了配置；正在编辑的输入已保留，提交时只应用这一项。");
+      $$("[data-quick-key]").forEach(el=>{
+        if (el === document.activeElement) return;
+        const key=el.dataset.quickKey, value=S.settings[key];
+        if(el.type === "checkbox")el.checked=!!value;
+        else if(key === "autoResume") {
+          el.value="keep";if(el.options?.[0])el.options[0].textContent=value.enabled?"已开启，保留参数":"关闭";
+          const summary=el.closest?.("label")?.querySelector?.(".quick-ar-summary");
+          if(summary){summary.hidden=!value.enabled;summary.textContent=settingsValueText(key,value);}
+        }
+        else el.value=String(value);
+      });
+      renderQuickPending();
+    } else if (!document.activeElement?.closest?.(".profile-edit")) renderSettingsProfiles();
+  }
+  function quickInputHtml(key){
+    const s = S.settings, v = s[key];
+    const attr = ' data-quick-key="' + key + '" id="quick-' + key + '"';
+    const select = opts => '<select' + attr + '>' + opts.map(([val,label]) => '<option value="' + esc(val) + '"'
+      + (String(v) === String(val) ? ' selected' : '') + '>' + esc(label) + '</option>').join("") + '</select>';
+    if (key === "autoResume") return '<select' + attr + '><option value="keep">' + (v.enabled ? '已开启，保留参数' : '关闭')
+      + '</option><option value="enabled">开启，沿用原参数</option><option value="off">关闭</option><option value="quick">便捷：1 张 / 30 秒 / 3 秒</option></select>';
+    if (key === "fontSize") return select([["standard","标准"],["large","大字"]]);
+    if (key === "theme") return select([["light","浅色"],["dark","深色"],["auto","跟随系统"]]);
+    if (key === "order") return select([["shuffle","随机乱序"],["freq","按词频"],["wrong","错词优先"]]);
+    if (typeof v === "boolean") return '<input type="checkbox" role="switch"' + attr + (v ? ' checked' : '') + '>';
+    const lim = {dailyNew:[1,500,1],groupSize:[1,100,1],dailyReviewCap:[0,1000,1],speechRate:[0.5,1.5,0.01]}[key];
+    return '<input type="number"' + attr + ' value="' + v + '" min="' + lim[0] + '" max="' + lim[1] + '" step="' + lim[2] + '" inputmode="decimal">';
+  }
+  function renderQuickSettings(){
+    const root = $("#quickSettingsFields"), choices = $("#quickPinsChoices");
+    if (!root || !choices) return;
+    const prefs = workspacePrefs();
+    root.innerHTML = prefs.pins.map(key => '<label class="quick-field" for="quick-' + key + '"><span>' + esc(settingLabel(key))
+      + '<small>' + (SETTINGS_CATALOG.find(x=>x.key===key)?.effect === "next" ? "下一组生效" : "立即生效")
+      + (key === "dailyReviewCap" ? " · 0 为不限" : "") + '</small>'
+      + (key === "autoResume" ? '<small class="quick-ar-summary"' + (S.settings.autoResume.enabled?'':' hidden') + '>' + esc(settingsValueText(key,S.settings.autoResume)) + '</small>' : '')
+      + '</span>' + quickInputHtml(key) + '</label>').join("")
+      || '<p class="sheet-note">还没有固定项。在下方选择你常用的设置。</p>';
+    choices.innerHTML = QUICK_KEYS.map(key => '<label><input type="checkbox" data-quick-pin="' + key + '"'
+      + (prefs.pins.includes(key) ? ' checked' : '') + '>' + esc(settingLabel(key)) + '</label>').join("");
+    if (!prefs.ok) workspaceStatus("常用项偏好无法读取，已临时显示默认项；原记录保留。", true);
+    renderQuickPending();
+  }
+  function quickSettingsChanged(el){
+    const key = el.dataset.quickKey;
+    let val = el.type === "checkbox" ? el.checked : el.value;
+    if (["dailyNew","groupSize","dailyReviewCap","speechRate"].includes(key)) val = el.value.trim() === "" ? NaN : Number(el.value);
+    if (key === "autoResume") {
+      if (val === "keep") return;
+      val = val === "quick" ? {enabled:true,threshold:1,idleMs:30000,countdownMs:3000}
+        : Object.assign({}, S.settings.autoResume, {enabled: val === "enabled"});
+    }
+    const result = applySettingsPatch({[key]:val});
+    workspaceStatus(result.ok ? "已保存 · " + (SETTINGS_CATALOG.find(x=>x.key===key)?.effect === "next" ? "下一组生效，本组保持" : "立即生效") : result.error, !result.ok);
+    if (result.ok) {
+      el.removeAttribute?.("aria-invalid");
+      if(key === "autoResume"){renderQuickSettings();$("#quick-autoResume")?.focus?.({preventScroll:true});}
+      renderQuickPending();renderSettingsProfiles();
+    }
+    else el.setAttribute?.("aria-invalid","true");
+  }
+  function refreshSettingsWorkspace(previous, changes){
+    bindSet();
+    applyActionLayout(); applyActionBindingHints();
+    autoResumeCheckCache = null;
+    renderGroupSurfaces(); renderCapSurfaces();
+    if (changes.some(x => ["showPh","showEx","showFm","fontSize","keys","singleCharKeys",
+      "cardDensity","readingOrder","showCardMeta","showCardStage","showCardPos","secondaryActions","actionLayout"].includes(x.key))) {
+      const readingOverlay = activeSheet || ($("#exPop") && !$("#exPop").hidden);
+      if(readingOverlay)sharedCardRefreshPending=currentBookId;
+      else if ($("#v-study")?.classList.contains("on")) renderCard();
+      if (detailWord != null && !readingOverlay) renderWordDetail();
+    }
+    if ($("#v-stats")?.classList.contains("on")) renderStats();
+    renderQuickPending(); renderSettingsProfiles();
+  }
+  function workspaceCategories(container, attr, defaults){
+    const el = $(container); if (!el) return;
+    el.innerHTML = SETTINGS_CATEGORIES.map(c => '<label><input type="checkbox" ' + attr + '="' + c.id + '"'
+      + (defaults.includes(c.id) ? ' checked' : '') + '>' + esc(c.label) + '</label>').join("");
+  }
+  function chosenProfileCategories(){ return $$("[data-profile-apply-category]").filter(x=>x.checked).map(x=>x.dataset.profileApplyCategory); }
+  function allWorkspaceProfiles(){
+    const r = readSettingsProfiles();
+    return {ok:r.ok, error:r.error, profiles:[...getBuiltinSettingsProfiles(), ...(r.ok ? r.profiles : [])]};
+  }
+  function renderSettingsProfiles(){
+    const el = $("#settingsProfilesList"); if (!el) return;
+    const activeProfile = document.activeElement?.closest?.(".profile-card")?.dataset.profileId;
+    const r = allWorkspaceProfiles(), selected = chosenProfileCategories();
+    el.innerHTML = (!r.ok ? '<p class="workspace-error">' + esc(r.error) + '</p>' : '') + r.profiles.map(p => {
+      const cats = p.categories.filter(c=>selected.includes(c));
+      const preview = previewSettingsProfile(p,cats), builtin = p.id.startsWith("builtin_");
+      return '<article class="profile-card" data-profile-id="' + esc(p.id) + '"><div class="profile-heading"><h3>' + esc(p.name)
+        + '</h3><span>' + esc((BOOKS[p.bookId] || {}).name || p.bookId) + (builtin ? " · 内置" : "") + '</span></div>'
+        + (preview.ok ? '<p class="sheet-note">应用到' + esc(currentBook().name) + ' · 范围匹配 ' + preview.scopeCount + ' 词 · '
+          + (preview.changes.length ? preview.changes.length + ' 项变化' : '配置值已一致')
+          + (preview.preferenceFields.length ? ' · 仅应用本书，界面偏好设为本书单独' : ' · 仅应用本书') + '</p>'
+          + (preview.changes.length ? '<details class="profile-changes"><summary>查看差异与生效时间</summary>' + diffRowsHtml(preview.changes) + '</details>' : '')
+          : '<p class="workspace-error">' + esc(preview.error) + '</p>')
+        + '<div class="profile-actions"><button type="button" class="btn primary sm" data-profile-apply="' + esc(p.id) + '"'
+        + (!preview.ok ? ' disabled' : '') + '>应用所选类别</button>'
+        + (!builtin ? '<button type="button" class="btn ghost sm" data-profile-edit="' + esc(p.id) + '">管理</button>' : '')
+        + '</div><div class="profile-edit" data-profile-edit-box="' + esc(p.id) + '" hidden><label>新名称<input type="text" maxlength="40" value="' + esc(p.name) + '"></label><button type="button" class="btn ghost sm" data-profile-rename="' + esc(p.id) + '">保存名称</button><button type="button" class="btn ghost sm" data-profile-copy="' + esc(p.id) + '">另存副本</button><button type="button" class="btn ghost sm" data-profile-update="' + esc(p.id) + '">用当前配置更新</button><button type="button" class="btn ghost sm" data-profile-delete="' + esc(p.id) + '">删除</button></div></article>';
+    }).join("");
+    if (activeProfile) $('#settingsProfilesList [data-profile-id="' + activeProfile + '"] [data-profile-apply]')?.focus?.({preventScroll:true});
+  }
+  function showWorkspacePane(pane){
+    workspacePane = pane;
+    for (const [name,id] of [["quick","workspaceQuick"],["profiles","workspaceProfiles"]]) {
+      const tab = $("#" + id + "Tab"), panel = $("#" + id);
+      if (panel) panel.hidden = pane !== name;
+      if (tab) { tab.setAttribute("aria-selected",String(pane===name)); tab.tabIndex=pane===name?0:-1; }
+    }
+    if (pane === "quick") renderQuickSettings(); else renderSettingsProfiles();
+  }
+  function openSettingsWorkspace(pane = "quick"){
+    workspaceStatus(""); workspaceImportRaw = null;
+    if ($("#profilesImportPreview")) $("#profilesImportPreview").hidden = true;
+    showWorkspacePane(pane); openSheet("#settingsWorkspaceSheet");
+  }
+  function focusSetting(target){
+    if (activeSheet) closeSheet();
+    show("set");
+    const root = $(target); if (!root) return false;
+    const el = root.matches?.("input,select,button") ? root : root.querySelector?.("input,select,button") || root;
+    let parent = el.parentElement;
+    while (parent) { if (parent.tagName === "DETAILS") parent.open = true; parent = parent.parentElement; }
+    const section = el.closest?.(".settings-section");
+    if (!el.matches?.("input,select,button,[tabindex]")) el.tabIndex = -1;
+    el.scrollIntoView?.({block:"center",behavior:"auto"}); el.focus?.({preventScroll:true});
+    section?.classList.add("settings-located"); setTimeout(()=>section?.classList.remove("settings-located"),1500);
+    if ($( "#settingsSearchResults")) $("#settingsSearchResults").hidden = true;
+    return true;
+  }
+  function renderSettingsSearch(){
+    const query = ($("#settingsSearch")?.value || "").trim().toLowerCase(), root = $("#settingsSearchResults");
+    if (!root) return;
+    root.hidden = !query; if (!query) { root.innerHTML = ""; return; }
+    const rows = SETTINGS_CATALOG.filter(x=>(x.label+" "+x.search+" "+x.key).toLowerCase().includes(query));
+    root.innerHTML = rows.length ? rows.map(x=>'<button type="button" data-setting-target="' + esc(x.target) + '"><span>'
+      + esc(x.label) + '</span><small>' + (x.effect === "next" ? "下一组生效" : "立即生效") + '</small></button>').join("")
+      : '<p>没有找到。试试“语音”“词频”或“快捷键”。</p>';
+  }
+  async function previewProfilesFile(file){
+    const sequence = ++workspaceImportSequence;
+    workspaceImportRaw = null;
+    $("#profilesImportPreview").hidden = true;
+    try {
+      if (file.size > 524288) throw Error("方案文件过大，最多 512 KB");
+      const raw = await file.text();
+      if (sequence !== workspaceImportSequence) return;
+      const r = prepareSettingsProfilesImport(raw);
+      if (!r.ok) throw Error(r.error);
+      workspaceImportRaw = raw;
+      $("#profilesImportSummary").textContent = "新增 " + r.added.length + " 个方案，跳过 " + r.skipped.length
+        + " 个相同方案。只加入方案库，不应用设置或替换进度。"
+        + r.added.map(p => p.name + "（" + ((BOOKS[p.bookId] || {}).name || p.bookId) + "）").join("、");
+      $("#profilesImportPreview").hidden = false;
+      workspaceStatus("请核对方案后确认导入。");
+    } catch (e) {
+      if (sequence === workspaceImportSequence) workspaceStatus(e.message || "方案文件无法读取", true);
+    } finally {
+      if (sequence === workspaceImportSequence) $("#profilesFile").value = "";
+    }
+  }
+  function initSettingsWorkspace(){
+    if (!$("#settingsWorkspaceSheet")) return;
+    workspaceCategories("#profileApplyCategories","data-profile-apply-category",SETTINGS_CATEGORIES.map(x=>x.id));
+    workspaceCategories("#profileSaveCategories","data-profile-save-category",["plan","scope","rhythm"]);
+    $("#btnQuickSettings").onclick=()=>openSettingsWorkspace("quick");
+    for (const id of ["#btnStudyProfiles","#btnSettingsProfiles"]) $(id).onclick=()=>openSettingsWorkspace("profiles");
+    for (const [pane,id] of [["quick","#workspaceQuickTab"],["profiles","#workspaceProfilesTab"]]) {
+      $(id).onclick=()=>showWorkspacePane(pane);
+      $(id).onkeydown=e=>{if (["ArrowLeft","ArrowRight","Home","End"].includes(e.key)) {e.preventDefault(); const p = e.key==="Home"?"quick":e.key==="End"?"profiles":pane==="quick"?"profiles":"quick";showWorkspacePane(p);$(p==="quick"?"#workspaceQuickTab":"#workspaceProfilesTab").focus();}};
+    }
+    $("#quickSettingsFields").onchange=e=>{if(e.target.dataset.quickKey)quickSettingsChanged(e.target);};
+    $("#quickPinsChoices").onchange=e=>{
+      if (!e.target.dataset.quickPin) return;
+      if (!workspacePrefs().ok) {e.target.checked=!e.target.checked;workspaceStatus("常用项原记录无法读取，暂不能覆盖。",true);return;}
+      try {const key=e.target.dataset.quickPin,pins=new Set(workspacePrefs().pins);if(e.target.checked)pins.add(key);else pins.delete(key);localStorage.setItem(WORKSPACE_PREFS_KEY,JSON.stringify({version:1,pins:QUICK_KEYS.filter(k=>pins.has(k))}));renderQuickSettings();$('#quickPinsChoices [data-quick-pin="'+key+'"]').focus?.({preventScroll:true});}
+      catch(err){e.target.checked=!e.target.checked;workspaceStatus("常用项保存失败，本次选择未保存。",true);}
+    };
+    $("#workspaceAllSettings").onclick=()=>{closeSheet();show("set");$("#settingsSearch").focus?.();};
+    $("#settingsSearch").oninput=renderSettingsSearch;
+    $("#settingsSearch").onkeydown=e=>{if(e.key==="ArrowDown"||e.key==="Enter"){const b=$("#settingsSearchResults button");if(b){e.preventDefault();b.focus();}}else if(e.key==="Escape"){$("#settingsSearchResults").hidden=true;}};
+    $("#settingsSearchResults").onclick=e=>{const b=e.target.closest?.("[data-setting-target]");if(b)focusSetting(b.dataset.settingTarget);};
+    $("#settingsAdvancedToggle").onclick=()=>{const open=$("#settingsAdvancedToggle").getAttribute("aria-pressed")!=="true";$$("#v-set .settings-advanced").forEach(x=>x.open=open);$("#settingsAdvancedToggle").setAttribute("aria-pressed",String(open));$("#settingsAdvancedToggle").textContent=open?"收起高级设置":"展开高级设置";};
+    $("#profileApplyCategories").onchange=renderSettingsProfiles;
+    $$("[data-reset-simple]").forEach(b=>{b.onclick=()=>{
+      const patch={};SETTINGS_CATALOG.filter(x=>x.category===b.dataset.resetSimple).forEach(x=>patch[x.key]=cloneSettingsValue(DEF.settings[x.key]));
+      const r=applySettingsPatch(patch);toast(r.ok?"已恢复默认"+(b.dataset.resetSimple==="speech"?"发音":"外观")+"，其他类别保持。":r.error);
+    };});
+    $("#saveSettingsProfile").onclick=()=>{const r=saveSettingsProfile($("#profileName").value,$$("[data-profile-save-category]").filter(x=>x.checked).map(x=>x.dataset.profileSaveCategory));workspaceStatus(r.ok?"已保存当前配置；下次打开方案即可应用。":r.error,!r.ok);if(r.ok){$("#profileName").value="";renderSettingsProfiles();}};
+    $("#settingsProfilesList").onclick=e=>{
+      const b=e.target.closest?.("button");if(!b)return;
+      const id=b.dataset.profileApply||b.dataset.profileDelete||b.dataset.profileEdit||b.dataset.profileRename||b.dataset.profileCopy||b.dataset.profileUpdate;if(!id)return;
+      if(b.dataset.profileEdit){const box=b.closest(".profile-card").querySelector(".profile-edit");box.hidden=!box.hidden;if(!box.hidden)box.querySelector("input").focus();return;}
+      let r, deleted;
+      if(b.dataset.profileApply){const p=allWorkspaceProfiles().profiles.find(x=>x.id===id);if(!p){workspaceStatus("此方案已在另一页面移除，请重新选择。",true);renderSettingsProfiles();return;}r=applySettingsProfile(p,p.categories.filter(c=>chosenProfileCategories().includes(c)));}
+      else if(b.dataset.profileDelete){deleted=readSettingsProfiles().profiles.find(x=>x.id===id);r=deleteSettingsProfile(id);}
+      else if(b.dataset.profileUpdate){const p=allWorkspaceProfiles().profiles.find(x=>x.id===id);if(!p){workspaceStatus("此方案已在另一页面移除，请重新选择。",true);renderSettingsProfiles();return;}r=saveSettingsProfile(p.name,p.categories,{replaceId:id});}
+      else {
+        let name=b.closest(".profile-card").querySelector(".profile-edit input").value;
+        if(b.dataset.profileCopy){
+          const profiles=readSettingsProfiles().profiles,source=profiles.find(x=>x.id===id);
+          if(source && name.trim()===source.name){
+            const stem=[...source.name].slice(0,32).join("");let n=1;
+            do{name=stem+" 副本"+(n===1?"":" "+n);n++;}while(profiles.some(x=>x.name.toLowerCase()===name.toLowerCase()));
+          }
+        }
+        r=b.dataset.profileRename?renameSettingsProfile(id,name):duplicateSettingsProfile(id,name);
+      }
+      let successText = "方案已保存。";
+      if(b.dataset.profileApply) successText = !r.ok ? "" : !r.changes.length ? (r.ownershipChanges?.length ? "方案已应用到本书：所选界面偏好已设为本书单独。" : "方案与当前设置一致。")
+        : r.changes.some(x=>x.effect==="next") ? "方案已应用：计划与范围将在下一组生效，即时偏好已经生效。" : "方案已应用，所选偏好立即生效。";
+      if (b.dataset.profileApply && r.ok && r.changes.length && r.preferenceFields?.length) successText += "仅影响本书，所选界面偏好已设为本书单独。";
+      else if(b.dataset.profileDelete) successText = "已删除方案，可撤销。";
+      else if(b.dataset.profileUpdate) successText = "已用当前配置更新方案。";
+      else if(b.dataset.profileCopy && r.ok) successText = "已复制为“" + r.profile.name + "”。";
+      else if(b.dataset.profileRename) successText = "方案已重命名。";
+      workspaceStatus(r.ok ? successText : r.error, !r.ok);
+      if(r.ok){renderSettingsProfiles();renderQuickPending();}
+      if(r.ok && deleted){const undoButton=document.createElement("button");undoButton.type="button";undoButton.className="text-action";undoButton.textContent="撤销删除";undoButton.onclick=()=>{const restored=importSettingsProfiles({kind:SETTINGS_PROFILES_KIND,version:1,profiles:[deleted]});workspaceStatus(restored.ok?"已恢复方案。":restored.error,!restored.ok);if(restored.ok){renderSettingsProfiles();const restoredButton=$('#settingsProfilesList [data-profile-id="'+deleted.id+'"] [data-profile-apply]');restoredButton?.scrollIntoView?.({block:"center"});restoredButton?.focus?.({preventScroll:true});}};$("#workspaceStatus").appendChild(undoButton);undoButton.scrollIntoView?.({block:"center"});undoButton.focus?.({preventScroll:true});}
+    };
+    $("#exportProfiles").onclick=()=>{const r=exportSettingsProfiles();if(!r.ok){workspaceStatus(r.error,true);return;}downloadWordBookFile("学习配置方案_"+todayStr()+".json",JSON.stringify(r.envelope,null,2),"application/json;charset=utf-8");workspaceStatus("方案下载已发起，请确认文件保存。进度备份请使用统计页入口。");};
+    $("#importProfiles").onclick=()=>$("#profilesFile").click();
+    $("#profilesFile").onchange=()=>{const file=$("#profilesFile").files?.[0];if(file)previewProfilesFile(file);};
+    $("#confirmProfilesImport").onclick=()=>{if(workspaceImportRaw===null)return;const r=importSettingsProfiles(workspaceImportRaw);workspaceStatus(r.ok?"方案已导入；点击应用后才更改设置。":r.error,!r.ok);if(r.ok){workspaceImportRaw=null;$("#profilesImportPreview").hidden=true;renderSettingsProfiles();$("#importProfiles").focus?.({preventScroll:true});}};
+    $("#cancelProfilesImport").onclick=()=>{workspaceImportSequence++;workspaceImportRaw=null;$("#profilesImportPreview").hidden=true;workspaceStatus("已取消导入。");$("#importProfiles").focus?.({preventScroll:true});};
+    window.addEventListener?.("storage",e=>{
+      if(activeSheet?.id!=="settingsWorkspaceSheet")return;
+      if(e.key===SETTINGS_PROFILES_KEY && !document.activeElement?.closest?.(".profile-edit"))renderSettingsProfiles();
+      if(e.key===WORKSPACE_PREFS_KEY && !document.activeElement?.closest?.("#quickSettingsFields"))renderQuickSettings();
+    });
+    window.__vocabWorkspace={getState:()=>({pane:workspacePane,prefs:workspacePrefs(),importPending:workspaceImportRaw!==null}),getPendingDiff:()=>JSON.parse(JSON.stringify(pendingSettingsDetails())),prefsKey:WORKSPACE_PREFS_KEY};
+  }
+
+  function inputPreferencesStatus(message, error = false){
+    const el = $("#inputPreferencesStatus");
+    if(el){el.textContent=message || "";el.dataset.error=String(error);}
+    if(error)toast(message);
+  }
+  function syncInputControls(force = false){
+    if(typeof getInputPreferences !== "function" || typeof getGestureActions !== "function")return;
+    const p=getInputPreferences(), g=p.gestures;
+    const enabled=$("#gesturesEnabled");if(enabled)enabled.checked=g.enabled;
+    for(const [phase,side,id] of [["recall","left","gestureRecallLeft"],["recall","right","gestureRecallRight"],["revealed","left","gestureRevealedLeft"],["revealed","right","gestureRevealedRight"]]){
+      const select=$("#"+id);if(!select)continue;
+      if(!select.dataset.inputOptions){select.innerHTML=getGestureActions(phase).map(x=>'<option value="'+esc(x.id)+'">'+esc(x.label)+'</option>').join("");select.dataset.inputOptions=phase;}
+      if(force || select !== document.activeElement)select.value=g[phase][side];
+    }
+    const label=(phase,side)=>getGestureActions(phase).find(x=>x.id===g[phase][side])?.label || "不执行操作";
+    const summary=$("#gestureSummary");if(summary)summary.textContent=(g.enabled?"已开启":"已关闭，映射保留")+" · 回忆时：向左“"+label("recall","left")+"”，向右“"+label("recall","right")+"”；判定后：向左“"+label("revealed","left")+"”，向右“"+label("revealed","right")+"”。";
+    $$("[data-gesture-preset]").forEach(b=>{const standard=b.dataset.gesturePreset==="standard";b.setAttribute?.("aria-pressed",String(g.recall.left===(standard?"dont":"know")&&g.recall.right===(standard?"know":"dont")));});
+    $$("[data-action-layout]").forEach(b=>b.setAttribute?.("aria-pressed",String(p.actionLayout===b.dataset.actionLayout)));
+  }
+  function applyInputControlsPatch(patch){
+    const r=applySettingsPatch(patch);
+    inputPreferencesStatus(r.ok?"已保存，操作偏好立即生效；当前学习组保持。":r.error,!r.ok);
+    if(r.ok){syncInputControls(true);applyActionLayout();}
+    return r;
+  }
+  function initInputControls(){
+    if(!$("#gesturesEnabled") || typeof getInputPreferences !== "function")return;
+    syncInputControls();
+    $("#gesturesEnabled").onchange=e=>{const g=getInputPreferences().gestures;g.enabled=e.target.checked;applyInputControlsPatch({gestures:g});};
+    $$("[data-gesture-preset]").forEach(b=>{b.onclick=()=>{const g=getInputPreferences().gestures;g.recall=b.dataset.gesturePreset==="standard"?{left:"dont",right:"know"}:{left:"know",right:"dont"};applyInputControlsPatch({gestures:g});};});
+    for(const [phase,side,id] of [["recall","left","gestureRecallLeft"],["recall","right","gestureRecallRight"],["revealed","left","gestureRevealedLeft"],["revealed","right","gestureRevealedRight"]]){
+      const el=$("#"+id);if(el)el.onchange=()=>{const g=getInputPreferences().gestures;g[phase][side]=el.value;applyInputControlsPatch({gestures:g});};
+    }
+    $$("[data-action-layout]").forEach(b=>{b.onclick=()=>applyInputControlsPatch({actionLayout:b.dataset.actionLayout});});
+    const resets=$("#inputResetChoices");
+    if(resets){
+      resets.innerHTML=getInputActionDescriptors().map(x=>'<button type="button" class="btn ghost sm" data-input-reset="'+esc(x.id)+'">恢复“'+esc(x.label)+'”</button>').join("");
+      resets.onclick=e=>{const b=e.target.closest?.("[data-input-reset]");if(!b)return;const r=resetInputBinding(b.dataset.inputReset);inputPreferencesStatus(r.ok?"已恢复此项，其他按键和开关保持。":r.error,!r.ok);};
+    }
+  }
+
+  /* ================= F1 阅读与布局定制 =================
+   * 只改呈现：卡片密度、判定后主体顺序、卡片次要标签、固定次级动作与「更多操作」。
+   * 全部立即生效；不 startSession、不重建当前组、不清撤销/快照/特判/子组；
+   * 不改变 TXT/打印的扁平内容、字号档位或动作区高度常量。
+   * 统计页 6 个 details 的展开偏好写独立设备键 STATS_PANELS_KEY（不进备份/进度签名）。
+   */
+  const READING_ORDER_LABELS = Object.freeze({meaning: "释义", example: "例句", forms: "词形变化"});
+  const SECONDARY_ACTION_LABELS = Object.freeze({undo: "撤销", proficient: "熟练", speak: "发音", star: "收藏"});
+  function readingOrderLabel(key){ return READING_ORDER_LABELS[key] || String(key); }
+  function currentReadingOrder(){ return normalizeReadingOrder(S.settings.readingOrder); }
+  function currentSecondaryActions(){ return normalizeSecondaryActions(S.settings.secondaryActions); }
+  function currentActionLayout(){
+    return ["left","right"].includes(S.settings.actionLayout) ? S.settings.actionLayout : "standard";
+  }
+  /** 卡片元信息（词频/套卷/书源）：详情页不经过这里，始终保留完整元信息。 */
+  function cardMetaHtml(x){
+    if (!S.settings.showCardMeta) return "";
+    let h = '<div class="tagrow">';
+    h += '<span class="tag">词频 #' + x.r + "</span>";
+    h += '<span class="tag">' + x.f + " 次 / " + x.c + " 套卷</span>";
+    if (x.ky) h += '<span class="tag ky">' + esc(currentBook().tagLabel) + "</span>";
+    h += wordBookTags(x.w);
+    h += "</div>";
+    return h;
+  }
+  function cardStageHtml(stage){
+    return S.settings.showCardStage ? dotsHtml(stage) : "";
+  }
+  function cardPosHtml(x){
+    return S.settings.showCardPos ? '<div class="posline">' + esc(poslineText(x)) + "</div>" : "";
+  }
+  /** 判定后主体：按 readingOrder 全排列渲染；缺内容自然跳过，回忆阶段不调用。 */
+  function cardAnswerBodyHtml(x){
+    const blocks = new Map();
+    const mean = meaningHtml(x);
+    if (mean) blocks.set("meaning", '<div class="mean">' + mean + "</div>");
+    if (S.settings.showEx && x.ex) {
+      blocks.set("example",
+        '<div class="ex" lang="en" data-ex-linked="1" tabindex="0" role="group" aria-expanded="false" aria-label="例句，左右方向键选词，回车查义">'
+        + exHtml(x.ex, x) + '<span class="src" lang="zh-CN">— ' + esc(srcBadge(x.src)) + "</span></div>");
+    } else if (S.settings.showEx) {
+      blocks.set("example", '<div class="ex ex-empty">暂无例句，可先记住释义与词形。</div>');
+    }
+    if (S.settings.showFm && x.fm) {
+      blocks.set("forms", '<details class="answer-extra"><summary>词形变化</summary><div class="fm">' + esc(x.fm) + "</div></details>");
+    }
+    return currentReadingOrder().map(key => blocks.get(key) || "").join("");
+  }
+  /** 固定次级动作按钮：保留原 id/动作入口，插槽顺序由 secondaryActions + actionLayout 决定。 */
+  function secondaryActionButtonHtml(id, slot){
+    const cls = "btn ghost sm acts-secondary-btn slot-" + slot;
+    if (id === "undo") {
+      return '<button type="button" class="' + cls + '" id="undoBtn" data-secondary="undo" title="Ctrl/Cmd+Z">撤销</button>';
+    }
+    if (id === "proficient") {
+      return '<button type="button" class="btn proficient acts-secondary-btn slot-' + slot + '" id="markProficient" data-secondary="proficient" title="熟练词今后不再进入背诵或复习">熟练<kbd>' + esc(keyName(S.settings.keys.proficient)) + "</kbd></button>";
+    }
+    if (id === "speak") {
+      return '<button type="button" class="' + cls + '" id="actsSpeak" data-secondary="speak" aria-label="发音" title="发音（' + esc(keyName(S.settings.keys.speak)) + '）">发音<kbd>' + esc(keyName(S.settings.keys.speak)) + "</kbd></button>";
+    }
+    return '<button type="button" class="' + cls + '" id="actsStar" data-secondary="star" aria-label="' + (isStar(cur) ? "取消收藏" : "收藏") + '" aria-pressed="' + isStar(cur) + '" title="收藏（' + esc(keyName(S.settings.keys.star)) + '）">★ ' + (isStar(cur) ? "已收藏" : "收藏") + "</button>";
+  }
+  /** 更多操作里的入口：只放当前未固定的撤销/熟练；发音与收藏始终有卡片图标，不重复搬两套。 */
+  function moreSecondaryActionHtml(id){
+    if (id === "undo") {
+      return '<button type="button" class="btn ghost sm" id="undoBtn" data-secondary="undo" title="Ctrl/Cmd+Z">撤销上一步</button>';
+    }
+    return '<button type="button" class="btn ghost sm" id="markProficient" data-secondary="proficient" title="熟练词今后不再进入背诵或复习">熟练<kbd>' + esc(keyName(S.settings.keys.proficient)) + "</kbd></button>";
+  }
+  /** 判定后第三行：固定次级动作始终占原槽位；未固定的撤销/熟练由「更多操作」可达。
+   *  固定满 2 个时「更多」缩为同一行的 44px 触发，展开内容为绝对定位浮层，
+   *  任何组合都不增加 #acts 行高（151/156/146px 契约）。 */
+  function secondaryActionsRowHtml(){
+    const fixed = currentSecondaryActions();
+    const ordered = currentActionLayout() === "left" ? fixed.slice().reverse() : fixed.slice();
+    const unfixed = ["undo","proficient"].filter(id => !fixed.includes(id));
+    const hasMore = unfixed.length > 0;
+    const compactMore = hasMore && ordered.length === 2;
+    let h = '<div class="acts-secondary" id="actsSecondary" data-secondary-count="' + ordered.length + '"'
+      + (hasMore ? ' data-has-more="1"' : "") + ">";
+    ordered.forEach((id, i) => { h += secondaryActionButtonHtml(id, i); });
+    if (hasMore) {
+      const summary = compactMore
+        ? '<summary class="acts-more-toggle" aria-label="更多操作" title="更多操作"><span aria-hidden="true">⋯</span></summary>'
+        : '<summary class="acts-more-toggle" aria-label="更多操作">更多操作<span aria-hidden="true">⋯</span></summary>';
+      h += '<details class="acts-more" id="actsMore">' + summary
+        + '<div class="acts-more-menu" role="group" aria-label="未固定的次级动作">'
+        + unfixed.map(id => moreSecondaryActionHtml(id)).join("") + "</div></details>";
+    }
+    h += "</div>";
+    return h;
+  }
+  function bindSecondaryActionButtons(){
+    const speakEl = $("#actsSpeak");
+    if (speakEl) speakEl.onclick = (e) => { e.stopPropagation?.(); runStudyAction("speak", {event: e, source: "button"}); };
+    const starEl = $("#actsStar");
+    if (starEl) starEl.onclick = (e) => { e.stopPropagation?.(); runStudyAction("star", {event: e, source: "button"}); };
+  }
+  /** 左右手布局只换呈现：固定的次级动作随布局换位，DOM 顺序与视觉/Tab 顺序一致。 */
+  function orderSecondaryActionsRow(){
+    const row = $("#actsSecondary");
+    if (!row || typeof row.insertBefore !== "function") return;
+    const details = $("#actsMore");
+    const fixed = currentSecondaryActions();
+    const ordered = currentActionLayout() === "left" ? fixed.slice().reverse() : fixed.slice();
+    for (const id of ordered) {
+      const btn = $('#actsSecondary [data-secondary="' + id + '"]');
+      if (btn && btn.parentNode === row) row.insertBefore(btn, details && details.parentNode === row ? details : null);
+    }
+  }
+  function readStatsPanelPrefs(){
+    try {
+      const raw = localStorage.getItem(STATS_PANELS_KEY);
+      if (raw === null) return {ok: true, open: STATS_PANEL_IDS.slice(), order: STATS_CARD_IDS.slice()};
+      const p = JSON.parse(raw);
+      if (!isRecord(p) || p.version !== 1 || !Array.isArray(p.open) || p.open.length > STATS_PANEL_IDS.length
+          || new Set(p.open).size !== p.open.length || p.open.some(id => !STATS_PANEL_IDS.includes(id))) throw new Error("bad stats panels");
+      if (p.order !== undefined && (!Array.isArray(p.order) || p.order.length !== STATS_CARD_IDS.length
+          || new Set(p.order).size !== p.order.length || p.order.some(id => !STATS_CARD_IDS.includes(id)))) throw new Error("bad stats order");
+      return {ok: true, open: p.open.slice(), order: p.order ? p.order.slice() : STATS_CARD_IDS.slice()};
+    } catch (e) { return {ok: false, open: STATS_PANEL_IDS.slice(), order: STATS_CARD_IDS.slice()}; }
+  }
+  function statsLayoutStatus(message){
+    const el = $("#statsLayoutStatus");
+    if (el) el.textContent = message || "";
+  }
+  function statsCardElements(){
+    const root = $("#v-stats");
+    return root ? Array.from(root.children || []).filter(el => STATS_CARD_IDS.includes(el.id)) : [];
+  }
+  function statsCardOrder(){
+    const ids = statsCardElements().map(el => el.id);
+    return ids.length === STATS_CARD_IDS.length ? ids : STATS_CARD_IDS.slice();
+  }
+  function writeStatsPanelPrefs(open, order){
+    // 损坏原文不得因 toggle 或排序而被悄悄覆盖；页面内仍可调整。
+    const previous = readStatsPanelPrefs();
+    if (!previous.ok) {
+      statsLayoutStatus("统计布局原记录无法读取，本次调整仅在本页保留；原记录已保留。");
+      return false;
+    }
+    if (JSON.stringify(previous.open.slice().sort()) === JSON.stringify(open.slice().sort())
+        && JSON.stringify(previous.order) === JSON.stringify(order)) return true;
+    try { localStorage.setItem(STATS_PANELS_KEY, JSON.stringify({version: 1, open: open, order: order})); return true; }
+    catch (e) { return false; }
+  }
+  /** 新页面默认展开；旧 v1 的 open 名单完整保留，新 order 为同版本可选字段。 */
+  function applyStatsPanelPrefs(){
+    const prefs = readStatsPanelPrefs();
+    for (const panel of $$("#v-stats details.stats-details")) {
+      if (panel && STATS_PANEL_IDS.includes(panel.id)) panel.open = prefs.open.includes(panel.id);
+    }
+    const root = $("#v-stats");
+    if (root && statsCardElements().length === STATS_CARD_IDS.length && typeof root.appendChild === "function"
+        && JSON.stringify(statsCardOrder()) !== JSON.stringify(prefs.order)) {
+      for (const id of prefs.order) root.appendChild($("#" + id));
+    }
+    syncStatsReorderControls();
+    return prefs.ok;
+  }
+  function persistStatsPanels(){
+    const open = $$("#v-stats details.stats-details")
+      .filter(panel => panel && panel.open && STATS_PANEL_IDS.includes(panel.id))
+      .map(panel => panel.id);
+    const saved = writeStatsPanelPrefs(open, statsCardOrder());
+    if (!saved && readStatsPanelPrefs().ok) statsLayoutStatus("统计布局未能保存，本次调整仅在本页保留。");
+    return saved;
+  }
+  function syncStatsReorderControls(){
+    const order = statsCardOrder();
+    $$("#v-stats [data-stats-move]").forEach(button => {
+      const pos = order.indexOf(button.dataset.statsPanel);
+      button.disabled = button.dataset.statsMove === "up" ? pos <= 0 : pos < 0 || pos === order.length - 1;
+    });
+  }
+  function moveStatsPanel(id, direction){
+    if (!STATS_CARD_IDS.includes(id) || !["up", "down"].includes(direction)) return false;
+    const root = $("#v-stats"), panels = statsCardElements(), pos = panels.findIndex(el => el.id === id);
+    const targetPos = pos + (direction === "up" ? -1 : 1);
+    if (!root || pos < 0 || targetPos < 0 || targetPos >= panels.length || typeof root.insertBefore !== "function") return false;
+    const target = panels[targetPos];
+    if (direction === "up") root.insertBefore(panels[pos], target);
+    else root.insertBefore(target, panels[pos]);
+    syncStatsReorderControls();
+    const saved = persistStatsPanels();
+    if (saved) statsLayoutStatus("已调整卡片顺序（第 " + (targetPos + 1) + " / " + panels.length + " 张），下次打开会保留。");
+    return true;
+  }
+  function initStatsPanelOrdering(){
+    const root = $("#v-stats");
+    if (!root || statsCardElements().length !== STATS_CARD_IDS.length) return;
+    let tracking = null, suppressClickUntil = 0, suppressClickHandle = null;
+    const closeMenus = (returnFocus = false) => {
+      const activeTools = returnFocus ? document.activeElement?.closest?.(".stats-order-tools") : null;
+      $$("#v-stats .stats-order-menu").forEach(el => { el.hidden = true; });
+      $$("#v-stats .stats-drag-handle").forEach(el => el.setAttribute("aria-expanded", "false"));
+      activeTools?.querySelector(".stats-drag-handle")?.focus?.({preventScroll: true});
+    };
+    const cancel = (commit = false) => {
+      if (!tracking) return;
+      const t = tracking; tracking = null; clearTimeout(t.timer); clearInterval(t.edgeTimer);
+      if (t.active) {
+        t.panel.classList.remove("stats-dragging");
+        root.classList.remove("stats-sorting");
+        try { t.handle.releasePointerCapture?.(t.pointerId); } catch (e) { /* 已释放 */ }
+        suppressClickUntil = Date.now() + 700;
+        suppressClickHandle = t.handle;
+        if (!commit) {
+          // Esc、第二指针、切后台等取消应恢复开始拖动前的视觉顺序。
+          for (const id of t.original) root.appendChild($("#" + id));
+        } else if (persistStatsPanels()) statsLayoutStatus("卡片顺序已保存，下次打开会保留。");
+        syncStatsReorderControls();
+      }
+    };
+    const placeAtPointer = t => {
+      const cards = statsCardElements().filter(el => el !== t.panel);
+      const before = cards.find(el => { const r = el.getBoundingClientRect(); return t.y < r.top + r.height / 2; });
+      root.insertBefore(t.panel, before || null);
+    };
+    for (const panel of statsCardElements()) {
+      const heading = panel.querySelector(panel.tagName === "DETAILS" ? "summary" : ".panel-heading");
+      if (!heading) continue;
+      const name = heading.querySelector("h3")?.textContent || "统计卡片";
+      const tools = document.createElement("span"); tools.className = "stats-order-tools";
+      tools.innerHTML = '<button type="button" class="stats-drag-handle" data-stats-drag="' + panel.id
+        + '" aria-label="排列' + esc(name) + '：长按拖动，或点击选择上移下移" title="长按拖动；点击排列；Alt+↑/↓移动" aria-expanded="false">'
+        + '<span aria-hidden="true">⠿</span></button><span class="stats-order-menu" hidden>'
+        + '<button type="button" class="btn ghost sm" data-stats-move="up" data-stats-panel="' + panel.id + '">上移</button>'
+        + '<button type="button" class="btn ghost sm" data-stats-move="down" data-stats-panel="' + panel.id + '">下移</button></span>';
+      heading.appendChild(tools);
+      const handle = tools.querySelector(".stats-drag-handle"), menu = tools.querySelector(".stats-order-menu");
+      handle.addEventListener("click", e => {
+        e.preventDefault(); e.stopPropagation();
+        if (e.detail !== 0 && handle === suppressClickHandle && Date.now() < suppressClickUntil) return;
+        const show = menu.hidden; closeMenus(); menu.hidden = !show; handle.setAttribute("aria-expanded", String(show));
+      });
+      tools.addEventListener("click", e => {
+        e.preventDefault(); e.stopPropagation();
+        const button = e.target.closest?.("[data-stats-move]");
+        if (!button || button.disabled) return;
+        moveStatsPanel(panel.id, button.dataset.statsMove);
+        closeMenus(); handle.focus?.({preventScroll: true});
+      });
+      handle.addEventListener("keydown", e => {
+        if (e.altKey && !e.ctrlKey && !e.metaKey && ["ArrowUp", "ArrowDown"].includes(e.key)) {
+          e.preventDefault(); e.stopPropagation();
+          moveStatsPanel(panel.id, e.key === "ArrowUp" ? "up" : "down"); handle.focus?.({preventScroll: true});
+        }
+      });
+      handle.addEventListener("pointerdown", e => {
+        if (tracking || e.isPrimary === false || (e.button !== undefined && e.button !== 0)) { cancel(); return; }
+        closeMenus();
+        const t = {panel, handle, pointerId: e.pointerId, x: e.clientX, y: e.clientY, active: false,
+          original: statsCardOrder(), timer: null, edgeTimer: null};
+        tracking = t;
+        t.timer = setTimeout(() => {
+          if (tracking !== t || document.visibilityState === "hidden" || !root.classList.contains("on")) { cancel(); return; }
+          t.active = true; panel.classList.add("stats-dragging"); root.classList.add("stats-sorting");
+          try { handle.setPointerCapture?.(e.pointerId); } catch (error) { /* 窗口已取消 */ }
+          statsLayoutStatus("正在排列“" + name + "”，上下拖动后松开保存；Esc 取消。");
+          // 长列表靠近视口边缘时持续滚动，用户无需反复挪动手指。
+          t.edgeTimer = setInterval(() => {
+            if (tracking !== t) return;
+            if (!root.classList.contains("on") || document.visibilityState === "hidden") { cancel(); return; }
+            const scroller = $("#main"), r = scroller?.getBoundingClientRect?.();
+            if (!r) return;
+            if (t.y < r.top + 60) { scroller.scrollTop -= 18; placeAtPointer(t); }
+            else if (t.y > r.bottom - 60) { scroller.scrollTop += 18; placeAtPointer(t); }
+          }, 40);
+        }, 420);
+      });
+    }
+    document.addEventListener("pointerdown", e => {
+      if (tracking && e.pointerId !== tracking.pointerId) cancel();
+      if (!e.target.closest?.(".stats-order-tools")) closeMenus();
+    });
+    document.addEventListener("pointermove", e => {
+      const t = tracking;
+      if (!t || e.pointerId !== t.pointerId) return;
+      if (!root.classList.contains("on") || document.visibilityState === "hidden") { cancel(); return; }
+      if (!t.active) {
+        if (Math.hypot(e.clientX - t.x, e.clientY - t.y) > 9) cancel();
+        return;
+      }
+      e.preventDefault();
+      t.x = e.clientX; t.y = e.clientY; placeAtPointer(t);
+    }, {passive: false});
+    document.addEventListener("pointerup", e => { if (tracking && e.pointerId === tracking.pointerId) cancel(root.classList.contains("on") && document.visibilityState !== "hidden"); });
+    document.addEventListener("pointercancel", () => cancel());
+    document.addEventListener("keydown", e => {
+      if (e.key === "Escape") {
+        if (tracking?.active) { e.preventDefault(); e.stopPropagation(); }
+        cancel(); closeMenus(true);
+      }
+    });
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") { cancel(); closeMenus(); } });
+    window.addEventListener("blur", () => { cancel(); closeMenus(); });
+    $("#main")?.addEventListener("scroll", () => { if (tracking && !tracking.active) cancel(); }, {passive: true});
+    syncStatsReorderControls();
+  }
+  function syncReadingLayoutControls(){
+    const s = S.settings;
+    const density = CARD_DENSITY_VALUES.includes(s.cardDensity) ? s.cardDensity : CARD_DENSITY_DEFAULT;
+    $$("#cardDensitySeg [data-card-density]").forEach(b => {
+      const on = b.dataset.cardDensity === density;
+      b.classList.toggle("on", on);
+      b.setAttribute?.("aria-pressed", String(on));
+    });
+    const order = currentReadingOrder();
+    const list = $("#readingOrderList");
+    if (list) {
+      const focusBefore = document.activeElement;
+      const focusedBtn = focusBefore?.closest?.("#readingOrderList [data-order-key]");
+      const focusKey = focusedBtn?.dataset?.orderKey, focusDir = focusedBtn?.dataset?.orderDir;
+      list.innerHTML = order.map((key, pos) => {
+        const label = readingOrderLabel(key);
+        const upOff = pos === 0, downOff = pos === order.length - 1;
+        return '<div class="reading-order-row" data-order-row="' + key + '">'
+          + '<span class="reading-order-pos" aria-hidden="true">' + (pos + 1) + "</span>"
+          + '<span class="reading-order-name">' + label + "</span>"
+          + '<span class="reading-order-actions">'
+          + '<button type="button" class="btn ghost sm" data-order-key="' + key + '" data-order-dir="-1" aria-label="上移' + label + '" title="上移' + label + '"' + (upOff ? ' aria-disabled="true"' : "") + ">↑</button>"
+          + '<button type="button" class="btn ghost sm" data-order-key="' + key + '" data-order-dir="1" aria-label="下移' + label + '" title="下移' + label + '"' + (downOff ? ' aria-disabled="true"' : "") + ">↓</button>"
+          + "</span></div>";
+      }).join("");
+      if (focusKey != null) {
+        $('#readingOrderList [data-order-key="' + focusKey + '"][data-order-dir="' + focusDir + '"]')?.focus?.({preventScroll: true});
+      }
+    }
+    const summary = $("#readingOrderSummary");
+    if (summary) summary.textContent = "当前顺序：" + order.map(readingOrderLabel).join(" → ")
+      + "。单词词头始终显示在答案之前；未显示的内容（如关闭例句）自动跳过。";
+    for (const id of ["showCardMeta", "showCardStage", "showCardPos"]) {
+      const el = $("#" + id);
+      if (el) el.checked = !!s[id];
+    }
+    const fixed = currentSecondaryActions();
+    $$("#secondaryActionChoices [data-secondary-action]").forEach(input => {
+      input.checked = fixed.includes(input.dataset.secondaryAction);
+    });
+    const status = $("#secondaryActionsSummary");
+    if (status) status.textContent = fixed.length
+      ? "已固定：" + fixed.map(id => SECONDARY_ACTION_LABELS[id] || id).join("、") + "。未固定的动作仍在“更多操作”中可达；不会隐藏撤销或熟练入口。"
+      : "当前没有固定次级动作；撤销与熟练仍可从“更多操作”打开，发音与收藏仍在卡片上。";
+  }
+  function applyReadingLayoutPatch(patch){
+    // O1 偏好归属层可用时，走显式偏好入口：默认编辑目标与来源一致（本书已覆盖 → 本书；
+    // 否则 → 设备通用），避免刷新/切书后被设备通用值重新解析覆盖。归属层不可用（或尚未
+    // 落地）时退回统一设置保存，仍走严格校验与原子写入。
+    if (typeof applyPreferencePatch === "function" && typeof getPreferenceOwnership === "function") {
+      let ownership = null;
+      try { ownership = getPreferenceOwnership(); } catch (e) { ownership = null; }
+      if (ownership && ownership.usable && Array.isArray(ownership.currentOverrides)) {
+        const fields = Object.keys(patch);
+        const owned = fields.filter(f => ownership.currentOverrides.includes(f));
+        const inherited = fields.filter(f => !ownership.currentOverrides.includes(f));
+        let result = null, threw = false;
+        try {
+          if (owned.length) result = applyPreferencePatch(Object.fromEntries(owned.map(f => [f, patch[f]])), {target: "book"});
+          if ((!result || result.ok) && inherited.length) {
+            const deviceResult = applyPreferencePatch(Object.fromEntries(inherited.map(f => [f, patch[f]])), {target: "device"});
+            if (!deviceResult.ok) result = deviceResult;
+          }
+        } catch (e) { threw = true; result = null; }
+        if (!threw) {
+          if (result && result.ok) { syncReadingLayoutControls(); return result; }
+          if (result && !result.ok) {
+            toast(result.error || "阅读布局设置保存失败，原设置保持不变");
+            syncReadingLayoutControls();
+            return result;
+          }
+        }
+      }
+    }
+    const r = applySettingsPatch(patch);
+    if (!r.ok) {
+      toast(r.error || "阅读布局设置保存失败，原设置保持不变");
+      syncReadingLayoutControls();
+      return r;
+    }
+    syncReadingLayoutControls();
+    return r;
+  }
+  function moveReadingOrder(key, dir){
+    const order = currentReadingOrder().slice();
+    const i = order.indexOf(key), j = i + dir;
+    if (i < 0 || j < 0 || j >= order.length) return null;
+    const tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+    applyReadingLayoutPatch({readingOrder: order});
+    return order;
+  }
+  function bindReadingLayoutControls(){
+    if (!$("#cardDensitySeg") && !$("#readingOrderControls")) return;
+    $$("#cardDensitySeg [data-card-density]").forEach(b => {
+      b.onclick = () => applyReadingLayoutPatch({cardDensity: b.dataset.cardDensity});
+    });
+    const list = $("#readingOrderList");
+    if (list) {
+      list.onclick = (e) => {
+        const btn = e.target?.closest?.("[data-order-key][data-order-dir]");
+        if (!btn || btn.getAttribute?.("aria-disabled") === "true") return;
+        moveReadingOrder(btn.dataset.orderKey, Number(btn.dataset.orderDir));
+      };
+    }
+    for (const elId of ["showCardMeta", "showCardStage", "showCardPos"]) {
+      const el = $("#" + elId);
+      if (el) el.onchange = () => applyReadingLayoutPatch({[elId]: !!el.checked});
+    }
+    const choices = $("#secondaryActionChoices");
+    if (choices) {
+      choices.innerHTML = SECONDARY_ACTION_IDS.map(id =>
+        '<label class="secondary-action-choice"><input type="checkbox" data-secondary-action="' + id + '"><span>'
+        + (SECONDARY_ACTION_LABELS[id] || id) + "</span></label>").join("");
+      choices.onchange = (e) => {
+        const input = e.target;
+        const id = input?.dataset?.secondaryAction;
+        if (!id) return;
+        const fixed = currentSecondaryActions().slice();
+        const i = fixed.indexOf(id);
+        if (i >= 0) fixed.splice(i, 1);
+        else {
+          if (fixed.length >= 2) {
+            input.checked = false;
+            syncReadingLayoutControls();
+            toast("最多固定两个次级动作，请先取消一个");
+            return;
+          }
+          fixed.push(id);
+        }
+        applyReadingLayoutPatch({secondaryActions: fixed});
+      };
+    }
+    // 「更多操作」浮层：点外部或 Esc 关闭并把焦点还给触发按钮；不改变 #acts 行高。
+    document.addEventListener("click", (e) => {
+      const more = $("#actsMore");
+      if (!more || !more.open || !e.target || (more.contains && more.contains(e.target))) return;
+      more.open = false;
+    }, true);
+    document.addEventListener("keydown", (e) => {
+      const more = $("#actsMore");
+      if (!more || !more.open || e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation?.();
+      more.open = false;
+      more.querySelector?.("summary")?.focus?.({preventScroll: true});
+    }, true);
+    syncReadingLayoutControls();
+  }
+
   function markSettingsEditing(){
     const el = $("#settingsSaveState");
     if (!el) return;
@@ -7271,6 +10986,9 @@
     const rhythmFocusBefore = rhythmFocusSelector();
     renderRhythmPanel();
     renderPlanPendingNotice();
+    syncInputControls();
+    syncReadingLayoutControls();
+    renderPreferenceOwnershipControls();
     if (focusedPmin != null) $('#pminPresets button[data-pmin="' + focusedPmin + '"]')?.focus?.({preventScroll: true});
     else if (focusedPos != null) $('#posChips button[data-pos="' + focusedPos + '"]')?.focus?.({preventScroll: true});
     else if (rhythmFocusBefore) $(rhythmFocusBefore)?.focus?.({preventScroll: true});
@@ -7309,7 +11027,7 @@
       if (Array.isArray(a) && a.length >= 10) {
         return {
           dailyNew: a[0], order: a[1], fmin: a[2], fmax: a[3], pmin: a[4],
-          kyOnly: a[5], pos: Array.isArray(a[6]) ? a[6] : [], posMode: a[7], groupSize: a[8]
+          kyOnly: a[5], pos: Array.isArray(a[6]) ? a[6] : [], posMode: a[7], groupSize: a[8], backlogGuard: a[9]
         };
       }
     } catch (e) { /* 非法/旧快照：按当前设置兜底 */ }
@@ -7535,67 +11253,103 @@
   }
   function openBookSheet(){
     renderBookList();
+    renderBookPageUi();
     openSheet("#bookSheet");
     const btn = $("#btnBooks");
     if (btn) btn.setAttribute?.("aria-expanded", "true");
   }
 
-  /* ================= 按键 ================= */
-  function keyName(k){
-    if (k === " ") return "空格";
-    if (k === "ArrowLeft") return "←";
-    if (k === "ArrowRight") return "→";
-    if (k === "ArrowUp") return "↑";
-    if (k === "ArrowDown") return "↓";
-    if (k && k.length === 1) return k.toUpperCase();
-    return k || "?";
+  /* ================= 按键：同一解析/冲突/命令入口 ================= */
+  let inputPreferenceRevision = 0;
+  function noteInputPreferencesCommitted(previous){
+    if(["keys","actionKeys","gestures","actionLayout","singleCharKeys"].some(k=>JSON.stringify(previous?.[k])!==JSON.stringify(S.settings[k])))inputPreferenceRevision++;
   }
-  function keyMatch(e, k){
-    if (!k) return false;
-    if (k === " ") return e.key === " " || e.code === "Space";
-    return (e.key || "").toLowerCase() === k.toLowerCase();
+  function getInputPreferences(){return cloneSettingsValue({keys:S.settings.keys,actionKeys:S.settings.actionKeys,
+    gestures:S.settings.gestures,actionLayout:S.settings.actionLayout,singleCharKeys:S.settings.singleCharKeys});}
+  function keyName(k){
+    if(k===null || k===undefined || k==="")return "未绑定";
+    if(k===" ")return "空格";
+    if(/^shift\+[a-z]$/.test(k))return "Shift + "+k.slice(-1).toUpperCase();
+    const arrows={ArrowLeft:"←",ArrowRight:"→",ArrowUp:"↑",ArrowDown:"↓"};
+    return arrows[k] || (k.length===1?k.toUpperCase():k);
+  }
+  function inputEventIgnored(e){
+    return !!(e.repeat || e.isComposing || e.keyCode===229 || e.key==="Dead" || e.key==="Unidentified" || e.getModifierState?.("AltGraph"));
+  }
+  function bindingFromEvent(e){
+    if(inputEventIgnored(e) || e.ctrlKey || e.metaKey || e.altKey)return null;
+    const key=(e.key===" " || e.code==="Space")?" ":e.key;
+    if(e.shiftKey)return typeof key==="string" && /^[a-z]$/i.test(key)?"shift+"+key.toLowerCase():null;
+    return normalizeKeyBinding(key);
+  }
+  function keyMatch(e,k){
+    const normalized=normalizeKeyBinding(k);
+    if(!normalized || inputEventIgnored(e) || e.ctrlKey || e.metaKey || e.altKey)return false;
+    if(normalized.startsWith("shift+"))return !!e.shiftKey && typeof e.key==="string" && e.key.toLowerCase()===normalized.slice(-1);
+    if(normalized===" ")return e.key===" " || e.code==="Space";
+    return typeof e.key==="string" && e.key.toLowerCase()===normalized;
+  }
+  function inputContext(){return cur!=null?"card":emptyWaitActive()?"wait":emptyMainPage()?"empty":"done";}
+  function completedNextAction(){
+    if (cur != null || groupTotal <= 0) return null;
+    return drillMode || inSubgroup() ? "return" : "continue";
+  }
+  function boundActionForEvent(e){
+    const all=Object.assign({},S.settings.keys,S.settings.actionKeys),context=inputContext();
+    const active=INPUT_ACTIONS.filter(a=>a.contexts.includes(context));
+    const exact=bindingFromEvent(e);
+    if(exact && exact.startsWith("shift+")) {
+      const matching=INPUT_ACTIONS.filter(a=>all[a.id]===exact);
+      if(matching.length) return matching.find(a=>a.contexts.includes(context))?.id
+        || (matching.some(a => a.id === "next") ? completedNextAction() : null);
+    }
+    return active.find(a=>keyMatch(e,all[a.id]))?.id
+      || (keyMatch(e, all.next) ? completedNextAction() : null);
+  }
+  function setInputBinding(action,binding){
+    const descriptor=INPUT_ACTIONS.find(a=>a.id===action);
+    if(!descriptor)return {ok:false,error:"未知快捷键动作"};
+    const extra=Object.prototype.hasOwnProperty.call(DEFACTIONKEYS,action);
+    const normalized=binding===null && extra?null:normalizeKeyBinding(binding);
+    if(normalized===null && !(binding===null && extra))return {ok:false,error:"可用单个字母、数字、空格或 Shift 加字母；其他组合留给浏览器或系统"};
+    const keys=Object.assign({},S.settings.keys),actionKeys=Object.assign({},S.settings.actionKeys);
+    (extra?actionKeys:keys)[action]=normalized;
+    const conflict=inputBindingConflict(keys,actionKeys);
+    if(conflict)return {ok:false,error:"这个键在同一场景已被「"+INPUT_ACTIONS.find(a=>a.id===(conflict.first===action?conflict.second:conflict.first)).label+"」占用"};
+    return applySettingsPatch(extra?{actionKeys}:{keys});
+  }
+  function resetInputBinding(action){return setInputBinding(action,Object.prototype.hasOwnProperty.call(DEFKEYS,action)?DEFKEYS[action]:null);}
+  function resetInputBindings(){
+    return applySettingsPatch({keys:Object.assign({},DEFKEYS),actionKeys:Object.assign({},DEFACTIONKEYS)});
   }
   let rebinding = null;
-
   function renderKeys(){
-    const K = S.settings.keys;
-    const names = {know:"会", dont:"不会", next:"下一个", speak:"发音", star:"收藏", proficient:"熟练"};
-    $$(".keybtn").forEach(b => {
-      const a = b.dataset.k;
-      if (rebinding === a) {
-        b.textContent = "按下新按键…";
-        b.classList.add("cap");
-      } else {
-        b.textContent = keyName(K[a]);
-        b.classList.remove("cap");
-      }
-      b.setAttribute?.("aria-label", "修改" + names[a] + "快捷键，当前 " + keyName(K[a]));
-      b.setAttribute?.("aria-pressed", String(rebinding === a));
+    const all=Object.assign({},S.settings.keys,S.settings.actionKeys);
+    $$(".keybtn").forEach(b=>{
+      const action=b.dataset.k,descriptor=INPUT_ACTIONS.find(a=>a.id===action);
+      if(!descriptor)return;
+      const bindingLabel=action === "continue" && !all[action]
+        ? "沿用 " + keyName(S.settings.keys.next) : keyName(all[action]);
+      b.textContent=rebinding===action?"按下新按键…":bindingLabel;
+      b.classList.toggle("cap",rebinding===action);
+      b.setAttribute?.("aria-label","修改"+descriptor.label+"快捷键，当前 "+bindingLabel);
+      b.setAttribute?.("aria-pressed",String(rebinding===action));
     });
-    const status = $("#keyBindingStatus");
-    if (status) status.textContent = rebinding ? "正在修改「" + names[rebinding] + "」：按下新键，Esc 取消。" : "选择一个按键后直接按新键，Esc 取消。";
+    const status=$("#keyBindingStatus"),descriptor=INPUT_ACTIONS.find(a=>a.id===rebinding);
+    if(status)status.textContent=descriptor?"正在修改「"+descriptor.label+"」：按新键或Shift+字母，Esc取消。"+(Object.prototype.hasOwnProperty.call(DEFACTIONKEYS,rebinding)?"Backspace清除绑定。":"")
+      :"选择一个按键后按新键，支持Shift+字母；Esc取消。";
   }
   function captureKey(e){
-    const k = (e.key === " " || e.code === "Space") ? " " : (e.key || "");
-    if (k === "Escape") { rebinding = null; renderKeys(); return; }
-    if (k === "Shift" || k === "Control" || k === "Alt" || k === "Meta") return;
-    if (e.ctrlKey || e.metaKey || e.altKey || !validKey(k)) {
-      toast("请选择单个英文字母、数字或空格；Enter、方向键等为保留键"); return;
-    }
-    const K = S.settings.keys, act = rebinding;
-    const dup = Object.keys(K).find(a => a !== act && keyMatch(e, K[a]));
-    if (dup) {
-      const names = {know: "会", dont: "不会", next: "下一个", speak: "发音", star: "收藏", proficient:"熟练"};
-      toast("这个键已经被「" + names[dup] + "」占用了");
-      return;
-    }
-    K[act] = k.toLowerCase();
-    rebinding = null;
-    save();
-    renderKeys();
-    renderCard();
-    toast("已设为 " + keyName(k));
-    markSettingsSaved();
+    if(e.key==="Escape"){rebinding=null;renderKeys();return;}
+    if(["Shift","Control","Alt","Meta"].includes(e.key))return;
+    if(inputEventIgnored(e))return;
+    const clear=Object.prototype.hasOwnProperty.call(DEFACTIONKEYS,rebinding) && ["Backspace","Delete"].includes(e.key);
+    const key=clear?null:bindingFromEvent(e);
+    if(key===null && !clear){toast("请选择字母、数字、空格或Shift+字母；其他组合留给浏览器或系统");return;}
+    const r=setInputBinding(rebinding,key);
+    if(!r.ok){toast(r.error);return;}
+    rebinding=null;renderKeys();
+    toast(clear?"已清除这项绑定":"已设为 "+keyName(key));
   }
 
   /* ================= 11 首次使用引导（首屏提示条 + 可重开说明浮层） =================
@@ -7658,7 +11412,7 @@
     const items = [
       [keyName(K.know), "标记「会」并显示释义"],
       [keyName(K.dont), "标记「不会」并显示释义"],
-      [keyName(K.next) + " / Enter", "下一个（须先判定）"],
+      [keyName(K.next) + " / Enter", "下一个（须先判定）；本组结束后沿用下一个按键或 Enter 继续，子组/特训完成后返回原组"],
       [keyName(K.speak), "发音"],
       [keyName(K.star), "收藏 / 取消收藏"],
       [keyName(K.proficient), "标为熟练并移出背诵队列"],
@@ -7667,12 +11421,18 @@
       ["?", "打开 / 关闭本帮助"],
       ["Esc", "关闭浮层 / 取消改键"]
     ];
+    if(typeof getInputPreferences === "function") {
+      const bindings=getInputPreferences().actionKeys;
+      const labels={continue:"继续下一组",wait:"开始或退出本页等待",return:"返回原学习现场",listSearch:"打开词表搜索"};
+      items.splice(6,0,...Object.entries(bindings).filter(([,binding])=>binding).map(([id,binding])=>[keyName(binding),labels[id]]));
+    }
     $("#keyList").innerHTML = items.map(([k, t]) =>
       "<li><span>" + esc(t) + '</span><span class="k">' + esc(k) + "</span></li>"
     ).join("");
   }
   let activeSheet = null, previousFocus = null, detailWord = null;
   function openSheet(id){
+    cancelInputGesture();
     if (rebinding) { rebinding = null; renderKeys(); }
     hideExPop();
     if (activeSheet) closeSheet();
@@ -7692,6 +11452,7 @@
     if (closedId === "txtSplitSheet") txtSplitContext = null;
     if (closedId === "importSheet") pendingImport = null;
     if (closedId === "spellingSheet") onSpellingSheetClosed();
+    if (closedId === "wordSheet") resetWordIssueSurface();
     activeSheet.hidden = true;
     activeSheet = null;
     $("#main").inert = false;
@@ -7721,7 +11482,370 @@
       else $("#listScroll")?.focus?.({preventScroll: true});
     }
     previousFocus = null;
+    applyActionLayout();
+    applyActionBindingHints();
   }
+
+  /* ================= H 本词问题本地记录（详情页，独立键） =================
+   * 契约：docs/H本词问题工作记录-2026-10-24.md
+   * - 独立全局键 WORD_ISSUES_KEY：不进每书 state/settings、不进备份 v3、不进
+   *   进度签名或任何学习记录；不改词库 11 元组；不联网发送。
+   * - 按 bookId + word 键控，四书隔离；单条备注 ≤500 字、全库最多 500 条。
+   * - 存储原文损坏时保留原文并停止覆写（只读提示），绝不用默认值覆盖用户数据。
+   */
+  const WORD_ISSUES_KEY = "vocab_word_issues_v1";
+  const WORD_ISSUES_KIND = "vocab-word-issues";
+  const WORD_ISSUES_VERSION = 1;
+  const WORD_ISSUES_MAX = 500;
+  const WORD_ISSUE_NOTE_MAX = 500;
+  /** 当前详情词的 bookId::word；切词/关闭详情时重置（草稿只在同一次打开内保留）。 */
+  let wordIssueContext = null;
+  /** 用户已输入但尚未保存：详情重渲染（收藏/熟练等）时不得覆盖草稿。 */
+  let wordIssueDirty = false;
+  function issueKey(bookId, word){ return String(bookId) + "\u0000" + String(word); }
+  function issueNoteLength(text){ return Array.from(String(text == null ? "" : text)).length; }
+  function issueTimeText(iso){
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? String(iso || "未记录") : formatBackupTime(iso);
+  }
+  /** 逐条严格校验；任何字段非法都按「存储损坏」处理（保留原文、不修复、不覆写）。 */
+  function normalizeWordIssueEntry(item){
+    if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+    const bookId = typeof item.bookId === "string" ? item.bookId.trim() : "";
+    const bookName = typeof item.bookName === "string" ? item.bookName.trim() : "";
+    const word = typeof item.word === "string" ? item.word.trim() : "";
+    if (!bookId || !bookName || !word) return null;
+    if (typeof item.source !== "string") return null;
+    if (typeof item.note !== "string") return null;
+    const noteLen = issueNoteLength(item.note);
+    if (noteLen < 1 || noteLen > WORD_ISSUE_NOTE_MAX) return null;
+    if (!(typeof item.createdAt === "string" && !Number.isNaN(Date.parse(item.createdAt)))) return null;
+    if (!(typeof item.updatedAt === "string" && !Number.isNaN(Date.parse(item.updatedAt)))) return null;
+    return {bookId: bookId, bookName: bookName, word: word, source: item.source, note: item.note,
+      createdAt: item.createdAt, updatedAt: item.updatedAt};
+  }
+  function issueCorruption(raw, reason){
+    return {ok: false, corrupted: true, storageError: false, entries: [], raw: raw, reason: reason};
+  }
+  /**
+   * 只读读取问题记录：
+   *   {ok:true, entries, raw, corrupted:false}（键不存在 → entries 为空）
+   *   {ok:false, corrupted:true, raw, reason}（原文保留，调用方必须禁止写入）
+   *   {ok:false, corrupted:false, storageError:true, raw:null}
+   */
+  function readWordIssues(){
+    let raw = null;
+    try { raw = localStorage.getItem(WORD_ISSUES_KEY); }
+    catch (e) { return {ok: false, corrupted: false, storageError: true, entries: [], raw: null, reason: "浏览器存储不可用"}; }
+    if (raw === null) return {ok: true, entries: [], raw: null, corrupted: false};
+    let data;
+    try { data = JSON.parse(raw); }
+    catch (e) { return issueCorruption(raw, "不是有效 JSON"); }
+    if (!data || typeof data !== "object" || Array.isArray(data)) return issueCorruption(raw, "顶层结构不是对象");
+    if (data.kind !== WORD_ISSUES_KIND) return issueCorruption(raw, "缺少问题记录标识");
+    if (data.version !== WORD_ISSUES_VERSION) return issueCorruption(raw, "版本不受支持");
+    if (!Array.isArray(data.entries)) return issueCorruption(raw, "条目不是数组");
+    if (data.entries.length > WORD_ISSUES_MAX) return issueCorruption(raw, "条目数超过上限");
+    const entries = [], seen = new Set();
+    for (const item of data.entries) {
+      const entry = normalizeWordIssueEntry(item);
+      if (!entry) return issueCorruption(raw, "条目字段非法");
+      const key = issueKey(entry.bookId, entry.word);
+      if (seen.has(key)) return issueCorruption(raw, "存在重复条目");
+      seen.add(key);
+      entries.push(entry);
+    }
+    return {ok: true, entries: entries, raw: raw, corrupted: false};
+  }
+  /** 写回问题记录；expectedRaw 检测其他标签的并发修改（不一致则不写，由调用方重读一次）。 */
+  function writeWordIssuesFile(entries, expectedRaw){
+    try {
+      if (expectedRaw !== undefined && localStorage.getItem(WORD_ISSUES_KEY) !== expectedRaw) return {ok: false, stale: true};
+      localStorage.setItem(WORD_ISSUES_KEY, JSON.stringify({
+        kind: WORD_ISSUES_KIND, version: WORD_ISSUES_VERSION, entries: entries
+      }));
+      return {ok: true};
+    } catch (e) { return {ok: false, storageError: true}; }
+  }
+  function findIssueIndex(entries, bookId, word){
+    const key = issueKey(bookId, word);
+    for (let i = 0; i < entries.length; i++) if (issueKey(entries[i].bookId, entries[i].word) === key) return i;
+    return -1;
+  }
+  function currentIssueEntry(entries, bookId, word){
+    const idx = findIssueIndex(entries, bookId, word);
+    return idx >= 0 ? entries[idx] : null;
+  }
+  /** 保存（新建或更新）；并发被其他标签改写时重读一次再试，损坏/不可用直接拒绝。 */
+  function saveWordIssueEntry(fields){
+    const note = String(fields && fields.note != null ? fields.note : "");
+    const clean = {
+      bookId: String((fields && fields.bookId) || ""), bookName: String((fields && fields.bookName) || ""),
+      word: String((fields && fields.word) || ""), source: String((fields && fields.source) || ""), note: note
+    };
+    if (!clean.bookId || !clean.bookName || !clean.word) return {ok: false, error: "invalid"};
+    if (!clean.note.trim()) return {ok: false, error: "empty"};
+    if (issueNoteLength(clean.note) > WORD_ISSUE_NOTE_MAX) return {ok: false, error: "too-long"};
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const current = readWordIssues();
+      if (!current.ok) return current;
+      const entries = current.entries.slice();
+      const now = new Date().toISOString();
+      const idx = findIssueIndex(entries, clean.bookId, clean.word);
+      const created = idx < 0;
+      if (!created) {
+        entries[idx] = Object.assign({}, entries[idx], {
+          bookName: clean.bookName, source: clean.source, note: clean.note, updatedAt: now
+        });
+      } else {
+        if (entries.length >= WORD_ISSUES_MAX) return {ok: false, error: "limit", count: entries.length};
+        entries.push({bookId: clean.bookId, bookName: clean.bookName, word: clean.word, source: clean.source,
+          note: clean.note, createdAt: now, updatedAt: now});
+      }
+      const saved = writeWordIssuesFile(entries, current.raw);
+      if (saved.ok) return {ok: true, created: created, entry: entries[created ? entries.length - 1 : idx], entries: entries};
+      if (!saved.stale) return saved;
+    }
+    return {ok: false, storageError: true, reason: "存储被其他页面频繁修改"};
+  }
+  function deleteWordIssueEntry(bookId, word){
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const current = readWordIssues();
+      if (!current.ok) return current;
+      const entries = current.entries.slice();
+      const idx = findIssueIndex(entries, bookId, word);
+      if (idx < 0) return {ok: false, error: "missing"};
+      entries.splice(idx, 1);
+      const saved = writeWordIssuesFile(entries, current.raw);
+      if (saved.ok) return {ok: true, entries: entries};
+      if (!saved.stale) return saved;
+    }
+    return {ok: false, storageError: true, reason: "存储被其他页面频繁修改"};
+  }
+  /** 详情页展示/随记录保存的可读来源：11 元组 src + 词频/卷次（只读派生，不改词条）。 */
+  function wordIssueSourceText(x){
+    if (!x) return "";
+    return [x.src ? srcBadge(x.src) : "例句来源未标注", "词频 #" + x.r, x.f + " 次 / " + x.c + " 套卷"].join(" · ");
+  }
+  function detailWordIssueContext(){
+    const x = detailWord != null ? W[detailWord] : null;
+    if (!x) return null;
+    return {bookId: currentBookId, bookName: currentBook().name, word: x.w, source: wordIssueSourceText(x)};
+  }
+  function setWordIssueStatus(text, isError){
+    const el = $("#wordIssueStatus");
+    if (!el) return;
+    el.textContent = text || "";
+    if (isError) el.setAttribute("data-error", "true");
+    else el.removeAttribute("data-error");
+  }
+  /**
+   * 渲染详情页问题区：已有记录（来源/时间）、条数、按钮可见性；
+   * 不覆盖用户尚未保存的草稿（wordIssueDirty）。返回当前词的问题记录或 null。
+   */
+  function renderWordIssueBlock(){
+    const ctx = detailWordIssueContext();
+    const noteEl = $("#wordIssueNote");
+    if (!ctx) return null;
+    const key = issueKey(ctx.bookId, ctx.word);
+    if (wordIssueContext !== key) {
+      wordIssueContext = key;
+      wordIssueDirty = false;
+      if (noteEl) noteEl.value = "";
+      setWordIssueStatus("");
+    }
+    const state = readWordIssues();
+    const entry = state.ok ? currentIssueEntry(state.entries, ctx.bookId, ctx.word) : null;
+    const known = $("#wordIssueKnown");
+    if (known) {
+      if (entry) {
+        known.hidden = false;
+        known.innerHTML = '<b>已有记录</b> · 来源：' + esc(entry.source || "未记录")
+          + '<br>创建：' + esc(issueTimeText(entry.createdAt)) + ' · 更新：' + esc(issueTimeText(entry.updatedAt));
+      } else {
+        known.hidden = true;
+        known.innerHTML = "";
+      }
+    }
+    if (noteEl && entry && !wordIssueDirty) noteEl.value = entry.note;
+    const totalEl = $("#wordIssueTotal");
+    if (totalEl) {
+      if (!state.ok) totalEl.textContent = "";
+      else {
+        const bookCount = state.entries.filter(item => item.bookId === ctx.bookId).length;
+        totalEl.textContent = "本书 " + bookCount + " 条 · 全部 " + state.entries.length + " / " + WORD_ISSUES_MAX + " 条上限";
+      }
+    }
+    const canRead = state.ok;
+    const saveBtn = $("#wordIssueSave"), deleteBtn = $("#wordIssueDelete"), copyBtn = $("#wordIssueCopy");
+    const exportBookBtn = $("#wordIssueExportBook"), exportAllBtn = $("#wordIssueExportAll");
+    if (saveBtn) saveBtn.disabled = !canRead;
+    if (deleteBtn) { deleteBtn.hidden = !entry; deleteBtn.disabled = !canRead; }
+    if (copyBtn) { copyBtn.hidden = !entry; copyBtn.disabled = !canRead; }
+    if (exportBookBtn) exportBookBtn.disabled = !canRead;
+    if (exportAllBtn) exportAllBtn.disabled = !canRead;
+    if (!state.ok) {
+      setWordIssueStatus(state.corrupted
+        ? "本词问题记录的存储原文已损坏（" + (state.reason || "格式无法识别") + "）。已保留原文并停止写入、导出，避免覆盖；输入内容只在本页保留。"
+        : "浏览器存储当前不可用：本词问题记录无法读取或保存；已输入内容只在本页保留。", true);
+    }
+    return entry;
+  }
+  function wordIssueFailureText(r){
+    if (r && r.corrupted) return "本词问题记录的存储原文已损坏：已保留原文并停止写入，本次未保存。";
+    if (r && r.storageError) return "保存失败：浏览器存储不可用或空间不足；输入已保留，可稍后重试。";
+    if (r && r.error === "limit") return "最多保存 " + WORD_ISSUES_MAX + " 条本词问题（含全部词书），请先删除不再需要的记录；本次未保存。";
+    if (r && r.error === "empty") return "请先写下问题或备注再保存。";
+    if (r && r.error === "too-long") return "单条最多 " + WORD_ISSUE_NOTE_MAX + " 字，请精简后再保存；输入已保留。";
+    if (r && r.error === "missing") return "本词还没有可删除的问题记录。";
+    return "保存失败：" + ((r && (r.reason || r.error)) || "浏览器存储不可用") + "；输入已保留。";
+  }
+  /** 详情页「保存」：读文本框 → 校验 → 写独立键；失败时保留输入并提示。 */
+  function saveDetailWordIssue(){
+    const ctx = detailWordIssueContext();
+    if (!ctx) return {ok: false, error: "no-word"};
+    const noteEl = $("#wordIssueNote");
+    const note = String(noteEl && noteEl.value != null ? noteEl.value : "").replace(/\r\n?/g, "\n").trim();
+    if (!note) {
+      setWordIssueStatus("请先写下问题或备注再保存。");
+      noteEl?.focus?.();
+      return {ok: false, error: "empty"};
+    }
+    if (issueNoteLength(note) > WORD_ISSUE_NOTE_MAX) {
+      setWordIssueStatus("单条最多 " + WORD_ISSUE_NOTE_MAX + " 字，请精简后再保存；输入已保留。", true);
+      noteEl?.focus?.();
+      return {ok: false, error: "too-long"};
+    }
+    const r = saveWordIssueEntry({bookId: ctx.bookId, bookName: ctx.bookName, word: ctx.word, source: ctx.source, note: note});
+    if (!r.ok) {
+      setWordIssueStatus(wordIssueFailureText(r), true);
+      return r;
+    }
+    wordIssueDirty = false;
+    renderWordIssueBlock();
+    setWordIssueStatus(r.created
+      ? "已保存本词问题：只保存在当前浏览器，供后续核对；不会改动词库或学习进度。"
+      : "已更新本词问题（只保存在当前浏览器）。");
+    toast(r.created ? "已保存本词问题" : "已更新本词问题");
+    return r;
+  }
+  function deleteDetailWordIssue(){
+    const ctx = detailWordIssueContext();
+    if (!ctx) return {ok: false, error: "no-word"};
+    // 本地问题记录删了不可撤销：与仓库其它破坏性操作一致，显式确认一次。
+    if (typeof confirm === "function"
+        && !confirm("确定删除「" + ctx.bookName + " · " + ctx.word + "」的本词问题记录？此操作不可撤销。")) {
+      return {ok: false, cancelled: true};
+    }
+    const r = deleteWordIssueEntry(ctx.bookId, ctx.word);
+    if (!r.ok) {
+      setWordIssueStatus(wordIssueFailureText(r), true);
+      return r;
+    }
+    wordIssueDirty = false;
+    const noteEl = $("#wordIssueNote");
+    if (noteEl) noteEl.value = "";
+    renderWordIssueBlock();
+    setWordIssueStatus("已删除本词问题记录。");
+    toast("已删除本词问题");
+    return r;
+  }
+  function currentDetailIssueEntry(){
+    const ctx = detailWordIssueContext();
+    if (!ctx) return null;
+    const state = readWordIssues();
+    if (!state.ok) return null;
+    return currentIssueEntry(state.entries, ctx.bookId, ctx.word);
+  }
+  function wordIssueCopyText(entry){
+    if (!entry) return "";
+    return "【" + entry.bookName + "】" + entry.word
+      + "\n来源：" + (entry.source || "未记录")
+      + "\n问题：" + entry.note
+      + "\n创建：" + issueTimeText(entry.createdAt)
+      + "\n更新：" + issueTimeText(entry.updatedAt);
+  }
+  /** 复制单条：优先 navigator.clipboard，失败回退隐藏 textarea + execCommand。 */
+  async function copyDetailWordIssue(){
+    const entry = currentDetailIssueEntry();
+    if (!entry) { setWordIssueStatus("本词还没有可复制的问题记录。", true); return {ok: false, error: "missing"}; }
+    const text = wordIssueCopyText(entry);
+    let ok = false;
+    try {
+      if (typeof navigator !== "undefined" && navigator && navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        ok = true;
+      }
+    } catch (e) { ok = false; }
+    if (!ok) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute?.("readonly", "");
+      ta.setAttribute?.("aria-label", "本词问题文本，自动复制失败时可手动复制");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      // 放在浮层内，确保焦点陷阱与 inert 不会阻止手动复制。
+      const host = $("#wordSheet .sheet-panel") || document.body;
+      const focusBefore = document.activeElement;
+      host.appendChild(ta);
+      ta.focus?.();
+      ta.select?.();
+      try { ok = !!(document.execCommand && document.execCommand("copy")); } catch (e) { ok = false; }
+      if (ok) {
+        ta.remove?.();
+        focusBefore?.focus?.({ preventScroll: true });
+      } else {
+        ta.style.position = "static";
+        ta.style.left = "";
+        ta.style.width = "100%";
+        ta.style.boxSizing = "border-box";
+        ta.rows = 6;
+        ta.focus?.();
+        ta.select?.();
+      }
+    }
+    setWordIssueStatus(ok
+      ? "已复制本条问题记录（含词书、词头、来源与时间）。"
+      : "自动复制失败，已选中问题文本；请按 Ctrl/Cmd+C 复制。", !ok);
+    return {ok: ok, text: text};
+  }
+  function pickWordIssueFields(entry){
+    return {bookId: entry.bookId, bookName: entry.bookName, word: entry.word, source: entry.source,
+      note: entry.note, createdAt: entry.createdAt, updatedAt: entry.updatedAt};
+  }
+  /** 纯导出数据（不触发下载）：仅问题记录必要字段，不含任何学习记录。 */
+  function wordIssuesExportData(scope){
+    const state = readWordIssues();
+    if (!state.ok) return null;
+    const entries = (scope === "book" ? state.entries.filter(item => item.bookId === currentBookId) : state.entries)
+      .map(pickWordIssueFields);
+    return {kind: WORD_ISSUES_KIND, version: WORD_ISSUES_VERSION, exportedAt: new Date().toISOString(), entries: entries};
+  }
+  function exportWordIssuesFile(scope){
+    const data = wordIssuesExportData(scope);
+    if (!data) {
+      setWordIssueStatus("本词问题记录当前无法导出：存储原文已损坏或浏览器存储不可用。", true);
+      return null;
+    }
+    if (!data.entries.length) {
+      setWordIssueStatus(scope === "book" ? "本书还没有保存过本词问题，未生成文件。" : "还没有保存过任何本词问题，未生成文件。");
+      return null;
+    }
+    const name = "背词问题_" + (scope === "book" ? currentBook().name : "全部词书") + "_" + todayStr() + ".json";
+    downloadJsonFile(name, data);
+    setWordIssueStatus("已导出 " + data.entries.length + " 条本词问题：文件只含词书、词头、来源、备注与时间，不含学习进度、熟练或设置。");
+    toast("已导出 " + data.entries.length + " 条本词问题");
+    return data;
+  }
+  /** 关闭详情时清空问题区草稿/上下文；不动存储，不阻断关闭。 */
+  function resetWordIssueSurface(){
+    wordIssueContext = null;
+    wordIssueDirty = false;
+    const noteEl = $("#wordIssueNote");
+    if (noteEl) noteEl.value = "";
+    setWordIssueStatus("");
+  }
+
   function openHelp(){
     renderHelp();
     openSheet("#helpSheet");
@@ -7758,6 +11882,8 @@
     $("#detailStar").onclick = () => { toggleStar(i); applyFilter(false); renderWordDetail(); $("#detailStar").focus?.(); };
     $("#detailSpeak").onclick = () => speak(x.w);
     fitWord($("#wordTitle"));
+    // H：本词问题区（独立键，只读写自己的存储；不写学习进度/熟练/备份）。
+    renderWordIssueBlock();
   }
   function openWord(i){
     if (!W[i]) return;
@@ -7768,11 +11894,16 @@
 
   /* ================= 视图 ================= */
   function show(v){
+    cancelInputGesture();
     if (v !== "set" && rebinding) { rebinding = null; renderKeys(); }
     const wasList = $("#v-list").classList.contains("on");
     if (wasList && v !== "list") saveListUi();
-    // 各视图共用 main 滚动容器；切页时从顶部开始，避免沿用设置页底部的位置。
-    if (!$("#v-" + v).classList.contains("on")) $("#main").scrollTop = 0;
+    const main = $("#main"), changingView = !$("#v-" + v).classList.contains("on");
+    if (v !== "study" && $("#v-study").classList.contains("on") && cur != null) {
+      studyReadingScroll = {book: currentBookId, word: cur, plan: sessionPlan, top: main.scrollTop || 0};
+    }
+    // 其他页从顶部开始；返回同词同组时，末尾恢复学习页自己的阅读位置。
+    if (changingView) main.scrollTop = 0;
     $$(".view").forEach(x => x.classList.remove("on"));
     $("#v-" + v).classList.add("on");
     $$(".nav button").forEach(b => {
@@ -7809,6 +11940,9 @@
     // 11 首屏提示条只在背诵页显示（不占 #v-study 网格行，避免挤压卡片与操作区）。
     renderGuideBanner();
     updateBar();
+    if (v === "study" && changingView && studyReadingScroll
+        && studyReadingScroll.book === currentBookId && studyReadingScroll.word === cur
+        && studyReadingScroll.plan === sessionPlan) main.scrollTop = studyReadingScroll.top;
   }
   function updateBar(){
     const v = $(".view.on");
@@ -7851,6 +11985,17 @@
         actions.appendChild(b);
       };
       if (opts.recover) add("恢复导入前记录", recoverImportJournal, true);
+      if (opts.prefRecover) add("恢复偏好归属", () => {
+        if (!recoverPreferenceJournal()) {
+          toast("偏好归属恢复日志无法读取或写入，请先导出救援备份");
+          return;
+        }
+        initDevicePreferences(true);
+        load();
+        applyTheme(); bindSet(); applyFilter(false); renderStats(); startSession(); updateBar(); renderBookList();
+        el.hidden = true;
+        toast("已恢复上次偏好归属修改前的状态");
+      }, true);
       if (opts.rescue) add("救援导出", exportRescueBackup, true);
       if (opts.export) add("导出备份", exportBackupFile, !opts.rescue && !opts.recover);
       add("关闭", () => { el.hidden = true; }, false);
@@ -8223,41 +12368,51 @@
     }
   }
 
-  /* ================= 手势 ================= */
+  /* ================= 手势：可关闭、反转及分阶段映射 ================= */
+  let cancelActiveInputGesture = null;
+  function cancelInputGesture(){if(cancelActiveInputGesture)cancelActiveInputGesture();}
   function bindSwipe(){
-    const card = $("#card");
-    let x0 = 0, y0 = 0, tracking = false, pointerId = null;
-    const hasSelection = () => Boolean(window.getSelection?.()?.toString());
-    card.addEventListener("pointerdown", (e) => {
-      tracking = false;
-      // 鼠标拖选单词不能写入判定；只跟踪主触摸或笔尖手势。
-      if (!["touch", "pen"].includes(e.pointerType) || e.isPrimary === false
-          || (e.button != null && e.button !== 0)
-          || e.target.closest("button, input, select, textarea, a") || hasSelection()) return;
-      tracking = true;
-      pointerId = e.pointerId;
-      x0 = e.clientX;
-      y0 = e.clientY;
+    const card=$("#card");
+    let tracking=null;
+    const cancel=()=>{tracking=null;};
+    cancelActiveInputGesture=cancel;
+    const hasSelection=()=>Boolean(window.getSelection?.()?.toString());
+    card.addEventListener("pointerdown",e=>{
+      cancel();
+      if(!S.settings.gestures.enabled || !["touch","pen"].includes(e.pointerType) || e.isPrimary===false
+        || (e.button!=null && e.button!==0) || e.target.closest?.("button,input,select,textarea,a,summary")
+        || hasSelection() || cur==null || studyActionBlockedBy(e,null,"gesture"))return;
+      tracking={pointerId:e.pointerId,pointerType:e.pointerType,x:e.clientX,y:e.clientY,book:currentBookId,word:cur,phase,
+        qi,revision:inputPreferenceRevision,plan:sessionPlan};
     });
-    card.addEventListener("pointerup", (e) => {
-      if (!tracking || e.pointerId !== pointerId) return;
-      tracking = false;
-      if (hasSelection()) return;
-      const dx = e.clientX - x0;
-      const dy = e.clientY - y0;
-      if (Math.abs(dx) < 56 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
-      if (phase !== "recall" || cur == null) return;
-      if (dx > 0) judge(true);
-      else judge(false);
+    card.addEventListener("pointerup",e=>{
+      const start=tracking;
+      if(!start || start.pointerId!==e.pointerId)return;
+      cancel();
+      if(!S.settings.gestures.enabled || e.pointerType!==start.pointerType || e.isPrimary===false || hasSelection() || cur==null || start.book!==currentBookId
+        || start.word!==cur || start.phase!==phase || start.qi!==qi || start.plan!==sessionPlan
+        || start.revision!==inputPreferenceRevision || studyActionBlockedBy(e,null,"gesture"))return;
+      const dx=e.clientX-start.x,dy=e.clientY-start.y;
+      if(Math.abs(dx)<56 || Math.abs(dx)<Math.abs(dy)*1.2)return;
+      const action=S.settings.gestures[phase]?.[dx>0?"right":"left"];
+      if(action && action!=="none")runStudyAction(action,{event:e,source:"gesture"});
     });
-    card.addEventListener("pointercancel", () => { tracking = false; });
+    card.addEventListener("pointercancel",cancel);
+    document.addEventListener("pointerdown",e=>{if(tracking && (e.pointerId!==tracking.pointerId || !card.contains?.(e.target)))cancel();},true);
+    document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")cancel();});
   }
 
   /* ================= 全局键盘 ================= */
+  // 最后一张的翻页按键只负责结束本组。必须松开后再按一次，才会执行组尾续组/返回。
+  let completionKeyRelease = null;
+  document.addEventListener("keyup", e => {
+    if (completionKeyRelease && (e.code || e.key) === completionKeyRelease) completionKeyRelease = null;
+  });
+  window.addEventListener?.("blur", () => { completionKeyRelease = null; });
   document.addEventListener("keydown", (e) => {
-    if (e.repeat || e.isComposing || e.defaultPrevented) return;
+    if (inputEventIgnored(e) || e.defaultPrevented) return;
     if (rebinding) {
-      e.preventDefault();
+      if(!e.ctrlKey && !e.metaKey && !e.altKey)e.preventDefault();
       captureKey(e);
       return;
     }
@@ -8305,59 +12460,44 @@
       return;
     }
     if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA" || e.target.isContentEditable) return;
-    const singleChar = S.settings.singleCharKeys !== false;
-    if (singleChar && e.key === "?" && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-      openHelp();
-      return;
-    }
-    if ((e.ctrlKey || e.metaKey) && (e.key === "z" || e.key === "Z")) {
-      if ($("#v-study").classList.contains("on")) {
-        e.preventDefault();
-        undo();
+    if(Boolean(window.getSelection?.()?.toString()))return;
+    const singleChar=S.settings.singleCharKeys!==false;
+    if(singleChar && e.key==="?" && !e.ctrlKey && !e.metaKey && !e.altKey){e.preventDefault();openHelp();return;}
+    if((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key||"").toLowerCase()==="z") {
+      if($("#v-study").classList.contains("on")){
+        const r=runStudyAction("undo",{event:e,source:"keyboard"});
+        if(r.ok)e.preventDefault();
       }
       return;
     }
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
-
-    if (!$("#v-study").classList.contains("on")) return;
-    if ((tag === "BUTTON" || tag === "SUMMARY") && (e.key === "Enter" || e.key === " ")) return;
-    if (cur == null) return;
-
-    const K = S.settings.keys;
-    if (singleChar && keyMatch(e, K.know)) {
+    if(e.ctrlKey || e.metaKey || e.altKey || !$("#v-study").classList.contains("on"))return;
+    if((tag==="BUTTON" || tag==="SUMMARY") && (e.key==="Enter" || e.key===" "))return;
+    let action=e.key==="Enter"?(cur!=null?"next":completedNextAction()):cur!=null && e.key==="ArrowLeft"?"dont"
+      :cur!=null && e.key==="ArrowRight"?"know":singleChar?boundActionForEvent(e):null;
+    if(action==="wait" && emptyWaitActive())action="stopWait";
+    if(!action)return;
+    if (cur == null && completionKeyRelease === (e.code || e.key) && ["continue", "return"].includes(action)) {
       e.preventDefault();
-      judge(true);
-    } else if (singleChar && keyMatch(e, K.dont)) {
-      e.preventDefault();
-      judge(false);
-    } else if (e.key === "Enter" || (singleChar && keyMatch(e, K.next))) {
-      e.preventDefault();
-      tryNext(true);   // 门控：recall 阶段不翻页
-    } else if (singleChar && keyMatch(e, K.speak)) {
-      e.preventDefault();
-      speak(W[cur].w);
-    } else if (singleChar && keyMatch(e, K.star)) {
-      e.preventDefault();
-      toggleStar(cur);
-      renderCard();
-      toast(isStar(cur) ? "已收藏" : "已取消收藏");
-    } else if (singleChar && keyMatch(e, K.proficient)) {
-      e.preventDefault();
-      setProficient(cur, true);
-    } else if (e.key === "ArrowLeft") {
-      e.preventDefault();
-      judge(false);
-    } else if (e.key === "ArrowRight") {
-      e.preventDefault();
-      judge(true);
+      return;
     }
+    const hadCard = cur != null;
+    const result=runStudyAction(action,{event:e,source:"keyboard"});
+    if (hadCard && cur == null && result.ok) completionKeyRelease = e.code || e.key;
+    if(result.ok || ["recall-gate","review-cap","no-change"].includes(result.error))e.preventDefault();
   });
 
   /* ================= 启动 ================= */
+  // O1：先恢复上次未完成的偏好归属事务，再建立设备通用/本书覆盖，最后才 load 主记录并按归属解析。
+  try { recoverPreferenceJournal(); } catch (e) { /* 恢复失败在下方提示 */ }
+  try { initDevicePreferences(); } catch (e) { /* 不可用时安全降级为每书独立 */ }
   load();
   applyTheme();
   bindSet();
+  initPreferenceOwnershipUi();
+  initBookPageUi();
+  initSettingsWorkspace();
+  initInputControls();
+  bindReadingLayoutControls();
   bindExLookup($("#card"));
   bindExLookup($("#wordDetail"));
   // 鼠标点击按钮后主动移走焦点：按钮保留焦点时空格/回车会先被浏览器原生激活按钮，
@@ -8399,12 +12539,12 @@
   window.visualViewport?.addEventListener("resize", hideExPop);
   window.visualViewport?.addEventListener("scroll", hideExPop);
 
-  $("#q").addEventListener("input", applyFilter);
+  $("#q").addEventListener("input", () => onListFilterControlChanged("q"));
   $("#fst").addEventListener("change", () => {
     if ($("#fst").value === "proficient") $("#fsc").value = "all";
-    applyFilter();
+    onListFilterControlChanged("fst");
   });
-  $("#fsc").addEventListener("change", applyFilter);
+  $("#fsc").addEventListener("change", () => onListFilterControlChanged("fsc"));
   const dueListBtn = $("#btnDueList");
   if (dueListBtn) dueListBtn.onclick = () => {
     show("list");
@@ -8429,6 +12569,8 @@
       listActiveWord = +t.dataset.openWord; listActiveAction = "open-word";
     } else if (t?.dataset?.proficient !== undefined) {
       listActiveWord = +t.dataset.proficient; listActiveAction = "proficient";
+    } else if (t?.dataset?.rowCheck !== undefined) {
+      listActiveWord = +t.dataset.rowCheck; listActiveAction = "row-check";
     } else return;
     announceListRow(); saveListUi();
   });
@@ -8439,6 +12581,9 @@
   window.addEventListener?.("resize", syncStatsChartHints);
   const clearFilters = $("#clearListFilters");
   if (clearFilters) clearFilters.onclick = () => {
+    if (statsDrill) exitStatsDrill({restore: true, render: false});
+    listSelection.clear();
+    listBatchPreview = null;
     $("#q").value = "";
     $("#fst").value = "all";
     $("#fsc").value = "all";
@@ -8446,6 +12591,11 @@
     $("#q").focus?.({preventScroll: true});
   };
   $("#listInner").addEventListener("click", (e) => {
+    const check = e.target.closest?.("[data-row-check]");
+    if (check) {
+      toggleListSelection(+check.dataset.rowCheck);
+      return;
+    }
     const action = e.target.closest("[data-proficient]");
     if (action) {
       const i = +action.dataset.proficient;
@@ -8458,6 +12608,72 @@
     listActiveWord = +r.dataset.i; listActiveAction = "open-word";
     announceListRow();
     openWord(+r.dataset.i);
+  });
+
+  /* ---- E 词表整理：视图菜单 / 整理模式 / 批量操作 / 统计下钻入口与返回 ---- */
+  const toggleOrganizeBtn = $("#btnToggleOrganize");
+  if (toggleOrganizeBtn) toggleOrganizeBtn.onclick = () => { if (listOrganize) exitListOrganize(); else enterListOrganize(); };
+  const exitOrganizeBtn = $("#btnExitOrganize");
+  if (exitOrganizeBtn) exitOrganizeBtn.onclick = exitListOrganize;
+  const selectAllBtn = $("#btnSelectAllFiltered");
+  if (selectAllBtn) selectAllBtn.onclick = selectAllFilteredList;
+  const clearSelectionBtn = $("#btnClearSelection");
+  if (clearSelectionBtn) clearSelectionBtn.onclick = clearListSelection;
+  const batchStarBtn = $("#btnBatchStar");
+  if (batchStarBtn) batchStarBtn.onclick = () => batchSetStar(true);
+  const batchUnstarBtn = $("#btnBatchUnstar");
+  if (batchUnstarBtn) batchUnstarBtn.onclick = () => batchSetStar(false);
+  const batchProfBtn = $("#btnBatchProficient");
+  if (batchProfBtn) batchProfBtn.onclick = () => openBatchProficiencyPreview(true);
+  const batchUnprofBtn = $("#btnBatchUnproficient");
+  if (batchUnprofBtn) batchUnprofBtn.onclick = () => openBatchProficiencyPreview(false);
+  const batchConfirmBtn = $("#btnBatchConfirm");
+  if (batchConfirmBtn) batchConfirmBtn.onclick = confirmListBatchProficiency;
+  const batchCancelBtn = $("#btnBatchCancel");
+  if (batchCancelBtn) batchCancelBtn.onclick = () => { listBatchPreview = null; renderListOrganizeBar(); };
+  const saveListViewBtn = $("#btnSaveListView");
+  if (saveListViewBtn) saveListViewBtn.onclick = saveCurrentListView;
+  const resetListViewsBtn = $("#btnResetListViews");
+  if (resetListViewsBtn) resetListViewsBtn.onclick = resetListViewStore;
+  const listViewNameInput = $("#listViewName");
+  if (listViewNameInput) listViewNameInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); saveCurrentListView(); }
+  });
+  const viewsMenu = $("#listViewsMenu");
+  if (viewsMenu) {
+    viewsMenu.addEventListener("toggle", () => {
+      if (viewsMenu.open) {
+        listViewDirty = true;
+        renderListViewRows();
+      }
+    });
+    viewsMenu.addEventListener("click", (e) => {
+      const applyView = e.target.closest?.("[data-view-apply]");
+      if (applyView) { applySavedListView(applyView.dataset.viewApply); return; }
+      const renameView = e.target.closest?.("[data-view-rename]");
+      if (renameView) { renameSavedListView(renameView.dataset.viewRename); return; }
+      const deleteView = e.target.closest?.("[data-view-delete]");
+      if (deleteView) deleteSavedListView(deleteView.dataset.viewDelete);
+    });
+    viewsMenu.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      const input = e.target.closest?.("[data-view-rename-input]");
+      if (input) {
+        e.preventDefault();
+        renameSavedListView(input.dataset.viewRenameInput);
+      }
+    });
+  }
+  const backToStatsBtn = $("#btnBackToStats");
+  if (backToStatsBtn) backToStatsBtn.onclick = returnFromStatsDrill;
+  const drillDueDayBtn = $("#btnDrillDueDay");
+  if (drillDueDayBtn) drillDueDayBtn.onclick = drillDueDay;
+  const drillStageBtn = $("#btnDrillStage");
+  if (drillStageBtn) drillStageBtn.onclick = drillStage;
+  const freqMasteryEl = $("#freqMastery");
+  if (freqMasteryEl) freqMasteryEl.addEventListener("click", (e) => {
+    const btn = e.target.closest?.("[data-drill-freq]");
+    if (btn && !btn.disabled) drillFreqTier(btn.dataset.drillFreq);
   });
 
   $$("#presets button").forEach(b => {
@@ -8575,9 +12791,11 @@
     const el = $(sel);
     if (el) el.onclick = jumpToScopeSettings;
   });
-  // 09：统计页高阶面板默认收起；展开/收起后重新测量横向滑动提示（收起时 clientWidth 为 0）。
+  // 统计面板默认展开；旧偏好优先。展开/收起后重新测量横向滑动提示。
+  applyStatsPanelPrefs();
+  initStatsPanelOrdering();
   $$("#v-stats details.stats-details").forEach(d => {
-    d.addEventListener("toggle", () => { syncStatsChartHints(); });
+    d.addEventListener("toggle", () => { syncStatsChartHints(); persistStatsPanels(); });
   });
   $("#main").addEventListener("scroll", () => {
     if (settingsNavFrame || !$("#v-set")?.classList.contains("on")) return;
@@ -8700,6 +12918,10 @@
       resetSurvey();
       blockedBooks.delete(currentBookId);
       const saved = save(true, true);
+      // O1：重置本书记录同时清除它的“本书单独”覆盖；设备通用偏好不属于该书记录，保持不动。
+      clearBookPreferenceOverrides(currentBookId);
+      applyBookPreferenceResolution(S, currentBookId);
+      syncLastResolvedPreferences();
       bindSet(); applyFilter(); renderStats(); startSession(); updateBar(); renderBookList();
       toast(saved ? "已重置「" + name + "」的当前词书记录" : "已重置，但未能保存；请检查浏览器存储");
     }
@@ -8714,10 +12936,9 @@
     b.onclick = () => { rebinding = b.dataset.k; renderKeys(); };
   });
   $("#keyReset").onclick = () => {
-    S.settings.keys = Object.assign({}, DEFKEYS);
-    rebinding = null;
-    save(); renderKeys(); renderCard();
-    toast("已恢复默认按键");
+    const r=resetInputBindings();
+    if(r.ok){rebinding=null;renderKeys();}
+    toast(r.ok?"已恢复默认按键；手势、布局与单字符开关保持原值":r.error);
   };
 
   const themeBtnEl = $("#btnTheme");
@@ -8741,6 +12962,19 @@
   };
   $$("#guideSheet [data-close]").forEach(el => { el.onclick = closeSheet; });
   $$("#wordSheet [data-word-close]").forEach(el => { el.onclick = closeSheet; });
+  // H 本词问题本地记录：详情页保存/删除/复制/导出（独立键，不写学习记录；Esc/Tab 沿用词详情浮层）。
+  const wordIssueSaveBtn = $("#wordIssueSave");
+  if (wordIssueSaveBtn) wordIssueSaveBtn.onclick = () => { saveDetailWordIssue(); };
+  const wordIssueDeleteBtn = $("#wordIssueDelete");
+  if (wordIssueDeleteBtn) wordIssueDeleteBtn.onclick = () => { deleteDetailWordIssue(); };
+  const wordIssueCopyBtn = $("#wordIssueCopy");
+  if (wordIssueCopyBtn) wordIssueCopyBtn.onclick = () => { copyDetailWordIssue(); };
+  const wordIssueExportBookBtn = $("#wordIssueExportBook");
+  if (wordIssueExportBookBtn) wordIssueExportBookBtn.onclick = () => { exportWordIssuesFile("book"); };
+  const wordIssueExportAllBtn = $("#wordIssueExportAll");
+  if (wordIssueExportAllBtn) wordIssueExportAllBtn.onclick = () => { exportWordIssuesFile("all"); };
+  const wordIssueNoteEl = $("#wordIssueNote");
+  if (wordIssueNoteEl) wordIssueNoteEl.addEventListener("input", () => { wordIssueDirty = true; });
   bindSpellingSheet();
 
   // 词书入口与选择浮层
@@ -8774,6 +13008,19 @@
         {kind: "import", recover: true});
     }
   } catch (e) { /* 存储不可用时已有保存失败提示 */ }
+  try {
+    if (localStorage.getItem(PREF_JOURNAL_KEY)) {
+      showAlert("发现未完成的偏好归属保存", "上次修改“此设备通用/本书单独”可能在中途中断。"
+        + "可恢复到修改前状态；恢复前不要继续修改偏好归属或导入备份。",
+        {kind: "prefs", prefRecover: true});
+    }
+  } catch (e) { /* 存储不可用时已有保存失败提示 */ }
+  if (prefJournalRecovered) toast("已恢复上次未完成的偏好归属保存");
+  if (devicePrefsStatus === "write-failed") {
+    toast("偏好归属尚未保存到本机：当前按每书独立显示，可在设置页“偏好归属”处重试保存");
+  } else if (defaultBookWriteFailed) {
+    toast("下次默认词书未能保存到本机：浏览器存储不可用");
+  }
 
   applyBrand();
   bindSwipe();
@@ -8831,6 +13078,7 @@
   function readAutoResumePauseStore(force = false){
     if (autoResumePauseStore.loaded && !force) return autoResumePauseStore.map;
     autoResumePauseStore.loaded = true;
+    autoResumePauseStore.readable = false;
     const map = {};
     try {
       const raw = localStorage.getItem(AUTO_RESUME_PAUSE_KEY);
@@ -8840,6 +13088,7 @@
           if (bookOf(book) && typeof day === "string" && /^\d{4}-\d{2}-\d{2}$/.test(day)) map[book] = day;
         }
       }
+      autoResumePauseStore.readable = true;
     } catch (e) { Object.assign(map, autoResumePauseStore.map); /* 不可读时保留已知暂停，避免错误解除 */ }
     for (const [book, day] of autoResumePausePending) {
       if (day === null) delete map[book];
@@ -8893,6 +13142,23 @@
     toast(persisted
       ? "今天不再自动续背（刷新后仍保持）；需要时仍可手动点「继续下一组」"
       : "今天不再自动续背；浏览器存储不可用，暂停仅本次页面有效");
+  }
+  /** 只解除本书今日暂停：沿用原方案，不开组、不授予空页等待资格。 */
+  function restoreAutoResumeToday(){
+    if (!currentAutoResume().enabled) return false;
+    const map = readAutoResumePauseStore(true);
+    // 失败删除保留 null 覆盖层；再次显式调用可重试落盘，不误报已经持久恢复。
+    const pendingClear = autoResumePausePending.has(currentBookId) && autoResumePausePending.get(currentBookId) === null;
+    if (map[currentBookId] !== todayStr() && !pendingClear) return false;
+    delete map[currentBookId];
+    autoResumePausePending.set(currentBookId, null);
+    // 无法读到最新 map 时只在本页恢复，避免用旧缓存覆盖另一书的暂停。
+    const persisted = autoResumePauseStore.readable && writeAutoResumePauseStore();
+    resetAutoResumeRuntime();
+    toast(persisted
+      ? "已恢复今天自动续背，沿用原方案并重新等待"
+      : "已在本页恢复自动续背，沿用原方案；浏览器存储不可用，刷新后可能仍暂停");
+    return true;
   }
   /** 主组「真正完成」：无当前卡、非特训/子组、非被额度暂停结束、答过至少一张、无未答位置。 */
   function mainGroupCompletedForAuto(){
@@ -8951,38 +13217,7 @@
    * 候选复核口径与 startSession("main") 一致：
    * 到期优先、受今日剩余复习预算约束；剩余槽位按新词剩余额度补，积压保护生效则不补新词。
    */
-  function candidateStatsNow(now){
-    now = now || Date.now();
-    const q = buildQueue(now);
-    const cap = getReviewCap();
-    let capLeft = reviewCapLeft();
-    // 候选读取保持只读；即使storage事件延迟，也不把别标签已消费的预算算作可用。
-    if (cap > 0) {
-      try {
-        const incoming = JSON.parse(localStorage.getItem(KEY) || "null");
-        const used = normalizeReviewDay(incoming && incoming.reviewDay).used;
-        capLeft = Math.min(capLeft, Math.max(0, cap - used));
-      } catch (e) { /* 损坏存储不改内存，启动与判定沿用原有安全门控 */ }
-    }
-    const groupSize = Math.max(GROUP_SIZE_MIN, Math.min(GROUP_SIZE_MAX,
-      Number.isInteger(S.settings.groupSize) ? S.settings.groupSize : GROUP_SIZE_DEFAULT));
-    const dueTotal = q.due.length;
-    const plannedDue = Math.min(groupSize, dueTotal);
-    const dueActive = cap === 0 ? plannedDue : Math.min(plannedDue, capLeft);
-    const quota = Math.max(0, effectiveNewTarget() - day().n);
-    const slots = Math.max(0, groupSize - plannedDue);
-    const backlogGuarded = !!S.settings.backlogGuard && cap > 0 && dueTotal > capLeft;
-    const freshActive = backlogGuarded ? 0 : Math.min(slots, quota, q.fresh.length);
-    const capPausedNow = cap > 0 && capLeft <= 0 && dueTotal > 0;
-    return {
-      available: capPausedNow ? 0 : dueActive + freshActive,
-      due: dueTotal, dueActive: dueActive,
-      fresh: q.fresh.length, freshActive: freshActive,
-      quota: quota, groupSize: groupSize, cap: cap,
-      capLeft: capLeft === Infinity ? null : capLeft,
-      backlogGuarded: backlogGuarded, capPaused: capPausedNow
-    };
-  }
+  function candidateStatsNow(now){ return readOnlyCandidateStats(now || Date.now()); }
   function getCandidatesNow(){ return candidateStatsNow().available; }
   /** 候选最多缓存30秒，最近到期时刻提前失效；设置/进度/台账变化会主动清空。 */
   function autoResumeStats(now = Date.now()){
@@ -9078,18 +13313,28 @@
     if (nowBtn) {
       nowBtn.hidden = true; // 历史宿主兼容；唯一手动入口为#again。
     }
+    const restoreBtn = $("#autoResumeRestore");
+    if (restoreBtn) {
+      restoreBtn.hidden = !ar.enabled || !paused;
+      restoreBtn.onclick = restoreAutoResumeToday;
+    }
     const quickBtn = $("#autoResumeQuick");
     if (quickBtn) {
       quickBtn.hidden = ar.enabled && !paused && !autoResumeConfigConflict(ar);
-      quickBtn.textContent = autoResumeConfigConflict(ar) ? "改用便捷续背（1 张）" : "开启便捷续背";
-      quickBtn.onclick = () => {
+      quickBtn.textContent = empty && !ar.enabled && !paused ? "启用便捷并在本页等待" : autoResumeConfigConflict(ar) ? "改用便捷续背（1 张）" : ar.enabled ? "改用便捷续背" : "开启便捷续背";
+      quickBtn.onclick = e => {
+        if (empty && !ar.enabled && !paused) {
+          const result=runStudyAction("enableWait",{event:e});
+          if (!result.ok) toast("暂时未能开始等待，请检查自动续背与存储状态。");
+          return;
+        }
         const r = applyAutoResumePreset("quick");
         if (r.ok) toast("已开启便捷续背：1 张 / 闲置 30 秒 / 倒计时 3 秒");
       };
     }
     const pauseBtn = $("#autoResumePause");
     if (pauseBtn) {
-      pauseBtn.hidden = !ar.enabled;
+      pauseBtn.hidden = !ar.enabled || paused;
       pauseBtn.disabled = paused;
       pauseBtn.onclick = pauseAutoResumeToday;
     }
@@ -9097,13 +13342,14 @@
     if (startWait) {
       startWait.hidden = !empty || waiting;
       startWait.disabled = !ar.enabled || paused || autoResumeStorageError || !storageOK;
-      startWait.onclick = startEmptyWait;
+      startWait.onclick = e => runStudyAction("wait",{event:e});
     }
-    if (stopWait) { stopWait.hidden = !waiting; stopWait.onclick = stopEmptyWait; }
+    if (stopWait) { stopWait.hidden = !waiting; stopWait.onclick = e => runStudyAction("stopWait",{event:e}); }
     const title = $("#autoResumeTitle");
     if (title) title.textContent = waiting ? "本页等待到期" : empty ? "等待到期" : paused ? "下一组 · 今天暂停自动续背" : "下一组";
     const again = $("#again");
     if (again) again.disabled = stats.available < 1;
+    applyActionBindingHints();
   }
   function autoResumeConfigConflict(ar){
     return ar.enabled && ar.threshold > S.settings.groupSize
@@ -9645,6 +13891,8 @@
     spellingSession = null;
     resetAutoResumeRuntime();
     S = freshState(currentBook());
+    // 真实 F5 会重新读取设备偏好键；模拟刷新同步（不重新做一次性迁移判定，缺失时按现状降级）。
+    try { initDevicePreferences(true); } catch (e) { /* ignore */ }
     load();
     lastDay = todayStr();
     // 真实刷新会重新初始化学习时长采样状态；这里同步，避免模拟刷新把旧活动当成本页活动。
@@ -9895,8 +14143,43 @@
   window.addEventListener?.("pageshow", refreshForResume);
   window.addEventListener?.("focus", refreshForResume);
 
+  /** 设备偏好键的跨标签变化：只重新解析本书未覆盖字段，保留学习现场/浮层/撤销。 */
+  function handleDevicePreferencesStorageEvent(){
+    const previous = clonePrefValue(S.settings);
+    const got = readDevicePreferences();
+    if (got.status !== "ok") {
+      if (devicePrefsStatus === "damaged" || devicePrefsStatus === "unsupported") {
+        showAlert("偏好归属存储异常", preferenceStatusText()
+          + "。当前书仍使用自己记录里的偏好，本页不会覆写原文。", {kind: "prefs"});
+      }
+      renderPreferenceOwnershipControls();
+      return;
+    }
+    // 已有手势的 revision 会随 inputPreferences 变化自动作废（沿用既有机制）。
+    reResolveInheritedPreferences();
+    renderPreferenceOwnershipControls();
+    if (!prefValuesEqual(previous, S.settings) && activeSheet && activeSheet.id === "helpSheet") renderHelp();
+  }
+  /** localStorage.clear()：设备键与主记录一起消失；只重置本页内存镜像，不把旧 shared 写回。 */
+  function resetDevicePreferencesAfterStorageClear(){
+    devicePrefs = {kind: DEVICE_PREFS_KIND, version: DEVICE_PREFS_VERSION,
+      shared: defaultPreferenceShared(), overrides: emptyPreferenceOverrides()};
+    devicePrefsRaw = null;
+    devicePrefsStatus = "missing";
+    devicePrefsError = "";
+    devicePrefsLegacy = false;
+    devicePrefsWriteNotified = false;
+    prefJournalRecovered = false;
+    prefJournalRecoveryFailed = false;
+    lastResolvedPrefs = {};
+    renderPreferenceOwnershipControls();
+    renderBookPageUi();
+  }
   window.addEventListener?.("storage", (e) => {
     if (e.key === ACTIVE_KEY) { followActiveBook(); return; }
+    if (e.key === DEVICE_PREFS_KEY) { handleDevicePreferencesStorageEvent(); return; }
+    if (e.key === DEFAULT_BOOK_KEY || e.key === PAGE_BOOK_KEY) { renderBookPageUi(); return; }
+    if (e.key === null) resetDevicePreferencesAfterStorageClear();
     if (e.key === AUTO_RESUME_PAUSE_KEY || e.key === null) {
       if (e.key === null) { autoResumePausePending.clear(); autoResumePauseStore.map = {}; }
       readAutoResumePauseStore(true);
@@ -9937,11 +14220,13 @@
       if (!replaced && sharedLearningSignature(candidate) === sharedLearningSignature(S)
           && !Q.slice(qi).some(i => !!candidate.proficient[W[i].w])) {
         const previousSettings = S.settings;
-        const settingsChanged = JSON.stringify(S.settings) !== JSON.stringify(candidate.settings);
-        S.settings = candidate.settings;
+        // O1：主记录设置（另一页有效快照）→ 未覆盖字段采纳进设备 shared 后重新解析。
+        S.settings = resolveIncomingPreferenceSettings(candidate.settings);
+        const settingsChanged = JSON.stringify(previousSettings) !== JSON.stringify(S.settings);
         mergeSharedCounters(candidate);
         lastMainRaw = raw;
         lastSavedSignature = savedStateSignature(S);
+        syncLastResolvedPreferences();
         storageOK = true;
         blockedBooks.delete(currentBookId);
         if (settingsChanged) refreshSharedSettingsSurfaces(true, previousSettings);
@@ -9955,6 +14240,14 @@
       const localSpellingBefore = normalizeSpellingState(S.spelling);
       S = candidate;
       pendingReplacementToken = null;
+      // O1：换代（导入/重置/clear）先读最新设备键再解析；普通内容同步采纳另一页的有效偏好快照。
+      if (replaced) {
+        try { readDevicePreferences(); } catch (e2) { /* ignore */ }
+        S.settings = resolveBookPreferences(S, currentBookId);
+      } else {
+        S.settings = resolveIncomingPreferenceSettings(S.settings);
+      }
+      syncLastResolvedPreferences();
       // 内容被别的标签更新时，当日台账/临时加量仍取较大值，不回退本页已知的消费或授予。
       const afterReview = reviewLedger();
       const removed = replaced;
@@ -9995,6 +14288,20 @@
     get answered() { return answered; },
     get drillMode() { return drillMode; },
     judge, tryNext, undo, startSession, nextCard,
+    deriveStudyPresentation, runStudyAction, addExtraAndStudy, readOnlyCandidateStats,
+    getInputPreferences,getInputActionDescriptors,getGestureActions,normalizeGestures,normalizeActionKeys,normalizeActionLayout,
+    normalizeKeyBinding,keyName,keyMatch,setInputBinding,resetInputBinding,resetInputBindings,cancelInputGesture,
+    // —— F1 阅读与布局（applyReadingLayoutPatch/moveReadingOrder 为合法写入口；统计展开偏好为设备键） ——
+    applyReadingLayoutPatch, moveReadingOrder,
+    getReadingLayout: () => ({
+      cardDensity: S.settings.cardDensity, readingOrder: currentReadingOrder(),
+      showCardMeta: !!S.settings.showCardMeta, showCardStage: !!S.settings.showCardStage,
+      showCardPos: !!S.settings.showCardPos, secondaryActions: currentSecondaryActions(),
+      actionLayout: currentActionLayout()
+    }),
+    normalizeReadingOrder, normalizeSecondaryActions,
+    statsPanelsKey: STATS_PANELS_KEY, statsPanelIds: STATS_PANEL_IDS.slice(), statsCardIds: STATS_CARD_IDS.slice(),
+    readStatsPanelPrefs, applyStatsPanelPrefs, moveStatsPanel, syncReadingLayoutControls,
     buildExport, buildRescueExport, prepareImportPlan, recoverImportJournal,
     hasMainProgress, isMainLearned, isMastered, pendingReinforce,
     getGroupTotal: () => groupTotal,
@@ -10058,6 +14365,7 @@
     setAutoResume,
     applyAutoResumePreset,
     pauseAutoResumeToday,
+    restoreAutoResumeToday,
     startAutoResumeNow,
     returnToPreviousResults,
     autoResumeLeaseKey: AUTO_RESUME_LEASE_KEY,
@@ -10083,7 +14391,42 @@
     normalizeState, importState, applyFilter, show, openWord, closeSheet,
     // —— 11 引导与词表范围（getGuideState 只读；openGuide 是界面入口，不写学习记录） ——
     getGuideState, openGuide, guideKey: GUIDE_KEY,
+    // —— H 本词问题本地记录（getWordIssueState/buildWordIssuesExport 只读；保存/删除/导出走界面入口） ——
+    wordIssuesKey: WORD_ISSUES_KEY,
+    wordIssuesKind: WORD_ISSUES_KIND,
+    wordIssuesVersion: WORD_ISSUES_VERSION,
+    wordIssuesMax: WORD_ISSUES_MAX,
+    wordIssueNoteMax: WORD_ISSUE_NOTE_MAX,
+    getWordIssueState: () => {
+      const state = readWordIssues();
+      const ctx = detailWordIssueContext();
+      const entry = state.ok && ctx ? currentIssueEntry(state.entries, ctx.bookId, ctx.word) : null;
+      return {
+        key: WORD_ISSUES_KEY, ok: state.ok, corrupted: !!state.corrupted,
+        storageError: !!state.storageError, reason: state.reason || "",
+        count: state.ok ? state.entries.length : 0,
+        raw: state.corrupted ? state.raw : null,
+        context: ctx ? {bookId: ctx.bookId, bookName: ctx.bookName, word: ctx.word, source: ctx.source} : null,
+        entry: entry ? pickWordIssueFields(entry) : null
+      };
+    },
+    buildWordIssuesExport: (scope) => wordIssuesExportData(scope === "book" ? "book" : "all"),
+    wordIssueSourceText: (i) => wordIssueSourceText(W[i]),
     getListSummary: () => listSummaryText(),
+    // —— E 词表整理 / G 统计下钻（只读检查钩子；写操作只走界面按钮，不进学习记录） ——
+    getFilterIndices: () => filt.slice(),
+    getListSelection: () => validListSelectionIndices(),
+    isListOrganize: () => listOrganize,
+    getListViewState: () => ({
+      loaded: listViewStore.loaded, ready: listViewStore.ready, corrupt: listViewStore.corrupt,
+      error: listViewStore.error, raw: listViewStoreRaw, key: LIST_VIEWS_KEY,
+      perBook: LIST_VIEWS_PER_BOOK, nameMax: LIST_VIEW_NAME_MAX,
+      views: JSON.parse(JSON.stringify(listViewStore.views))
+    }),
+    getStatsDrill: () => statsDrill ? Object.assign({}, statsDrill) : null,
+    getStatsDrillIndices: () => statsDrillIndices(),
+    getStatsSelection: () => ({forecast: statsSelForecast, stage: statsSelStage}),
+    enterStatsDrill, drillDueDay, drillFreqTier, drillStage, returnFromStatsDrill,
     // —— 13 离线与更新 / 备份状态（retryOffline 为显式重试入口，其余只读） ——
     getOfflineStatus, retryOffline: retryOfflineStatus,
     getBackupStatus, lastExportKey: LAST_EXPORT_KEY, renderBackupStatus,
@@ -10132,8 +14475,32 @@
     getStorageKeys: () => {
       const books = {};
       for (const def of BOOK_DEFS) books[def.id] = { state: BOOKS[def.id].KEY, prof: BOOKS[def.id].PROF_KEY, survey: BOOKS[def.id].SURVEY_KEY };
-      return { active: ACTIVE_KEY, books: books };
+      return { active: ACTIVE_KEY, books: books, device: DEVICE_PREFS_KEY,
+        defaultBook: DEFAULT_BOOK_KEY, pageBook: PAGE_BOOK_KEY, pageBookMode: PAGE_BOOK_MODE_KEY,
+        preferenceJournal: PREF_JOURNAL_KEY };
     },
+    // —— O1 设备通用/本书覆盖偏好归属（getPreferenceOwnership 只读；resolve/apply/setInheritance 为合法入口） ——
+    getPreferenceFields: () => PREFERENCE_FIELDS.slice(),
+    getPreferenceOwnership,
+    resolveBookPreferences: (state, bookId, prefs) => resolveBookPreferences(state, bookId, prefs),
+    applyPreferencePatch,
+    setPreferenceInheritance,
+    isPreferenceInherited: (field, bookId) => PREFERENCE_FIELDS.includes(field)
+      && !isPreferenceOverridden(field, bookId),
+    retryDevicePreferenceWrite,
+    recoverPreferenceJournal,
+    preferenceJournalKey: PREF_JOURNAL_KEY,
+    devicePreferencesKey: DEVICE_PREFS_KEY,
+    clearBookPreferenceOverrides,
+    getInputPreferenceRevision: () => inputPreferenceRevision,
+    // —— O1 本页词书 / 下次默认 / 跨页跟随（setPageBookMode/setDefaultBook 为仅有的显式写入口） ——
+    getPageBookState: () => Object.assign(pageBookUiState(), {pageBookKey: PAGE_BOOK_KEY,
+      defaultBookKey: DEFAULT_BOOK_KEY, pageModeKey: PAGE_BOOK_MODE_KEY}),
+    setPageBookMode,
+    setDefaultBook: (id) => setDefaultBookForNextOpen(id),
+    applyBookFollowNotice,
+    showBookFollowNotice,
+    getPendingBookFollow: () => pendingFollowBookId,
     setPhase(p) { phase = p; },
     setCur(i) { cur = i; renderCard(); },
     setVerdict(v) { verdict = v; phase = v === null ? "recall" : "revealed"; }

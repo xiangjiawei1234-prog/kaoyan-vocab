@@ -123,7 +123,7 @@
       "count": 7997,
       "dataVersion": 3,
       "indexHash": "501577d74614f2c993d47d037d05b56d914df7e9257684742ded62d9844bb13a",
-      "posIndexHash": "b6b38214733c645e88a2a0fadb5ba677b77433e010f4177b76da8ba95c80fdbe"
+      "posIndexHash": "c9070152c65cfcfb32cd568153d28adbe3fb0371ec40b3198d565ec6663c2d40"
     },
     "cet4": {
       "count": 7168,
@@ -141,7 +141,7 @@
       "count": 12083,
       "dataVersion": 2,
       "indexHash": "f8f9e2c0366d8a704949356967479fab01f0bdbafdd160a2b4c688ca2bcbf45c",
-      "posIndexHash": "92b0f46e85a53b501db22dae11aed6cccdec2a9e413488f4bb98d9ae33b402f0"
+      "posIndexHash": "1480a1961ed1369d4c11a0d07da3ae072d652ab2dcda62053352f3e2c2406c9d"
     }
   },
   "repairedExamples": [

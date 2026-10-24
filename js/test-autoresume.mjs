@@ -138,8 +138,9 @@ function fireClick(target) {
 /* ---------------- 存储 / 文档 / 窗口 ---------------- */
 const store = new Map();
 const failKeys = new Set();
+const failReadKeys = new Set();
 globalThis.localStorage = {
-  getItem: k => (store.has(k) ? store.get(k) : null),
+  getItem: k => { if (failReadKeys.has(k)) throw new Error("SecurityError"); return store.has(k) ? store.get(k) : null; },
   setItem: (k, v) => { if (failKeys.has(k)) throw new Error("QuotaExceededError"); store.set(k, String(v)); },
   removeItem: k => store.delete(k)
 };
@@ -970,6 +971,96 @@ if (typeof T.startEmptyWait === "function") {
     T.stopEmptyWait();
   }
 }
+/* ================= M01. 恢复今日暂停保留原方案 ================= */
+console.log("== M01. 恢复今日暂停保留原方案 ==");
+{
+  const custom = {enabled: true, threshold: 1, idleMs: 90000, countdownMs: 7000};
+  const pauseKey = T.autoResumePauseKey;
+  const restore = () => T.restoreAutoResumeToday();
+  ck(typeof T.restoreAutoResumeToday === "function", "恢复原方案有独立正式入口");
+  completionPage({dailyNew: 2, groupSize: 1, autoResume: custom});
+  store.delete(LEASE_KEY);
+  ck(stateEl("#autoResumeRestore").hidden, "未暂停时隐藏恢复入口");
+  autoTick(); autoTick(custom.idleMs);
+  ck(autoState().phase === "countdown", "恢复场景先进入原方案倒计时");
+  T.pauseAutoResumeToday();
+  store.set(pauseKey, JSON.stringify({...stored(pauseKey), cet4: todayStr()}));
+  const before = JSON.stringify(S()), raw = store.get(KEY), beforePlan = JSON.stringify(plan());
+  const beforeGroup = groupSig(), leaseBefore = store.get(LEASE_KEY);
+  ck(!stateEl("#autoResumeRestore").hidden && typeof stateEl("#autoResumeRestore").onclick === "function",
+    "暂停后显示恢复原方案按钮");
+  ck(stateEl("#autoResumeQuick").textContent === "改用便捷续背", "更换预设入口与恢复原方案明确分开");
+  ck(stateEl("#autoResumeRestore").onclick() === true && !autoState().pausedToday, "按钮恢复本书今日自动续背");
+  ck(eq(T.getAutoResume(), custom) && JSON.stringify(S()) === before && store.get(KEY) === raw,
+    "恢复不改自定义参数、主记录、进度或额度");
+  ck(JSON.stringify(plan()) === beforePlan && eqGroup(groupSig(), beforeGroup) && store.get(LEASE_KEY) === leaseBefore,
+    "恢复不重开组、不改冻结现场、不抢租约");
+  ck(stored(pauseKey).cet4 === todayStr() && !stored(pauseKey).kaoyan, "恢复写前合并远端map，仅清本书暂停");
+  ck(stateEl("#autoResumeRestore").hidden && !stateEl("#autoResumePause").hidden,
+    "恢复后回到可暂停状态，不保留无效恢复入口");
+  ck(autoState().phase === "idle" && autoState().countdownDeadline === 0 && T.cur === null,
+    "恢复重置旧倒计时，不直接开组");
+  ck(!restore(), "已经恢复且无待落盘删除时重复调用无副作用");
+  autoTick(); autoTick(custom.idleMs - 1);
+  ck(autoState().phase !== "countdown" && T.cur === null, "恢复后必须完整等待原90秒");
+  autoTick(1);
+  ck(autoState().phase === "countdown" && autoState().countdownDeadline === now + custom.countdownMs,
+    "重新等待完成后沿用原7秒倒计时");
+  T.undo();
+  ck(T.cur !== null && T.phase === "revealed" && T.answered === 1,
+    "恢复原方案后可先撤销翻页回已揭示卡");
+  T.undo();
+  ck(T.cur !== null && T.answered === 0 && S().days[todayStr()].n === 0,
+    "恢复原方案后上一组判定仍可撤销，未清撤销栈");
+  // 成功落盘后刷新保持解除；后来的远端同书暂停仍然生效。
+  T.simulateReload();
+  ck(!autoState().pausedToday && eq(T.getAutoResume(), custom) && stored(pauseKey).cet4 === todayStr(),
+    "成功恢复后刷新仍解除本书暂停，原方案和其他书暂停保持");
+  store.set(pauseKey, JSON.stringify({kaoyan: todayStr(), cet4: todayStr()}));
+  for (const fn of winHandlers.get("storage") || []) fn({key: pauseKey});
+  ck(autoState().pausedToday, "成功恢复后远端同书再次暂停仍被采纳");
+  restore();
+
+  // 失败删除覆盖层必须挡住旧存储；读失败时也不能用未知旧map覆盖远端其他书。
+  completionPage({dailyNew: 2, groupSize: 1, autoResume: custom});
+  T.pauseAutoResumeToday(); const persistedPause = store.get(pauseKey);
+  failKeys.add(pauseKey);
+  ck(restore() && !autoState().pausedToday && store.get(pauseKey) === persistedPause,
+    "恢复写失败仅解除本页，持久暂停原文保留");
+  ck(/本页恢复|刷新后可能仍暂停/.test(stateEl("#toast").textContent), "恢复写失败明确说明仅本页有效");
+  store.set(pauseKey, JSON.stringify({kaoyan: todayStr(), cet6: todayStr()}));
+  for (const fn of winHandlers.get("storage") || []) fn({key: pauseKey});
+  ck(!autoState().pausedToday, "远端map事件和强制重读不会复活本页失败删除的暂停");
+  failKeys.delete(pauseKey);
+  ck(restore() && !stored(pauseKey).kaoyan && stored(pauseKey).cet6 === todayStr(),
+    "再次明确恢复可重试删除落盘，并保留最新其他书暂停");
+  T.pauseAutoResumeToday(); failReadKeys.add(pauseKey);
+  const unreadRaw = JSON.stringify({kaoyan: todayStr(), combined: todayStr()}); store.set(pauseKey, unreadRaw);
+  ck(restore() && !autoState().pausedToday && store.get(pauseKey) === unreadRaw,
+    "读最新map失败只作本页恢复，不覆盖未知的其他书暂停");
+  failReadKeys.delete(pauseKey);
+  ck(restore() && !stored(pauseKey).kaoyan && stored(pauseKey).combined === todayStr(),
+    "读取恢复后可重试落盘，保留之前不可读的其他书暂停");
+  T.pauseAutoResumeToday(); failKeys.add(pauseKey); restore(); failKeys.delete(pauseKey);
+  T.simulateReload();
+  ck(autoState().pausedToday && eq(T.getAutoResume(), custom), "失败恢复后真实刷新语义重新采用持久暂停，方案不变");
+  restore();
+
+  // 普通空页和用户已明确进入的本页等待应当区别处理。
+  setup({dailyNew: 1, dayN: 1, groupSize: 1, autoResume: custom});
+  T.pauseAutoResumeToday(); restore();
+  ck(T.cur === null && !autoState().waitingForDue && !autoState().eligible,
+    "普通空页恢复不授予隐含等待资格");
+  ck(T.startEmptyWait(), "恢复后用户仍可明确进入本页等待");
+  T.pauseAutoResumeToday(); restore();
+  ck(autoState().waitingForDue && T.cur === null && eq(T.getAutoResume(), custom),
+    "已明确等待的页面恢复后保留资格和原方案，不直接开组");
+  T.stopEmptyWait();
+  T.setAutoResume({enabled: false}); T.pauseAutoResumeToday();
+  const disabledPause = store.get(pauseKey);
+  ck(!restore() && !T.getAutoResume().enabled && store.get(pauseKey) === disabledPause,
+    "关闭配置时恢复操作不暗中开启或解除暂停");
+}
 // 本文件共用一个真实 app 实例。恢复本节改变的设置/今日暂停后，再测试本页持续熔断；
 // 租约写失败会保留 autoResumeStorageError，不能让它污染前面的正常自动续背场景。
 T.setAutoResume(DEFAULT_AR);
@@ -990,6 +1081,9 @@ console.log("== 9. 租约存储不可用 ==");
   ck(T.cur === null, "存储不可用后不循环空开组");
   ck(T.startAutoResumeNow() === false, "存储不可用时手动重试也拒绝（避免半套启动）");
   failKeys.delete(LEASE_KEY);
+  T.pauseAutoResumeToday(); T.restoreAutoResumeToday(); autoTick(600000);
+  ck(autoState().storageError === true && T.cur === null,
+    "恢复今日暂停不清租约存储错误熔断，不绕过安全守卫自动开组");
   T.startSession("main");
   ck(T.cur !== null, "用户仍可手动点继续开始下一组");
 }

@@ -10,7 +10,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
-import { contentEncodingFields, isConfirmedBadExample, mechanicalExampleRisks } from "./content-validation.mjs";
+import { contentEncodingFields, isConfirmedBadExample, mechanicalExampleRisks, confirmedCorrectionIssues } from "./content-validation.mjs";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -273,6 +273,7 @@ for (let i = 0; i < entries.length; i++) {
   const badEncodingFields = contentEncodingFields(a);
   if (badEncodingFields.length) err("content", "字段含控制字符/替换符/私用区", i, w, `字段 ${badEncodingFields.map(k => FIELD_NAMES[k]).join("/")}`);
   if (isConfirmedBadExample(ex)) err("content", "已确认污染例句回流", i, w, short(ex));
+  for (const issue of confirmedCorrectionIssues("kaoyan", a)) err("content", "已确认内容修订回流", i, w, issue);
 
   // 6) 例句 / 来源
   if (ex) {

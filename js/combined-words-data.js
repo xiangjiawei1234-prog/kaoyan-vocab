@@ -176,8 +176,8 @@ window.WORD_BOOK_META = Object.assign(window.WORD_BOOK_META || {}, {
       }
     ],
     "sourceHashes": {
-      "js/words-data.js": "4e9ca67f59c3aadad73b48165f439e9ce5f6733a11d342d5d25d5eeba66fa5e7",
-      "js/cet-words-data.js": "793df67201efebbc11dd97077cba61cc7961699063c2f782ee7c61bbd06599f0"
+      "js/words-data.js": "6670234a0ff2faedcab18c7a5271a2f45b476f9047568965c2f3d71408aa7a04",
+      "js/cet-words-data.js": "c778509cdf6837ff6d14baa0c7094fb756e0ed95697be6e194d03545afba7123"
     }
   }
 });
@@ -10040,7 +10040,7 @@ window.WORDS_COMBINED = [
 ["financier","faiˈnænsiə","n. 金融家, 财政家",0,9853,1,1,"The financier explained the risks of the plan to a small group of investors.","自编",0,"复数 financiers"],
 ["finesse","fiˈnes","n. 策略, 手段, (桥牌中的)飞牌；v. 用计谋处理, 出小牌",0,9854,1,1,"She handled the difficult negotiation with great finesse.","自编",0,"复数 finesses"],
 ["fingernail","ˈfiŋɡəneil","n. 手指甲",0,9855,1,1,"He broke a fingernail while opening the heavy box.","自编",0,"复数 fingernails"],
-["firefight","ˈfaiəfait","n. 交火, 枪战, 炮战",1,9856,1,1,"This deficit is a testament to the effectiveness of modern firefighting, said Kelly Martin, a past president of the International Association of Wildland Fire.","英语一 2026",0,"复数 firefights"],
+["firefight","ˈfaiəfait","n. 交火, 枪战, 炮战",0,9856,1,1,"The soldiers took cover during a brief firefight.","自编",0,"复数 firefights"],
 ["firewood","ˈfaiəwud","n. 木柴",0,9857,1,1,"Centuries of wars and invasions, agricultural expansion and woodcutting for firewood and shipping wiped out most of the woods and transformed places like Matamorisca, a small village in northern Spain, into degraded landscapes.","六级 2026.06",0,"复数 firewoods"],
 ["firework","","n. 烟火具, 烟火, 烟火信号弹, 焰火, 激情的表现",0,9858,1,1,"A single firework lit up the sky above the lake.","自编",0,"复数 fireworks"],
 ["firsthand","ˈfəːstˈhænd","adv. 直接地；a. 直接的, 直接得来的, 直接采购的",3,9859,1,1,"Azam-Ali knows that scepticism firsthand.","六级 2024.12",0,""],
@@ -11387,7 +11387,7 @@ window.WORDS_COMBINED = [
 ["reshuffle","riːˈʃʌfl","n. 重新洗牌, 改组, 撤换；vt. 重新洗牌, 改组, 撤换",0,11206,1,1,"The company announced a reshuffle of its research teams last week.","自编",0,"过去式 reshuffled；过去分词 reshuffled；现在分词 reshuffling；复数 reshuffles"],
 ["residue","ˈrezidjuː","n. 残渣, 剩余, 余数",0,11207,1,1,"A sticky residue remained on the table after the glue dried.","自编",0,"复数 residues"],
 ["resiliency","riˈziliənsi. -jənsi","n. 弹性；跳回",0,11208,1,1,"The material's resiliency allows it to bend without breaking.","自编",0,"复数 resiliencies"],
-["resit","ˈriːsit","vi.(考试不及格后)再考,重考；<英> vt.(尤指考试不及格后)再参加(考试)",1,11209,1,1,"He had to resit the exam because his grade was too low.","自编",0,"复数 resits；现在分词 resiting；过去分词 resited；过去式 resited"],
+["resit","ˌriːˈsɪt","vi.(考试不及格后)再考,重考；<英> vt.(尤指考试不及格后)再参加(考试)",1,11209,1,1,"He had to resit the exam because his grade was too low.","自编",0,"第三人称单数 resits；现在分词 resitting；过去式 resat；过去分词 resat"],
 ["resolute","ˈrezəluːt","a. 坚决的, 刚毅的, 果断的",0,11210,1,1,"She remained resolute despite the many setbacks in her research.","自编",1,"复数 resolutes"],
 ["resolutely","","adv. 坚决地；毅然地",3,11211,1,1,"By making joint efforts resolutely and persistently.","六级 2024.06",0,""],
 ["resonance","ˈrezənəns","n. 共鸣, 回声, 反响, 谐振, 共振",0,11212,1,1,"Her speech had a strong resonance with young listeners.","自编",1,"复数 resonances"],
@@ -11528,7 +11528,7 @@ window.WORDS_COMBINED = [
 ["sharpness","ˈʃɑːpnis","n. 锐利, 敏锐, 严厉",0,11347,1,1,"The sharpness of the knife made cutting the bread easy.","自编",0,"复数 sharpnesses"],
 ["shepherd","ˈʃepəd","n. 牧羊人；vt. 带领, 引导, 护送",0,11348,1,1,"Perhaps it is time for farmers to put their feet up now that robots are used to inspect crops, dig up weeds, and even have become shepherds, too.","六级 2018.12",1,"复数 shepherds；过去式 shepherded；过去分词 shepherded；现在分词 shepherding"],
 ["shielding","ˈʃiːldiŋ","n. 屏蔽；屏幕, 掩盖, 隔离",0,11349,1,1,"The spacecraft needs strong shielding against radiation from the sun.","自编",0,"复数 shieldings"],
-["shifty","ˈʃifti","a. 变化的",2,11350,1,1,"His shifty eyes made the interviewer doubt his story.","自编",0,"比较级 shiftier；最高级 shiftiest"],
+["shifty","ˈʃifti","a. 躲闪的, 显得不诚实的, 变化的",2,11350,1,1,"His shifty eyes made the interviewer doubt his story.","自编",0,"比较级 shiftier；最高级 shiftiest"],
 ["shilling","ˈʃiliŋ","n. 先令",0,11351,1,1,"He scraped together 20,000 Kenyan shillings (about $200) to plant tomatoes.","六级 2023.12",1,"复数 shillings"],
 ["shine","ʃain","vi. 照耀, 发光, 闪耀；n. 光泽, 光彩",1,11352,1,1,"The question \"what happens when the wind doesn't blow or the sun doesn't shine?\" has provided a quick put-down for skeptics.","英语二 2018",0,"过去式 shone；现在分词 shining；第三人称单数 shines；过去分词 shone"],
 ["shipload","ˈʃipləud","n. 一船之量, 船货, 大量",0,11353,1,1,"The first shiploads of immigrants bound for the territory which is now the United States crossed the Atlantic more than a hundred years after the 15th- and 16th-century explorations of North America.","英语一 2015",0,"复数 shiploads"],
@@ -12173,7 +12173,7 @@ window.WORDS_COMBINED = [
 ["vocalize","ˈvəukəlaiz","vt. 使发声, 使发成元音；vi. 发声, 练声, 元音化",1,11992,1,1,"Children learn to vocalize sounds long before they speak words.","自编",0,"现在分词 vocalizing；过去式 vocalized；第三人称单数 vocalizes；过去分词 vocalized"],
 ["vulgar","ˈvʌlɡə","a. 粗俗的, 庸俗的, 下流的, 普通的, 通俗的",0,11993,1,1,"What has happened is that people cannot confess fully to their dreams, as easily and openly as once they could, lest they be thought pushing, acquisitive and vulgar.","旧题型 2000",1,""],
 ["vulgarity","vʌlˈɡæriti","n. 粗俗, 粗鄙, 粗话",0,11994,1,1,"It involves the crude mechanics of writing, but in its economy, spontaneity and even vulgarity, texting is actually a new kind of talking, with its own kind of grammar and conventions.","六级 2014.06",0,"复数 vulgarities"],
-["wad","wɒd","n. 一叠（钞票）, 小团, 填料；vt. 揉成一团, 填塞",1,11995,1,1,"Although only a research project at this stage, the request has raised the prospect of regulators wading into early-stage tech markets that until now have been beyond their reach.","英语二 2021",0,"复数 wads；过去式 wadded；过去分词 wadded；第三人称单数 wads"],
+["wad","wɒd","n. 一叠（钞票）, 小团, 填料；vt. 揉成一团, 填塞",1,11995,1,1,"Please wad the paper into a ball.","自编",0,"复数 wads；过去式 wadded；过去分词 wadded；第三人称单数 wads"],
 ["wafer","ˈweifə","n. 薄酥饼, 圣饼, 晶片, 圆片, 干胶片；vt. 用干胶片封",0,11996,1,1,"She ate a thin chocolate wafer with her afternoon coffee.","自编",0,"复数 wafers"],
 ["waitlist","","n. 候补名单, 等候名单；vt. 把…列入候补名单",0,11997,1,1,"She joined the waitlist for the evening class and was offered a place later.","自编",0,""],
 ["wakeup","","n. 〈美口〉北美金翼啄木鸟",0,11998,1,1,"Hope can work as a wakeup call.","六级 2022.06",0,""],

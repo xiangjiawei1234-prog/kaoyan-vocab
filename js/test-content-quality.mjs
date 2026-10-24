@@ -7,13 +7,14 @@ import vm from 'node:vm';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { contentEncodingFields, isConfirmedBadExample, exampleHasWordForm, mechanicalExampleRisks } from './content-validation.mjs';
+import { contentEncodingFields, isConfirmedBadExample, exampleHasWordForm, mechanicalExampleRisks, confirmedCorrectionIssues } from './content-validation.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 const fixture = JSON.parse(read('tests/fixtures/content-fixes-20261023.json'));
 const nextFixture = JSON.parse(read('tests/fixtures/content-fixes-batch2-20261023.json'));
 const thirdFixture = JSON.parse(read('tests/fixtures/content-fixes-batch3-20261023.json'));
+const maintenanceFixture = JSON.parse(read('tests/fixtures/content-fixes-maintenance-20261023.json'));
 const box = vm.createContext({ window: {} });
 const dataFiles = ['js/words-data.js', 'js/cet-words-data.js', 'js/combined-words-data.js'];
 dataFiles.forEach(file => vm.runInContext(read(file), box, { filename: file }));
@@ -137,6 +138,98 @@ check('tum 保留词头、真实名词义与自编例句；modem 保留调制解
   }
   assert.ok(books.cet6.some(row => row[0] === 'questions'));
 });
+check('M03–M06四词八引用按逐字段证据修补，其余字段保持', () => {
+  assert.equal(maintenanceFixture.corrections.length, 4);
+  assert.deepEqual(maintenanceFixture.corrections.map(item => item.id), ['M03', 'M04', 'M05', 'M06']);
+  const mismatches = [];
+  for (const item of maintenanceFixture.corrections) {
+    assert.equal(item.references.length, 2, item.id);
+    assert.ok(item.evidence.every(url => /^https:\/\/www\.oxfordlearnersdictionaries\.com\/definition\/english\//.test(url)));
+    for (const reference of item.references) {
+      const row = books[reference.book][reference.index];
+      assert.equal(row[0], item.word, item.id + ' 词头/索引不变');
+      const expected = reference.originalRow.slice();
+      for (const [field, value] of Object.entries(item.after)) expected[Number(field)] = value;
+      if (JSON.stringify(row) !== JSON.stringify(expected)) mismatches.push(item.id + ' ' + reference.book + '#' + reference.index + ' ' + item.word);
+    }
+  }
+  assert.deepEqual(mismatches, [], '已确认四词修补尚未落地或存在超范围字段变更');
+});
+check('M03 resit保持真实词头、动词主读音和明确屈折，不接收旧错误词形', () => {
+  const item = maintenanceFixture.corrections.find(item => item.id === 'M03');
+  for (const reference of item.references) {
+    const row = books[reference.book][reference.index];
+    assert.equal(row[1], 'ˌriːˈsɪt'); assert.doesNotMatch(row[1], /[\s/]/);
+    assert.match(row[10], /第三人称单数 resits/); assert.doesNotMatch(row[10], /resiting|resited|复数/);
+    for (const form of ['resits', 'resitting', 'resat']) assert.equal(exampleHasWordForm(row[0], 'She is ' + form + ' the exam.', row[10]), true, form);
+    for (const form of ['resiting', 'resited', 'resist', 'resisting']) assert.equal(exampleHasWordForm(row[0], 'She is ' + form + ' the exam.', row[10]), false, form);
+  }
+});
+check('M04 shifty eyes覆盖躲闪/显得不诚实语境，已有义与自编例句保留', () => {
+  const item = maintenanceFixture.corrections.find(item => item.id === 'M04');
+  for (const reference of item.references) {
+    const row = books[reference.book][reference.index];
+    assert.match(row[2], /躲闪/); assert.match(row[2], /不诚实/); assert.match(row[2], /变化/);
+    assert.match(row[7], /shifty eyes/); assert.equal(row[7], reference.originalRow[7]); assert.equal(row[8], '自编');
+  }
+});
+check('M05/M06目标例句与词义词形一致，自编来源准确，旧完整句不作全局封禁', () => {
+  for (const item of maintenanceFixture.corrections.filter(item => ['M05', 'M06'].includes(item.id))) {
+    assert.equal(isConfirmedBadExample(item.before['7']), false, item.word + ' 只拒绝目标词错配');
+    for (const reference of item.references) {
+      const row = books[reference.book][reference.index];
+      assert.equal(row[7], item.after['7']); assert.equal(row[8], '自编');
+      assert.equal(exampleHasWordForm(item.word, item.before['7'], row[10]), false, item.word + ' 旧句不是本词词形');
+      assert.equal(exampleHasWordForm(item.word, row[7], row[10]), true, item.word + ' 新句含目标词形');
+      assert.deepEqual(mechanicalExampleRisks(row[7]), []);
+      if (item.id === 'M06') { assert.equal(row[3], 0); assert.match(row[2], /枪战/); assert.match(row[7], /soldiers.*firefight/); }
+    }
+  }
+});
+check('M06只修firefight关联，firefighting与完整旧句其他六引用逐字段不变', () => {
+  assert.equal(maintenanceFixture.protectedReferences.length, 6);
+  assert.equal(maintenanceFixture.protectedReferences.filter(reference => reference.row[0] === 'firefighting').length, 2);
+  for (const reference of maintenanceFixture.protectedReferences) {
+    const row = books[reference.book][reference.index];
+    assert.equal(JSON.stringify(row), JSON.stringify(reference.row), reference.book + '#' + reference.index + ' ' + row[0]);
+    assert.equal(exampleHasWordForm(row[0], row[7], row[10]), true, row[0]);
+    assert.deepEqual(confirmedCorrectionIssues(reference.book, row), [], row[0] + ' 合法共享原句不误伤');
+  }
+});
+check('维护窄门控逐字段拒绝旧值回流，合法新值/旧来源/其他词头和其他词书不误伤', () => {
+  for (const item of maintenanceFixture.corrections) for (const reference of item.references) {
+    const corrected = reference.originalRow.slice();
+    for (const [field, value] of Object.entries(item.after)) corrected[Number(field)] = value;
+    assert.deepEqual(confirmedCorrectionIssues(reference.book, corrected), [], item.id + ' 修后行应允许');
+    for (const field of Object.keys(item.after).filter(field => field !== '8')) {
+      const reverted = corrected.slice(); reverted[Number(field)] = item.before[field];
+      assert.ok(confirmedCorrectionIssues(reference.book, reverted).length > 0, item.id + ' 字段' + field + ' 旧值应拒绝');
+      const otherHead = reverted.slice(); otherHead[0] = 'unrelated';
+      assert.deepEqual(confirmedCorrectionIssues(reference.book, otherHead), [], item.id + ' 其他词头不套此规则');
+      const otherBook = Object.keys(books).find(book => !item.references.some(ref => ref.book === book));
+      assert.deepEqual(confirmedCorrectionIssues(otherBook, reverted), [], item.id + ' 非指定词书不套此规则');
+      if (field === '7') {
+        reverted[7] = '  ' + item.before['7'].replace(/\s/g, '  ') + '\n';
+        assert.ok(confirmedCorrectionIssues(reference.book, reverted).length > 0, item.id + ' 旧句多空白仍拒绝');
+      }
+    }
+    if (Object.hasOwn(item.before, '8')) {
+      const futureExam = corrected.slice(); futureExam[8] = item.before['8'];
+      assert.deepEqual(confirmedCorrectionIssues(reference.book, futureExam), [], item.id + ' 不单独封禁旧来源标签');
+    }
+  }
+});
+check('维护批次进度主键/统计/版本全不动，主词性仅允许firefight两引用纠正', () => {
+  for (const [book, rows] of Object.entries(books)) {
+    const baseline = maintenanceFixture.baseline[book];
+    assert.equal(rows.length, baseline.count); assert.equal(box.window.WORD_BOOK_META[book].dataVersion, baseline.dataVersion);
+    assert.equal(hash(rows.map(row => [row[0], row[4], row[5], row[6], row[9]])), baseline.indexHash, book);
+    assert.equal(hash(rows.map(row => [row[0], row[3], row[4], row[5], row[6], row[9]])), baseline.expectedPosIndexHash, book);
+    const restored = rows.map(row => [row[0], row[0] === 'firefight' ? 1 : row[3], row[4], row[5], row[6], row[9]]);
+    assert.equal(hash(restored), baseline.oldPosIndexHash, book + ' 其余词性不变');
+    assert.equal(fixture.baseline[book].posIndexHash, baseline.expectedPosIndexHash, book + ' 既有基线精确更新');
+  }
+});
 check('第三批夹具逐族 id/批次唯一，追加残留句全部可被机械污染 warning 扫描召回', () => {
   const ids = thirdFixture.families.map(family => family.id);
   assert.equal(ids.length, 400);
@@ -226,7 +319,7 @@ check('第三批 keep 句族不作防回归封禁；机械污染 warning 扫描�
 // 在隔离目录执行真实校验器，证明门控会使退出码失败，而不只是多打印一条 warning。
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'vocab-content-gate-'));
 try {
-  for (const file of [...dataFiles, 'js/content-validation.mjs', 'js/validate-words.mjs', 'js/validate-cet-data.mjs', 'tests/fixtures/content-fixes-20261023.json', 'tests/fixtures/content-fixes-batch2-20261023.json', 'tests/fixtures/content-fixes-batch3-20261023.json']) {
+  for (const file of [...dataFiles, 'js/content-validation.mjs', 'js/validate-words.mjs', 'js/validate-cet-data.mjs', 'tests/fixtures/content-fixes-20261023.json', 'tests/fixtures/content-fixes-batch2-20261023.json', 'tests/fixtures/content-fixes-batch3-20261023.json', 'tests/fixtures/content-fixes-maintenance-20261023.json']) {
     const target = path.join(tmp, file); fs.mkdirSync(path.dirname(target), { recursive: true }); fs.writeFileSync(target, read(file));
   }
   for (const [validator, file, key] of [['js/validate-words.mjs', 'js/words-data.js', 'kaoyan'], ['js/validate-cet-data.mjs', 'js/cet-words-data.js', 'cet4']]) {
@@ -241,6 +334,23 @@ try {
         assert.match(result.stdout + result.stderr, expected);
         fs.writeFileSync(path.join(tmp, file), source);
       });
+    }
+    const sourceBooks = key === 'kaoyan' ? ['kaoyan'] : ['cet4', 'cet6'];
+    for (const item of maintenanceFixture.corrections) {
+      const reference = item.references.find(reference => sourceBooks.includes(reference.book));
+      if (!reference) continue;
+      for (const field of Object.keys(item.after).filter(field => field !== '8')) {
+        check(validator + ' 对 ' + item.id + ' ' + item.word + ' 字段' + field + ' 回流返回失败', () => {
+          const row = Array.from(books[reference.book][reference.index]), original = JSON.stringify(row);
+          row[Number(field)] = item.before[field];
+          const source = read(file); assert.equal(source.includes(original), true, item.word + ' 正式源中存在修后行');
+          fs.writeFileSync(path.join(tmp, file), source.replace(original, JSON.stringify(row)));
+          const result = spawnSync(process.execPath, ['--max-old-space-size=512', path.join(tmp, validator)], {cwd: tmp, encoding: 'utf8', maxBuffer: 2 * 1024 * 1024});
+          assert.equal(result.status, 1, item.id + ' 字段' + field + ' 应拒绝');
+          assert.match(result.stdout + result.stderr, /已确认内容修订回流/);
+          fs.writeFileSync(path.join(tmp, file), source);
+        });
+      }
     }
   }
 } finally { fs.rmSync(tmp, { recursive: true, force: true }); }

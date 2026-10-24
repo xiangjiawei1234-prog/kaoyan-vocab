@@ -29,8 +29,9 @@ try{
 
   await seed(120000,false);
   check('关闭态先提供明确启用入口',await p.eval(`document.querySelector('#startEmptyWait').disabled&&!document.querySelector('#autoResumeQuick').hidden`));
-  await click('#autoResumeQuick');await click('#startEmptyWait');
-  check('先明确启用再选择等待，仍为0张',await p.eval(`window.__vocab.getAutoResumeState().waitingForDue&&window.__vocab.getGroupTotal()===0&&window.__vocab.answered===0`),await state());
+  check('关闭态复合动作明确说明启用并等待',await p.eval(`document.querySelector('#autoResumeQuick').textContent==='启用便捷并在本页等待'`));
+  await click('#autoResumeQuick');
+  check('一次明确启用并选择等待，仍为0张',await p.eval(`window.__vocab.getAutoResumeState().waitingForDue&&window.__vocab.getGroupTotal()===0&&window.__vocab.answered===0`),await state());
   await p.reload();await p.waitFor('window.__vocab');
   check('真实刷新清除本页等待资格',await p.eval(`window.__vocab.cur===null&&!window.__vocab.getAutoResumeState().waitingForDue&&!window.__vocab.getAutoResumeState().eligible`),await state());
 

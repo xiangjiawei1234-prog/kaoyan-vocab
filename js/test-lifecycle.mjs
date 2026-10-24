@@ -841,5 +841,116 @@ for (const hadProgress of [false, true]) {
   store.set(KEY, raw);
 }
 
+/* ================= 14. M02 曲线/重学间隔统一待生效差异 ================= */
+console.log("== 14. 曲线与不会后重学间隔的待生效提示 ==");
+{
+  setup({groupSize: 5}); T.applyStagePreset("balanced"); T.startSession(); T.show("set");
+  T.judge(true);
+  const before = groupSig(), frozen = clone(plan()), word = T.cur;
+  const dueBefore = S().progress[word][1];
+  T.setStageMinutes(0, 720);
+  ck(T.hasPendingScopeSettings(), "只改单档曲线也标记设置待应用");
+  ck(eqGroup(groupSig(), before) && eq(plan(), frozen) && T.phase === "revealed",
+    "改单档保留当前队列、揭示判定、分母和完整冻结计划");
+  ck(S().progress[word][1] === dueBefore && plan().scopeSig === frozen.scopeSig,
+    "改单档不追溯到期时间，不扩展或改写scopeSig");
+  const current = stateEl("#settingsCurrentGroup").innerHTML;
+  const next = stateEl("#settingsNextPreview").innerHTML;
+  ck(/下一组生效/.test(current) && /复习曲线/.test(current) && /均衡/.test(current)
+    && /自定义/.test(current) && /1 档/.test(current),
+    "设置页显示本组到下组曲线名及变更档数", current);
+  ck(/自定义/.test(next) && /不会后重学/.test(next), "下一组预览包含已保存的曲线与重学间隔", next);
+  ck(!stateEl("#applySettingsRestart").hidden && !stateEl("#applySettingsRestart").disabled,
+    "只改曲线也出现可用的显式重开入口");
+  ck(!stateEl("#planPendingNotice").hidden && /复习曲线/.test(stateEl("#planPendingText").innerHTML),
+    "学习页提示同步说明曲线待应用");
+  T.setStageMinutes(0, 1440);
+  ck(settings().stagePreset === "custom" && !T.hasPendingScopeSettings(),
+    "改回本组参数即清pending，纯预设名称差异不算待应用");
+  ck(stateEl("#planPendingNotice").hidden && stateEl("#applySettingsRestart").hidden
+    && /与当前设置一致/.test(stateEl("#settingsCurrentGroup").innerHTML),
+    "改回本组值后统一提示与重开入口清除");
+  T.setStageMinutes(4, 11 * 1440);
+  ck(T.hasPendingScopeSettings(), "首末档不变、只改中间第5档也能识别");
+  T.setStageMinutes(4, 10 * 1440);
+  T.undo();
+  ck(T.verdict === null && T.answered === 0 && !S().progress[word], "曲线编辑后原组判定仍可完整撤销");
+}
+{
+  setup({groupSize: 5}); T.applyStagePreset("balanced"); T.startSession(); T.show("study");
+  const frozen = clone(plan()), before = groupSig();
+  T.setRelearnMinutes(2880);
+  ck(T.hasPendingScopeSettings() && eqGroup(groupSig(), before) && eq(plan(), frozen),
+    "只改不会后重学间隔标记pending且保留本组现场");
+  const hint = stateEl("#planPendingText").innerHTML;
+  ck(!stateEl("#planPendingNotice").hidden && /不会后重学/.test(hint)
+    && /1 天/.test(hint) && /2 天/.test(hint), "学习页准确显示重学间隔旧值到新值", hint);
+  ck(/不会后重学/.test(stateEl("#settingsCurrentGroup").innerHTML)
+    && /2 天/.test(stateEl("#settingsCurrentGroup").innerHTML), "设置页同步显示只改重学间隔的差异");
+  ck(typeof stateEl("#planPendingApply").onclick === "function", "只改重学间隔也绑定学习页重开动作");
+  ck(/自定义/.test(stateEl("#settingsNextPreview").innerHTML),
+    "仅重学间隔自定义时摘要与复习节奏区按同一实际参数识别名称");
+  stateEl("#planPendingApply").onclick?.();
+  ck(!T.hasPendingScopeSettings() && plan().relearnMs === 2880 * 60000
+    && stateEl("#planPendingNotice").hidden, "显式重开采用新重学间隔并清pending");
+  T.setFontSize("large"); T.setReviewCap(77);
+  ck(!T.hasPendingScopeSettings(), "即时字号和复习上限不参与冻结设置差异");
+  T.setFontSize("standard");
+}
+{
+  setup({groupSize: 5}); T.applyStagePreset("balanced"); T.startSession(); T.show("study");
+  T.judge(true);
+  const before = groupSig(), frozen = clone(plan()), word = T.cur;
+  const legacy = T.getStagePresets().legacy;
+  receiveStoredSettings({stages: legacy.stages, relearn: legacy.relearn, stagePreset: "legacy"});
+  ck(T.hasPendingScopeSettings() && eqGroup(groupSig(), before) && eq(plan(), frozen),
+    "跨标签只改曲线/重学间隔保留本组并标记待应用");
+  ck(/旧版密集/.test(stateEl("#settingsCurrentGroup").innerHTML)
+    && /不会后重学/.test(stateEl("#planPendingText").innerHTML), "跨标签差异同步到设置页和学习页");
+  T.undo();
+  ck(!S().progress[word] && T.answered === 0, "跨标签仅曲线变化后原判定仍可撤销");
+}
+{
+  setup({groupSize: 5}); T.applyStagePreset("balanced"); T.startSession(); T.show("study");
+  T.judge(true);
+  const before = groupSig(), frozen = clone(plan());
+  const snapshotKey = T.getSessionSnapshotKey();
+  const oldSnapshot = store.get(snapshotKey);
+  ck(JSON.parse(JSON.parse(oldSnapshot).scopeSig).length === 10, "恢复回归使用原10字段scopeSig快照");
+  T.setStageMinutes(0, 720); T.setRelearnMinutes(2880);
+  ck(store.get(snapshotKey) === oldSnapshot && T.getSessionSnapshotState().valid,
+    "保存曲线不改旧快照，其与新设置不同仍有效");
+  const reloaded = T.simulateReload();
+  ck(reloaded.mode === "restored" && eqGroup(groupSig(), before) && eq(plan(), frozen),
+    "旧scopeSig快照刷新后恢复原冻结曲线和已揭示现场");
+  ck(T.hasPendingScopeSettings() && !stateEl("#planPendingNotice").hidden
+    && /下一组生效/.test(stateEl("#planPendingText").innerHTML), "刷新恢复后仍显示曲线待应用");
+  T.show("set");
+  ck(!stateEl("#applySettingsRestart").hidden && /不会后重学/.test(stateEl("#settingsCurrentGroup").innerHTML),
+    "刷新后设置页仍可查看差异并显式重开");
+}
+{
+  setup({groupSize: 5}); T.applyStagePreset("balanced"); T.startSession(); T.show("study");
+  T.judge(false); T.tryNext(); T.startDrill();
+  const before = groupSig(), frozen = clone(plan());
+  T.setRelearnMinutes(2880);
+  ck(T.drillMode && T.hasPendingScopeSettings() && eqGroup(groupSig(), before) && eq(plan(), frozen),
+    "特训内只改曲线设置保留特训与冻结父组");
+  ck(stateEl("#planPendingNotice").hidden && stateEl("#applySettingsRestart").hidden
+    && T.applySettingsRestart() === false, "特训内曲线差异不抢学习页、不可显式重开父组");
+  T.exitDrill();
+  ck(T.hasPendingScopeSettings() && !stateEl("#planPendingNotice").hidden,
+    "退出特训后父组继续显示重学间隔待应用");
+  T.setRelearnMinutes(1440); answerAllKnown(); T.grantExtraNew(10);
+  ck(T.startExtraSubgroup(), "曲线隔离回归进入额外新词子组");
+  const sub = groupSig(), subPlan = clone(plan());
+  T.setStageMinutes(0, 720);
+  ck(T.isExtraSubgroup() && T.hasPendingScopeSettings() && eqGroup(groupSig(), sub) && eq(plan(), subPlan),
+    "子组内曲线变化与父组比较，不重建当前子组");
+  ck(stateEl("#applySettingsRestart").hidden && T.applySettingsRestart() === false,
+    "子组内曲线变化也不能重开父组");
+  T.endExtraSubgroup();
+}
+
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);
 process.exit(fail ? 1 : 0);

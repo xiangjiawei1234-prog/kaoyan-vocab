@@ -20,6 +20,10 @@ async function seed({theme='light',fontSize='standard',kind='normal'}={}){
 async function viewport(width,height=width<500?900:1000){await p.setViewport(width,height,{mobile:width<500});await sleep(90);}
 async function shot(name){const file=await p.screenshot('surfaces-'+name+'.png');report.shots.push(file);return file;}
 async function geometry(name,{state,expectedActs,completeMin}={}){
+  // U3：词卡随内容自然展开，动作在其后；先通过主区滚动让真实动作可见，
+  // 再检验尺寸、重叠与指针命中。不能继续把“始终在首屏”当作卡内滚动的前提。
+  const action = await p.eval(`(() => {const selectors=['#nx','#no','#again','#capPauseEnd'];return selectors.find(s=>{const e=document.querySelector(s);return e&&!e.hidden&&e.getClientRects().length;})||null;})()`);
+  if(action){await p.scrollIntoView(action);await sleep(90);}
   const actual=await p.eval(`(() => {const r=s=>{const e=document.querySelector(s);if(!e||e.hidden)return null;const x=e.getBoundingClientRect(),c=getComputedStyle(e);if(c.display==='none')return null;return {x:x.x,y:x.y,w:x.width,h:x.height,right:x.right,bottom:x.bottom,minHeight:c.minHeight,overflow:c.overflowY,text:e.innerText?.slice(0,120)};};const hit=s=>{const e=document.querySelector(s);if(!e||e.hidden)return null;const r=e.getBoundingClientRect();if(r.width<2||r.height<2)return null;const x=r.x+r.width/2,y=r.y+r.height/2,h=document.elementFromPoint(x,y);return {selector:s,inView:x>=0&&y>=0&&x<innerWidth&&y<innerHeight,hit:h?.id||h?.className||h?.tagName,ok:!!h&&(h===e||e.contains(h))};};return {width:innerWidth,height:innerHeight,doc:document.documentElement.scrollWidth,main:document.querySelector('#main').scrollWidth,mainClient:document.querySelector('#main').clientWidth,card:r('#card'),acts:r('#acts'),hint:r('#hint'),group:r('#groupStatus'),cap:r('#capPause'),current:window.__vocab.cur,phase:window.__vocab.phase,buttons:['#ok','#no','#fix','#nx','#again','#capPauseEnd','#extraNew10Paused'].map(hit).filter(Boolean)};})()`);
   report.surfaces.push({name,state,actual});
   check(name+' 页面无横向溢出',actual.doc<=actual.width+1&&actual.main<=actual.mainClient+1,actual);
