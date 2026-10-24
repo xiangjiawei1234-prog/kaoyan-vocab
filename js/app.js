@@ -745,6 +745,7 @@
     "fontSize", "voiceURI", "speechRate", "actionKeys", "gestures", "actionLayout",
     "cardDensity", "readingOrder", "showCardMeta", "showCardStage", "showCardPos", "secondaryActions"
   ]);
+  const F1_PREFERENCE_FIELDS = Object.freeze(["cardDensity", "readingOrder", "showCardMeta", "showCardStage", "showCardPos", "secondaryActions"]);
   const PREFERENCE_LABELS = Object.freeze({
     theme: "颜色主题", keys: "自定义快捷键", showPh: "显示音标", showEx: "显示例句", showFm: "显示词形",
     autoSpk: "自动发音", singleCharKeys: "单字符快捷键", fontSize: "阅读字号", voiceURI: "英语语音",
@@ -765,6 +766,7 @@
   let devicePrefsInitialized = false;
   let devicePrefsWriteNotified = false;
   let lastResolvedPrefs = {};
+  let devicePreferenceInputError = "";
   let prefJournalRecovered = false;
   let prefJournalRecoveryFailed = false;
 
@@ -772,6 +774,47 @@
     return (value && typeof value === "object") ? JSON.parse(JSON.stringify(value)) : value;
   }
   function prefValuesEqual(a, b){ return JSON.stringify(a) === JSON.stringify(b); }
+  /** 设备与本书字段可分别继承，但最终生效的两组按键仍须通过同一上下文冲突规则。 */
+  function plannedPreferenceInputError(nextPrefs, nextSettings, previousPrefs){
+    const beforePrefs = previousPrefs || devicePrefs;
+    if (!beforePrefs || !isRecord(beforePrefs.shared) || !isRecord(nextPrefs?.shared)) return "";
+    const inputFields = ["keys", "actionKeys"];
+    const sharedChanges = inputFields.filter(field => !prefValuesEqual(beforePrefs.shared[field], nextPrefs.shared[field]));
+    const currentBefore = Object.assign({}, S.settings, lastResolvedPrefs);
+    const currentAfter = nextSettings || S.settings;
+    for (const def of BOOK_DEFS) {
+      const book = BOOKS[def.id]; if (!book?.available) continue;
+      const oldOwn = beforePrefs.overrides?.[def.id] || [], nextOwn = nextPrefs.overrides?.[def.id] || [];
+      const ownershipChanged = inputFields.some(field => oldOwn.includes(field) !== nextOwn.includes(field));
+      const sharedAffects = sharedChanges.some(field => !oldOwn.includes(field) || !nextOwn.includes(field));
+      const ownValueChanged = def.id === currentBookId && inputFields.some(field =>
+        (oldOwn.includes(field) || nextOwn.includes(field)) && !prefValuesEqual(currentBefore[field], currentAfter[field]));
+      if (!ownershipChanged && !sharedAffects && !ownValueChanged) continue;
+      let stored = null;
+      if (def.id !== currentBookId && inputFields.some(field => oldOwn.includes(field) || nextOwn.includes(field))) {
+        try {
+          const raw = localStorage.getItem(book.KEY);
+          const parsed = raw === null ? null : JSON.parse(raw);
+          if (raw !== null && !isRecord(parsed)) throw new Error("bad state");
+          stored = parsed ? normalizeState(parsed, def.id).settings : clonePrefValue(DEF.settings);
+          // normalizeState会处理历史缺项；原文里逐字段合法的按键则原样核对，不为冲突检测先删映射。
+          for (const field of inputFields) if (validPreferenceValue(field, parsed?.settings?.[field])) {
+            stored[field] = clonePrefValue(parsed.settings[field]);
+          }
+        } catch (e) { return "暂时无法核对“" + book.name + "”的本书快捷键，本次设置未应用，请先检查该书记录。"; }
+      }
+      const before = {}, after = {};
+      for (const field of inputFields) {
+        before[field] = oldOwn.includes(field) ? (def.id === currentBookId ? currentBefore[field] : stored[field]) : beforePrefs.shared[field];
+        after[field] = nextOwn.includes(field) ? (def.id === currentBookId ? currentAfter[field] : stored[field]) : nextPrefs.shared[field];
+      }
+      if (prefValuesEqual(before, after)) continue; // 已存在且本次未改变的配置不阻止无关修改。
+      const conflict = inputBindingConflict(after.keys, after.actionKeys);
+      if (conflict) return "无法应用快捷键：“" + book.name + "”的“" + conflict.label + "”均使用 "
+        + keyName(conflict.binding) + "，请先修改该词书的快捷键或归属；原配置已保留。";
+    }
+    return "";
+  }
   function prefBookIds(){ return BOOK_DEFS.map(def => def.id); }
   function defaultPreferenceShared(){
     const out = {};
@@ -849,6 +892,9 @@
     let legacy = false;
     for (const field of PREFERENCE_FIELDS) {
       if (!Object.prototype.hasOwnProperty.call(parsed.shared, field)) {
+        if (!F1_PREFERENCE_FIELDS.includes(field)) {
+          return {ok: false, status: "damaged", error: "偏好归属缺少必填字段：" + (PREFERENCE_LABELS[field] || field)};
+        }
         shared[field] = clonePrefValue(DEF.settings[field]);
         legacy = true;
         continue;
@@ -906,7 +952,10 @@
     devicePrefsError = decoded.error || "";
     return {status: devicePrefsStatus, error: devicePrefsError, raw: raw};
   }
-  function persistDevicePreferences(prefs){
+  function persistDevicePreferences(prefs, options){
+    options = options || {};
+    devicePreferenceInputError = plannedPreferenceInputError(prefs, options.settings, options.previousPrefs);
+    if (devicePreferenceInputError) return false;
     const text = JSON.stringify(prefs);
     try {
       localStorage.setItem(DEVICE_PREFS_KEY, text);
@@ -1078,7 +1127,18 @@
     if (accepted.length) {
       const next = clonePrefValue(base);
       for (const field of accepted) next.shared[field] = clonePrefValue(S.settings[field]);
-      if (!persistDevicePreferences(next)) {
+      if (!persistDevicePreferences(next, {previousPrefs: base, settings: S.settings})) {
+        if (devicePreferenceInputError) {
+          const previous = clonePrefValue(S.settings);
+          for (const field of fields) S.settings[field] = clonePrefValue(lastResolvedPrefs[field]);
+          noteInputPreferencesCommitted(previous);
+          syncLastResolvedPreferences();
+          refreshSharedSettingsSurfaces(true, previous);
+          toast(devicePreferenceInputError);
+          const status = $("#preferenceOwnershipStatus");
+          if (status) status.textContent = devicePreferenceInputError;
+          return false;
+        }
         markPreferenceWriteFailure("浏览器存储写入失败");
         return false;
       }
@@ -1203,6 +1263,8 @@
     try { latestDeviceRaw = localStorage.getItem(DEVICE_PREFS_KEY); }
     catch (e) { return prefFail("浏览器存储不可用，偏好归属未改动"); }
     if (latestDeviceRaw !== devicePrefsRaw) return prefFail("另一页面刚更新了偏好归属，请等待同步后重试，本次未改动");
+    const inputError = plannedPreferenceInputError(nextPrefs, nextSettings);
+    if (inputError) return prefFail(inputError);
     const deviceText = JSON.stringify(nextPrefs);
     let mainText = null;
     if (opts.saveBook !== false) {
@@ -3723,7 +3785,9 @@
     if(action==="listSearch"){show("list");$("#q")?.focus?.();return outcome(true);}
     if (action === "continue") { const started = continueMainSession(); return outcome(started, started ? null : "unavailable", started); }
     if (action === "return") {
-      if (!save()) return outcome(false, "storage");
+      // 返回只恢复本页父现场，不开新组；与现有返回按钮一致，存储故障不能困住用户。
+      // 仍尝试同步权威记录，若同步使返回资格失效则在下面按最新上下文拒绝。
+      save();
       if (!deriveStudyPresentation().returnAction) return outcome(false, "context");
       const ok = drillMode ? exitDrill() : inSubgroup() ? endActiveSubgroup() : returnToPreviousResults();
       return outcome(ok, ok ? null : "unavailable");
@@ -9499,7 +9563,7 @@
     return null;
   }
   /** 旧方案兼容解码只补明确新增批次字段；读取旧方案不写回目录，不修原有缺失或坏值。 */
-  const APPEARANCE_COMPAT_FIELDS = ["cardDensity", "readingOrder", "showCardMeta", "showCardStage", "showCardPos", "secondaryActions"];
+  const APPEARANCE_COMPAT_FIELDS = F1_PREFERENCE_FIELDS;
   function decodeSettingsProfile(profile){
     const out=cloneSettingsValue(profile);
     if(isRecord(out) && Array.isArray(out.categories) && isRecord(out.settings)) {
@@ -9978,9 +10042,12 @@
     el.innerHTML = (!r.ok ? '<p class="workspace-error">' + esc(r.error) + '</p>' : '') + r.profiles.map(p => {
       const cats = p.categories.filter(c=>selected.includes(c));
       const preview = previewSettingsProfile(p,cats), builtin = p.id.startsWith("builtin_");
+      // 类别不相交是正常筛选结果，不冒充输入错误；真实方案/范围错误仍用错误提示。
+      const noApplicableCategories = !cats.length && !validateSettingsProfile(decodeSettingsProfile(p));
       return '<article class="profile-card" data-profile-id="' + esc(p.id) + '"><div class="profile-heading"><h3>' + esc(p.name)
         + '</h3><span>' + esc((BOOKS[p.bookId] || {}).name || p.bookId) + (builtin ? " · 内置" : "") + '</span></div>'
-        + (preview.ok ? '<p class="sheet-note">应用到' + esc(currentBook().name) + ' · 范围匹配 ' + preview.scopeCount + ' 词 · '
+        + (noApplicableCategories ? '<p class="sheet-note">' + (selected.length ? '此方案不包含所选类别' : '请选择要应用的类别') + '</p>'
+          : preview.ok ? '<p class="sheet-note">应用到' + esc(currentBook().name) + ' · 范围匹配 ' + preview.scopeCount + ' 词 · '
           + (preview.changes.length ? preview.changes.length + ' 项变化' : '配置值已一致')
           + (preview.preferenceFields.length ? ' · 仅应用本书，界面偏好设为本书单独' : ' · 仅应用本书') + '</p>'
           + (preview.changes.length ? '<details class="profile-changes"><summary>查看差异与生效时间</summary>' + diffRowsHtml(preview.changes) + '</details>' : '')
@@ -10053,6 +10120,7 @@
   }
   function initSettingsWorkspace(){
     if (!$("#settingsWorkspaceSheet")) return;
+    $$("#settingsWorkspaceSheet [data-close]").forEach(el => { el.onclick = closeSheet; });
     workspaceCategories("#profileApplyCategories","data-profile-apply-category",SETTINGS_CATEGORIES.map(x=>x.id));
     workspaceCategories("#profileSaveCategories","data-profile-save-category",["plan","scope","rhythm"]);
     $("#btnQuickSettings").onclick=()=>openSettingsWorkspace("quick");
@@ -11188,6 +11256,12 @@
       btn.setAttribute?.("aria-label", "切换词书（当前 " + book.name + "）");
       btn.setAttribute?.("title", "切换词书（当前 " + book.name + "）");
     }
+    const scopeName = $("#scopeBookName"), scopeMark = $("#scopeBookMark"), scopeMeta = $("#scopeBookMeta");
+    if (scopeName) scopeName.textContent = book.name;
+    if (scopeMark) scopeMark.textContent = book.mark;
+    if (scopeMeta) scopeMeta.textContent = book.words.length + " 词 · 学习进度按词书独立保存";
+    const scopeButton = $("#btnScopeBooks");
+    if (scopeButton) scopeButton.setAttribute?.("aria-label", "切换词书（当前 " + book.name + "）");
   }
   /** 设置页随当前词书变化的文案、上限与预设 */
   function applyBookText(){
@@ -11251,12 +11325,14 @@
         "</button>";
     }).join("");
   }
-  function openBookSheet(){
+  function openBookSheet(event){
+    // 显式记住真实入口：macOS鼠标点击原生按钮不一定聚焦，设置页关闭后仍应回到此处。
+    const trigger = event?.currentTarget || event?.target?.closest?.("#btnBooks, #btnScopeBooks");
+    if (trigger && ["btnBooks", "btnScopeBooks"].includes(trigger.id)) trigger.focus?.({preventScroll: true});
     renderBookList();
     renderBookPageUi();
     openSheet("#bookSheet");
-    const btn = $("#btnBooks");
-    if (btn) btn.setAttribute?.("aria-expanded", "true");
+    for (const id of ["#btnBooks", "#btnScopeBooks"]) $(id)?.setAttribute?.("aria-expanded", "true");
   }
 
   /* ================= 按键：同一解析/冲突/命令入口 ================= */
@@ -11298,13 +11374,24 @@
     const all=Object.assign({},S.settings.keys,S.settings.actionKeys),context=inputContext();
     const active=INPUT_ACTIONS.filter(a=>a.contexts.includes(context));
     const exact=bindingFromEvent(e);
+    const pick = matches => {
+      if (matches.length > 1) {
+        e.preventDefault?.();
+        toast("快捷键 " + keyName(exact || all[matches[0].id]) + " 同时对应“" + matches.map(action => action.label).join(" / ")
+          + "”，请到按键设置修改其中一项；本次未执行。");
+        return null;
+      }
+      return matches[0]?.id || null;
+    };
     if(exact && exact.startsWith("shift+")) {
       const matching=INPUT_ACTIONS.filter(a=>all[a.id]===exact);
-      if(matching.length) return matching.find(a=>a.contexts.includes(context))?.id
-        || (matching.some(a => a.id === "next") ? completedNextAction() : null);
+      if(matching.length) {
+        const inContext=matching.filter(a=>a.contexts.includes(context));
+        return inContext.length ? pick(inContext) : (matching.some(a => a.id === "next") ? completedNextAction() : null);
+      }
     }
-    return active.find(a=>keyMatch(e,all[a.id]))?.id
-      || (keyMatch(e, all.next) ? completedNextAction() : null);
+    const matches=active.filter(a=>keyMatch(e,all[a.id]));
+    return matches.length ? pick(matches) : (keyMatch(e, all.next) ? completedNextAction() : null);
   }
   function setInputBinding(action,binding){
     const descriptor=INPUT_ACTIONS.find(a=>a.id===action);
@@ -11336,7 +11423,9 @@
       b.setAttribute?.("aria-pressed",String(rebinding===action));
     });
     const status=$("#keyBindingStatus"),descriptor=INPUT_ACTIONS.find(a=>a.id===rebinding);
+    const existingConflict = inputBindingConflict(S.settings.keys, S.settings.actionKeys);
     if(status)status.textContent=descriptor?"正在修改「"+descriptor.label+"」：按新键或Shift+字母，Esc取消。"+(Object.prototype.hasOwnProperty.call(DEFACTIONKEYS,rebinding)?"Backspace清除绑定。":"")
+      :existingConflict?"当前“"+existingConflict.label+"”均使用 "+keyName(existingConflict.binding)+"，请修改其中一个按键或归属；原配置已保留。"
       :"选择一个按键后按新键，支持Shift+字母；Esc取消。";
   }
   function captureKey(e){
@@ -11449,6 +11538,13 @@
     if (!activeSheet) return;
     hideExPop();
     const closedId = activeSheet.id;
+    if (closedId === "settingsWorkspaceSheet") {
+      // 所有关闭方式都取消尚未完成的方案读取，避免旧异步结果在关闭后重新出现。
+      workspaceImportSequence++;
+      workspaceImportRaw = null;
+      if ($("#profilesImportPreview")) $("#profilesImportPreview").hidden = true;
+      if ($("#profilesFile")) $("#profilesFile").value = "";
+    }
     if (closedId === "txtSplitSheet") txtSplitContext = null;
     if (closedId === "importSheet") pendingImport = null;
     if (closedId === "spellingSheet") onSpellingSheetClosed();
@@ -11463,8 +11559,7 @@
       applyFilter(false);
     }
     if (closedId === "bookSheet") {
-      const btn = $("#btnBooks");
-      if (btn) btn.setAttribute?.("aria-expanded", "false");
+      for (const id of ["#btnBooks", "#btnScopeBooks"]) $(id)?.setAttribute?.("aria-expanded", "false");
     }
     // 关闭浮层后若回到背诵页，焦点归到卡片：避免焦点留在触发按钮（如 #btnBooks）上时，
     // 空格/回车先被按钮原生激活吞掉（曾导致切书后按空格又打开词书浮层）。
@@ -12719,7 +12814,8 @@
     b.onclick = () => {
       S.settings.theme = b.dataset.theme;
       save(); applyTheme();
-      toast("主题：" + b.textContent);
+      // 并发冲突已同步远端值时，保留冲突解释，不用未应用的点击值覆盖提示。
+      if (S.settings.theme === b.dataset.theme) toast("主题：" + b.textContent);
       markSettingsSaved();
     };
   });
@@ -12980,6 +13076,8 @@
   // 词书入口与选择浮层
   const bookBtnEl = $("#btnBooks");
   if (bookBtnEl) bookBtnEl.onclick = openBookSheet;
+  const scopeBookBtnEl = $("#btnScopeBooks");
+  if (scopeBookBtnEl) scopeBookBtnEl.onclick = openBookSheet;
   $$("#bookSheet [data-close]").forEach(el => { el.onclick = closeSheet; });
   const bookCloseEl = $("#bookClose");
   if (bookCloseEl) bookCloseEl.onclick = closeSheet;

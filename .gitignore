@@ -11,5 +11,8 @@ __pycache__/
 .idea/
 .vscode/
 
+# 本地 agent skill（不上传）
+.dsh/
+
 # 测试生成的校验报告
 tests/reports/

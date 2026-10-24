@@ -94,6 +94,7 @@ function browser(opts = {}) {
     addEventListener(type, fn) { if (!this.events.has(type)) this.events.set(type, []); this.events.get(type).push(fn); }
     removeEventListener() {}
     focus() { doc.activeElement = this; }
+    get isConnected() { return !!(doc && doc.contains(this)); }
     blur() { if (doc.activeElement === this) doc.activeElement = doc.body; }
     getBoundingClientRect() { return { left: 0, top: 0, width: 100, height: 52, bottom: 52, right: 100 }; }
     getClientRects() { return [{ left: 0, top: 0, width: 100, height: 52 }]; }
@@ -104,6 +105,7 @@ function browser(opts = {}) {
         repeat: false, isComposing: false, defaultPrevented: false, stopped: false,
         preventDefault() { this.defaultPrevented = true; }, stopPropagation() { this.stopped = true; }, ...data };
       for (let n = this; n; n = n.parentNode) {
+        event.currentTarget = n;
         if (n['on' + type]) n['on' + type](event);
         for (const fn of n.events.get(type) || []) fn(event);
         if (event.stopped) break;
@@ -317,6 +319,17 @@ test("迁移写失败：保留本页旧值、明确提示归属未保存、安�
   assert.deepEqual(b.device().overrides.kaoyan, PREFERENCE_FIELDS);
 });
 
+test("设备键缺原有必填偏好必须拒绝，只允许明确F1新增字段补缺", () => {
+  const valid=browser().device(),f1=['cardDensity','readingOrder','showCardMeta','showCardStage','showCardPos','secondaryActions'];
+  for(const field of PREFERENCE_FIELDS.filter(x=>!f1.includes(x))){
+    const damaged=clone(valid);delete damaged.shared[field];const raw=JSON.stringify(damaged);
+    const b=browser({initial:{[DEVICE_KEY]:raw,[BOOK_KEYS.kaoyan]:oldState({theme:'dark'})}});
+    assert.equal(b.T.getPreferenceOwnership().status,'damaged','缺少原字段'+field+'不能当成旧版本');
+    assert.equal(b.deviceRaw(),raw,'损坏原文不被默认值覆盖');
+    assert.equal(b.T.getS().settings.theme,'dark','安全使用已有本书偏好');
+  }
+});
+
 test("设备键损坏/高版本：保留原文禁写，各书回退自己的 settings", () => {
   for (const raw of ['{broken', JSON.stringify({ kind: "vocab-device-preferences", version: 9, shared: {}, overrides: {} })]) {
     const b = browser({ initial: {
@@ -516,6 +529,107 @@ test("save 不拿本页旧缓存覆盖另一页刚写入的设备键", () => {
   // 学习判定本身仍成功落盘（不因偏好归属写回而丢进度）
   const saved = b.stateOf("kaoyan");
   assert.ok(saved && Object.keys(saved.progress).length >= 1, "学习进度仍保存");
+});
+
+/* 设备通用与本书覆盖组合后的按键冲突：真实归属事务与保存路径共用校验。 */
+test('设备额外动作不能与另一书保留的六键覆盖冲突，拒绝前不写设备/主键/日志', () => {
+  const b=browser(),T=b.T;
+  assert.equal(T.setPreferenceInheritance(['keys'],false).ok,true);
+  T.switchBook('cet4');
+  const keys=clone(T.getS().settings.keys);keys.know='g';
+  assert.equal(T.applyPreferencePatch({keys},{target:'device'}).ok,true);
+  const beforeDevice=b.deviceRaw(),beforeMain=b.stateRaw('cet4'),beforeKeys=clone(T.getS().settings.keys);
+  const actions=clone(T.getS().settings.actionKeys);actions.listSearch='f';
+  const rejected=T.applyPreferencePatch({actionKeys:actions},{target:'device'});
+  assert.equal(rejected.ok,false);assert.match(rejected.error,/考研英语.*会.*词表搜索.*F/);
+  assert.equal(b.deviceRaw(),beforeDevice);assert.equal(b.stateRaw('cet4'),beforeMain);
+  assert.deepEqual(clone(T.getS().settings.keys),beforeKeys);assert.equal(b.journal(),null);
+  T.switchBook('kaoyan');assert.equal(T.getS().settings.keys.know,'f');assert.equal(T.getS().settings.actionKeys.listSearch,null);
+});
+
+test('设备六键不能与另一书额外动作覆盖冲突，已有本书值不被静默删除', () => {
+  const b=browser(),T=b.T;const sharedKeys=clone(T.getS().settings.keys);sharedKeys.know='g';
+  assert.equal(T.applyPreferencePatch({keys:sharedKeys},{target:'device'}).ok,true);
+  T.switchBook('cet4');const actions=clone(T.getS().settings.actionKeys);actions.listSearch='f';
+  assert.equal(T.applyPreferencePatch({actionKeys:actions},{target:'book'}).ok,true);
+  const cet4Raw=b.stateRaw('cet4');T.switchBook('kaoyan');
+  const before=b.deviceRaw(),keys=clone(T.getS().settings.keys);keys.know='f';
+  const rejected=T.applyPreferencePatch({keys},{target:'device'});
+  assert.equal(rejected.ok,false);assert.match(rejected.error,/英语四级.*会.*词表搜索/);
+  assert.equal(b.deviceRaw(),before);assert.equal(b.stateRaw('cet4'),cet4Raw);
+  assert.equal(T.getS().settings.keys.know,'g');assert.equal(b.journal(),null);
+});
+
+test('只改一组按键的继承或本书值也核对最终有效组合，冲突不半改归属', () => {
+  const b=browser(),T=b.T;const ownKeys=clone(T.getS().settings.keys),ownActions=clone(T.getS().settings.actionKeys);ownActions.listSearch='g';
+  assert.equal(T.applyPreferencePatch({keys:ownKeys,actionKeys:ownActions},{target:'book'}).ok,true);
+  const sharedKeys=clone(ownKeys);sharedKeys.know='g';
+  assert.equal(T.applyPreferencePatch({keys:sharedKeys},{target:'device'}).ok,true);
+  const sharedActions=clone(ownActions);sharedActions.listSearch='f';
+  assert.equal(T.applyPreferencePatch({actionKeys:sharedActions},{target:'device'}).ok,true);
+  const before=b.deviceRaw(),main=b.stateRaw('kaoyan');
+  const inherit=T.setPreferenceInheritance(['actionKeys'],true);
+  assert.equal(inherit.ok,false);assert.match(inherit.error,/考研英语.*会.*词表搜索/);
+  assert.equal(b.deviceRaw(),before);assert.equal(b.stateRaw('kaoyan'),main);
+  const badKeys=clone(ownKeys);badKeys.know='g';
+  assert.equal(T.applyPreferencePatch({keys:badKeys},{target:'book'}).ok,false);
+  assert.equal(b.deviceRaw(),before);assert.equal(b.stateRaw('kaoyan'),main);
+});
+
+test('旧保存入口拒绝跨书组合冲突并还原未接受按键，学习判定仍保存且后续保存不重试坏值', () => {
+  const b=browser(),T=b.T;const sharedKeys=clone(T.getS().settings.keys);sharedKeys.know='g';
+  assert.equal(T.applyPreferencePatch({keys:sharedKeys},{target:'device'}).ok,true);
+  T.switchBook('cet4');const ownActions=clone(T.getS().settings.actionKeys);ownActions.listSearch='f';
+  assert.equal(T.applyPreferencePatch({actionKeys:ownActions},{target:'book'}).ok,true);
+  T.switchBook('kaoyan');const before=b.deviceRaw();
+  T.getS().settings.keys.know='f';T.judge(true);
+  assert.equal(b.deviceRaw(),before);assert.equal(T.getS().settings.keys.know,'g');
+  assert.equal(T.getPreferenceOwnership().status,'ok','配置冲突不是存储故障');
+  assert.ok(Object.keys(b.stateOf('kaoyan').progress).length>0,'学习判定照常保存');
+  assert.match(b.text('#preferenceOwnershipStatus'),/英语四级.*会.*词表搜索/);
+  T.tryNext();assert.equal(b.deviceRaw(),before,'后续翻页保存不再次提交被拒绝的按键');
+});
+
+test('远端主记录物化快照不得经旧同步旁路引入跨书按键冲突', () => {
+  const b=browser(),T=b.T;const sharedKeys=clone(T.getS().settings.keys);sharedKeys.know='g';
+  assert.equal(T.applyPreferencePatch({keys:sharedKeys},{target:'device'}).ok,true);
+  T.switchBook('cet4');const ownActions=clone(T.getS().settings.actionKeys);ownActions.listSearch='f';
+  assert.equal(T.applyPreferencePatch({actionKeys:ownActions},{target:'book'}).ok,true);
+  T.switchBook('kaoyan');const before=b.deviceRaw(),cur=T.cur;
+  const incoming=b.stateOf('kaoyan');incoming.settings.keys.know='f';
+  b.storage.set(BOOK_KEYS.kaoyan,JSON.stringify(incoming));b.storageEvent(BOOK_KEYS.kaoyan);
+  assert.equal(b.deviceRaw(),before);assert.equal(T.getS().settings.keys.know,'g');assert.equal(T.cur,cur);
+});
+
+test('已存在的混合冲突保留用户原值并提示，无关主题修改不被阻止', () => {
+  const fixture=browser(),prefs=fixture.device();prefs.shared.keys.know='g';prefs.shared.actionKeys.listSearch='f';prefs.overrides.kaoyan=['keys'];
+  const state=clone(fixture.T.getS());state.settings.keys.know='f';state.settings.actionKeys.listSearch=null;
+  const b=browser({initial:{[DEVICE_KEY]:prefs,[BOOK_KEYS.kaoyan]:state}}),T=b.T;
+  assert.equal(T.getS().settings.keys.know,'f');assert.equal(T.getS().settings.actionKeys.listSearch,'f');
+  assert.match(b.text('#keyBindingStatus'),/会.*词表搜索.*F/);
+  assert.equal(T.applyPreferencePatch({theme:'dark'},{target:'device'}).ok,true);
+  assert.equal(T.getS().settings.keys.know,'f');assert.equal(T.getS().settings.actionKeys.listSearch,'f');
+  assert.deepEqual(b.device().overrides.kaoyan,['keys']);assert.equal(b.device().shared.actionKeys.listSearch,'f');
+});
+
+test('旧存储的歧义按键在重叠场景拒绝执行，按钮可用且完成页单一匹配仍可用', () => {
+  const fixture=browser(),prefs=fixture.device();prefs.shared.keys.know='g';prefs.shared.actionKeys.listSearch='f';prefs.overrides.kaoyan=['keys'];
+  const state=clone(fixture.T.getS());state.settings.keys.know='f';state.settings.actionKeys.listSearch=null;
+  const b=browser({initial:{[DEVICE_KEY]:prefs,[BOOK_KEYS.kaoyan]:state}}),T=b.T;
+  T.show('study');const card=b.query('#card');card.focus();
+  const before=JSON.stringify({cur:T.cur,Q:T.Q,phase:T.phase,verdict:T.verdict,answered:T.answered,progress:T.getS().progress});
+  const event=card.dispatch('keydown',{key:'f',code:'KeyF'});
+  assert.equal(event.defaultPrevented,true,'明确拦截有歧义的快捷键');
+  assert.equal(JSON.stringify({cur:T.cur,Q:T.Q,phase:T.phase,verdict:T.verdict,answered:T.answered,progress:T.getS().progress}),before,'不判定、不跳转、不改学习现场');
+  assert.equal(b.query('#v-study').classList.contains('on'),true);
+  assert.match(b.text('#toast'),/F.*会.*词表搜索.*本次未执行/);
+  assert.equal(T.getS().settings.keys.know,'f');assert.equal(T.getS().settings.actionKeys.listSearch,'f','不静默抹掉用户自定义');
+  b.query('#ok').click();assert.equal(T.verdict,true,'明确点击会按钮仍可正常判定');
+  b.answerAllKnown();assert.equal(T.cur,null);assert.ok(T.getGroupTotal()>0);
+  card.focus();const doneProgress=JSON.stringify(T.getS().progress);
+  card.dispatch('keydown',{key:'f',code:'KeyF'});
+  assert.equal(b.query('#v-list').classList.contains('on'),true,'完成页没有会动作，F 的词表搜索仍有效');
+  assert.equal(JSON.stringify(T.getS().progress),doneProgress);
 });
 
 /* ================================================================== 5. 备份 */
@@ -728,6 +842,39 @@ test("方案应用保留设备shared，只将选中类别冻结到当前书；�
   assert.equal(b.device().overrides.kaoyan.includes('keys'),false,'未选类别不建立覆盖');
   assert.equal(JSON.stringify({Q:b.T.Q,cur:b.T.cur,qi:b.T.qi,plan:b.T.getPlan()}),beforeGroup);
   b.T.switchBook('cet4');assert.equal(b.T.getS().settings.fontSize,'large');
+});
+
+test('设置词库范围的切书入口复用同一浮层，关闭回入口且不改变当前学习现场', () => {
+  const b=browser();b.T.judge(true);b.T.show('set');
+  const before=JSON.stringify({cur:b.T.cur,Q:b.T.Q,phase:b.T.phase,verdict:b.T.verdict,answered:b.T.answered,plan:b.T.getPlan()});
+  const button=b.query('#btnScopeBooks');assert.ok(button);
+  button.focus();button.click();
+  assert.equal(b.query('#bookSheet').hidden,false);
+  assert.equal(button.getAttribute('aria-expanded'),'true');
+  assert.equal(b.query('#btnBooks').getAttribute('aria-expanded'),'true');
+  b.query('#bookClose').click();
+  assert.equal(b.query('#bookSheet').hidden,true);
+  assert.equal(b.doc.activeElement.id,'btnScopeBooks');
+  assert.equal(button.getAttribute('aria-expanded'),'false');
+  assert.equal(b.query('#btnBooks').getAttribute('aria-expanded'),'false');
+  assert.equal(b.query('#v-set').classList.contains('on'),true);
+  assert.equal(JSON.stringify({cur:b.T.cur,Q:b.T.Q,phase:b.T.phase,verdict:b.T.verdict,answered:b.T.answered,plan:b.T.getPlan()}),before);
+});
+
+test('从词库范围切换词书后原地更新书名、词数与筛选上限，本页模式不广播', () => {
+  const b=browser();b.T.judge(true);b.T.setPageBookMode('local');b.T.show('set');
+  const oldProgress=clone(b.T.getS().progress),signal=b.storage.get(ACTIVE_KEY),defaultBook=b.storage.get(DEFAULT_BOOK_KEY);
+  b.query('#btnScopeBooks').click();b.query('#bookList [data-book="cet4"]').click();
+  assert.equal(b.T.getBook(),'cet4');
+  assert.equal(b.query('#v-set').classList.contains('on'),true);
+  assert.equal(b.text('#scopeBookName'),'英语四级');
+  assert.ok(b.text('#scopeBookMeta').includes(String(b.T.getW().length)));
+  assert.equal(b.query('#pmin').max,'80');
+  assert.equal(b.query('#bookSheet').hidden,true);
+  assert.equal(b.query('#btnScopeBooks').getAttribute('aria-expanded'),'false');
+  assert.deepEqual(b.stateOf('kaoyan').progress,oldProgress);
+  assert.equal(b.storage.get(ACTIVE_KEY),signal);
+  assert.equal(b.storage.get(DEFAULT_BOOK_KEY),defaultBook);
 });
 
 /* ================================================================== 汇总 */

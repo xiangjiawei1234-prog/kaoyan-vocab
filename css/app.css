@@ -2116,6 +2116,36 @@ html[data-font-size="large"] .word-sheet-panel .sheet-head h2 { font-size: 38px;
 .book-item.on .book-meta { color: var(--accent); }
 .book-check { margin-left: auto; color: var(--accent); font-weight: 700; font-size: 15px; }
 
+/* 词书模式与词书列表留出清楚层级；两选项等宽，不留长条空轨道。 */
+.book-page-mode { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--rule-soft); }
+.book-mode-label { margin: 0 0 10px; color: var(--ink-2); font-size: 12px; font-weight: 600; }
+#bookPageModeSeg {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+  max-width: 360px;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 11px;
+}
+#bookPageModeSeg button {
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 9px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+#bookPageModeSeg button.on {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--rule));
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--ink) 5%, transparent);
+}
+#bookPageModeSeg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* ---------- 快捷键浮层 ---------- */
 .sheet[hidden] { display: none; }
 .sheet {
@@ -2512,6 +2542,17 @@ html[data-font-size="large"] .word-sheet-panel .sheet-head h2 { font-size: 38px;
 .stepper.compact { margin: 2px 0 4px; }
 .setting-footnote { margin: 16px 0 0; font-size: 12px; line-height: 1.75; color: var(--ink-3); }
 .scope-summary { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 20px; margin: 20px 0 16px; background: var(--paper); border: 1px solid var(--rule-soft); border-radius: 14px; }
+.scope-book-picker { display: flex; align-items: center; gap: 12px; padding: 16px; margin: 18px 0 16px; border: 1px solid var(--rule); border-radius: 12px; background: var(--paper); }
+.scope-book-mark { display: grid; place-items: center; flex: 0 0 36px; width: 36px; height: 40px; border-radius: 9px; background: var(--ink); color: var(--paper); font: 600 18px var(--font-serif); }
+.scope-book-copy { display: flex; flex: 1 1 auto; min-width: 0; flex-direction: column; gap: 3px; }
+.scope-book-copy > strong { color: var(--ink); font-size: 16px; line-height: 1.5; }
+.scope-book-meta { color: var(--ink-3); font-size: 11.5px; line-height: 1.65; }
+#v-set .scope-book-picker > .btn { flex: 0 0 auto; min-width: 102px; min-height: 44px; padding: 8px 12px; font-size: 13px; }
+@media (max-width: 480px) {
+  .scope-book-picker { flex-wrap: wrap; padding: 14px; gap: 10px; }
+  .scope-book-copy { flex-basis: calc(100% - 46px); }
+  #v-set .scope-book-picker > .btn { width: 100%; }
+}
 .scope-summary > div { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .scope-caption { font-size: 12px; line-height: 1.65; color: var(--ink-2); }
 #v-set .scope-count { font: 600 28px/1.5 var(--font-number); letter-spacing: -.6px; overflow-wrap: anywhere; }
@@ -3858,6 +3899,7 @@ details.list-note > p { margin: 6px 0 0; }
   color: var(--ink-2);
 }
 .guide-banner-text b { color: var(--ink); font-weight: 600; }
+.guide-banner-compact { display: none; }
 .guide-banner-acts { display: flex; flex-wrap: wrap; gap: 8px; flex: 0 0 auto; }
 .guide-banner-acts .btn { min-height: 38px; padding: 7px 14px; font-size: 12.5px; }
 @media (max-width: 720px) {
@@ -3866,8 +3908,18 @@ details.list-note > p { margin: 6px 0 0; }
     gap: 6px 10px;
   }
   .guide-banner-text { flex-basis: 100%; font-size: 11.5px; line-height: 1.6; }
+  #guideBanner .guide-banner-full { display: none; }
+  #guideBanner .guide-banner-compact { display: inline; }
   .guide-banner-acts { flex: 1 1 100%; }
   .guide-banner-acts .btn { flex: 1 1 0; min-height: 40px; padding: 7px 8px; font-size: 12px; }
+}
+/* 320px保留两行导航：缩短品牌区间距，不缩小44px操作按钮或阅读文本。 */
+@media (max-width: 360px) {
+  .top { gap: 6px; }
+  .top .brand { gap: 6px; }
+  .top .brand-mark { width: 30px; height: 32px; }
+  .top .brand-text h1 { font-size: 14px; white-space: nowrap; }
+  .top .top-actions { gap: 4px; }
 }
 
 /* 11 使用说明浮层：短分条 + 一条「开始学习」；不给中英混合内容整体套语言。 */

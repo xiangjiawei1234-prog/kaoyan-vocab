@@ -51,6 +51,27 @@ try{
     check('同字段冲突不影响学习现场',before===await scene(p.a));
     report.shots.push(await p.a.screenshot('preference-concurrency-same-field.png'));
   }finally{await close(p);}
+  p=await pair();
+  try{
+    await click(p.a,'#prefOwnBtn_keys');
+    await p.b.waitFor(`window.__vocab.getPreferenceOwnership().overrides.kaoyan.includes('keys')`);
+    await click(p.b,'.keybtn[data-k="know"]');
+    await p.b.key('KeyG',{key:'g',code:'KeyG',vk:71,text:'g'});
+    await p.b.waitFor(`window.__vocab.getS().settings.keys.know==='g'`);
+    check('真实按键配置前置：考研保留F，四级使用设备通用G',await p.a.eval(`window.__vocab.getS().settings.keys.know==='f'`)
+      &&(await raw(p.b)).shared.keys.know==='g');
+    const before=await raw(p.b),aScene=await scene(p.a),bScene=await scene(p.b);
+    if(!await p.b.eval(`document.querySelector('#actionKeysSettings').open`))await click(p.b,'#actionKeysSettings > summary');
+    await click(p.b,'.keybtn[data-k="listSearch"]');await p.b.key('keyF');await sleep(160);
+    const after=await raw(p.b),notice=await p.b.eval(`document.querySelector('#toast').textContent`);
+    check('跨书有效按键冲突拒绝并明确提示受影响书与动作',JSON.stringify(after)===JSON.stringify(before)
+      &&/考研英语.*会.*词表搜索.*F/.test(notice),{notice,overrides:after.overrides});
+    check('拒绝跨书冲突不丢两页学习现场',aScene===await scene(p.a)&&bScene===await scene(p.b));
+    check('未应用的搜索键保持未绑定且设备归属没有变成保存故障',await p.b.eval(`window.__vocab.getS().settings.actionKeys.listSearch===null&&window.__vocab.getPreferenceOwnership().status==='ok'`));
+    await p.b.key('Escape');await click(p.a,'[data-v="study"]');await p.a.key('keyF');
+    check('已有本书F键仍执行会，不被另一书搜索映射抢占',await p.a.eval(`window.__vocab.phase==='revealed'&&window.__vocab.verdict===true&&document.querySelector('#v-study').classList.contains('on')`));
+    report.shots.push(await p.b.screenshot('preference-concurrency-mixed-keys.png'));
+  }finally{await close(p);}
   check('真实双页交错无console错误',report.errors.length===0,report.errors);
 }catch(e){check('交错旅程执行完整',false,{error:String(e),stack:e.stack});}
 finally{

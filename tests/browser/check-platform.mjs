@@ -61,6 +61,26 @@ async function main(){
   }
   await settings.eval(`{const e=${zoomSelect};e.value='1';e.dispatchEvent(new Event('change',{bubbles:true}));}`);await settings.close();pages=pages.filter(x=>x!==settings);
   const file=await open(pathToFileURL(path.join(live,'index.html')).href);await file.waitFor('document.querySelector("#ok")');const f=await file.eval(`({protocol:location.protocol,status:window.__vocab.getOfflineStatus(),books:window.__vocab.getBooks(),cur:window.__vocab.cur})`);check('file://直接打开四词书可用且明确不注册SW',f.protocol==='file:'&&f.status.status==='file'&&f.books.length===4&&f.books.every(x=>x.words>0)&&f.cur!==null,f);await file.key('keyF');check('file://快捷键判定可用',await file.eval(`window.__vocab.phase==='revealed'`));await file.clickSelector('[data-v="set"]');await file.scrollIntoView('#offlineStatus');await sleep(260);await shot(file,'file-mode');const fileWarnings=file.errors();report.fileExpectedBrowserWarnings=fileWarnings.filter(e=>/manifest\.webmanifest/.test(e.text)&&/CORS|ERR_FAILED/.test(e.text));report.errors.push(...fileWarnings.filter(e=>!report.fileExpectedBrowserWarnings.includes(e)));file.clearLogs();
+  // O1/F1：新版本B实际导入缺新增字段的旧备份，再验证非默认本页书与有效偏好离线刷新。
+  // 只编辑导出的文件夹具；导入、确认和切书均走真实页面入口，不直接写业务状态。
+  await c.send('Page.bringToFront');
+  const legacy=await c.eval('window.__vocab.buildExport()');
+  legacy.activeBook='cet4';
+  for(const book of Object.values(legacy.books))for(const field of ['actionKeys','gestures','actionLayout','cardDensity','readingOrder','showCardMeta','showCardStage','showCardPos','secondaryActions'])delete book.settings[field];
+  legacy.books.cet4.settings.fontSize='large';legacy.books.cet4.settings.theme='dark';
+  const legacyFile=path.join(temporary,'legacy-preferences-backup.json');fs.writeFileSync(legacyFile,JSON.stringify(legacy));
+  const {root:domRoot}=await c.send('DOM.getDocument'),{nodeId:fileNode}=await c.send('DOM.querySelector',{nodeId:domRoot.nodeId,selector:'#file'});
+  await c.send('DOM.setFileInputFiles',{nodeId:fileNode,files:[legacyFile]});
+  await c.waitFor('!document.querySelector("#importSheet").hidden');await c.scrollIntoView('#importConfirm');await sleep(180);await c.clickSelector('#importConfirm');
+  await c.waitFor('document.querySelector("#importSheet").hidden&&window.__vocab.getBook()==="cet4"');
+  const prefState=()=>c.eval(`(()=>{const v=window.__vocab,s=v.getS().settings;return {book:v.getBook(),page:sessionStorage.getItem('vocab_page_book_v1'),theme:s.theme,font:s.fontSize,density:s.cardDensity,reading:s.readingOrder,actionKeys:s.actionKeys,gestures:s.gestures,layout:s.actionLayout,overrides:v.getPreferenceOwnership().currentOverrides,backupVersion:v.buildExport().version};})()`);
+  const imported=await prefState();
+  check('整组B真实导入旧偏好备份兼容新增字段并建立本书覆盖',imported.book==='cet4'&&imported.page==='cet4'&&imported.theme==='dark'&&imported.font==='large'&&imported.density==='comfortable'&&imported.layout==='standard'&&imported.reading.join(',')==='meaning,example,forms'&&Object.values(imported.actionKeys).every(x=>x===null)&&imported.overrides.includes('fontSize')&&imported.backupVersion===3,imported);
+  await c.send('Network.enable');await c.send('Network.emulateNetworkConditions',{offline:true,latency:0,downloadThroughput:0,uploadThroughput:0});await c.reload();await c.waitFor('window.__vocab&&document.querySelector("#ok")');
+  const offlinePrefs=await prefState(),offlineRelease=await snap(c,'B-legacy-preferences-offline');
+  check('更新后离线冷刷新保留非默认本页词书和有效偏好',allTag(offlineRelease,'B')&&JSON.stringify(imported)===JSON.stringify(offlinePrefs),{imported,offlinePrefs,release:offlineRelease.tag});
+  await c.send('Page.bringToFront');await c.key('keyF');check('旧备份偏好迁移后离线键盘学习可用',await c.eval('window.__vocab.phase==="revealed"'));
+  await shot(c,'legacy-preferences-offline');await c.send('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1});
   report.otherBrowsers=await otherBrowsers(live);const other=report.otherBrowsers;if(other.quark)check('已安装Quark Chromium真实冒烟',other.quark.code===0&&!other.quark.payload?.error,other.quark);if(other.safari?.payload?.value?.error)report.notTested.push('Safari WebDriver blocked: '+other.safari.payload.value.message);if(!other.inventory.firefox)report.notTested.push('Firefox not installed');if(!other.inventory.edge)report.notTested.push('Edge not installed');
  }catch(error){check('平台检查脚本执行完整',false,String(error.stack||error));}
  finally{for(const p of pages){report.errors.push(...p.errors());await p.close();}check('无未解释浏览器异常',report.errors.length===0,report.errors);if(conn)conn.close();if(chrome)await chrome.close();if(server)await server.close();fs.mkdirSync(RESULTS_DIR,{recursive:true});fs.writeFileSync(path.join(RESULTS_DIR,'platform.json'),JSON.stringify(report,null,2));fs.rmSync(temporary,{recursive:true,force:true});}

@@ -437,5 +437,23 @@ test('方案同时改计划与偏好时设备/主记录任一写失败均整份�
   }
 });
 
+test('工作台两个入口的关闭按钮与遮罩真正关闭，并释放背景与保留当前组', () => {
+  for (const entry of ['#btnQuickSettings', '#btnStudyProfiles']) {
+    for (const closer of ['.sheet-head [data-close]', '.sheet-backdrop[data-close]']) {
+      const b=browser();b.T.judge(true);
+      const before=scene(b),sheet=b.query('#settingsWorkspaceSheet');
+      b.query(entry).click();assert.equal(sheet.hidden,false);
+      assert.equal(b.query('#main').inert,true);
+      const close=sheet.querySelector(closer);assert.ok(close,closer);
+      close.click();
+      assert.equal(sheet.hidden,true,entry+' '+closer+' 应关闭窗口');
+      assert.equal(b.query('#main').inert,false);
+      assert.equal(b.query('.top').inert,false);
+      assert.equal(b.doc.activeElement.id,'card');
+      same(scene(b),before);
+    }
+  }
+});
+
 console.log(`\n设置方案核心回归：${passed} 通过，${failed} 失败`);
 process.exitCode=failed?1:0;

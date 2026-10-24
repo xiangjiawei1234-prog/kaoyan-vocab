@@ -6,7 +6,7 @@
 <meta name="description" content="基于真题词频的背单词工具（考研 / 英语四级 / 英语六级 / 综合词书）">
 <meta name="theme-color" content="#F6F3ED">
 <title>考研英语单词背诵</title>
-<link rel="stylesheet" href="css/app.css?v=20261024-r50">
+<link rel="stylesheet" href="css/app.css?v=20261024-r53">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
 </head>
@@ -31,7 +31,7 @@
       <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.4v2.2M12 19.4v2.2M2.4 12h2.2M19.4 12h2.2M5.2 5.2l1.6 1.6M17.2 17.2l1.6 1.6M18.8 5.2l-1.6 1.6M6.8 17.2l-1.6 1.6"/></svg>
       <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14.2A8.6 8.6 0 0 1 9.8 3.5a8.6 8.6 0 1 0 10.7 10.7Z"/></svg>
     </button>
-    <button type="button" class="icon-btn book-btn" id="btnBooks" aria-label="切换词书" title="切换词书" aria-haspopup="dialog" aria-expanded="false">词书⌄</button>
+    <button type="button" class="icon-btn book-btn" id="btnBooks" aria-label="切换词书" title="切换词书" aria-haspopup="dialog" aria-controls="bookSheet" aria-expanded="false">词书⌄</button>
     <button type="button" class="icon-btn" id="btnHelp" aria-label="快捷键帮助" title="快捷键（?）">?</button>
   </div>
 </header>
@@ -42,7 +42,7 @@
 </div>
 <!-- 11 首次打开的可跳过提示条：不遮挡操作区、不拦截键盘，确认后不再自动出现 -->
 <div class="guide-banner" id="guideBanner" role="region" aria-label="首次使用提示" hidden>
-  <p class="guide-banner-text"><b>第一次使用？</b>先在顶部「词书」与设置页「每日新词」里选好计划；当前范围默认按词频与套卷筛选，<b>通常少于全书</b>。背诵时先回忆，再判「会 / 不会」；标为「熟练」的词会长期移出学习队列。</p>
+  <p class="guide-banner-text"><span class="guide-banner-full"><b>第一次使用？</b>先在顶部「词书」与设置页「每日新词」里选好计划；当前范围默认按词频与套卷筛选，<b>通常少于全书</b>。背诵时先回忆，再判「会 / 不会」；标为「熟练」的词会长期移出学习队列。</span><span class="guide-banner-compact"><b>第一次使用？</b>先回忆，再判「会 / 不会」。</span></p>
   <div class="guide-banner-acts">
     <button type="button" class="btn ghost sm" id="guideBannerOpen">查看使用说明</button>
     <button type="button" class="btn ghost sm" id="guideBannerDismiss">知道了</button>
@@ -482,6 +482,11 @@
 
       <section class="panel settings-section" id="settings-scope" aria-labelledby="scopeTitle" tabindex="-1">
         <div class="settings-section-head"><span class="section-index" aria-hidden="true">02</span><div><h3 id="scopeTitle">词库范围</h3><p>先选一个方向，再按词频、试卷覆盖或词性细调。</p></div></div>
+        <div class="scope-book-picker" role="group" aria-labelledby="scopeBookLabel">
+          <span class="scope-book-mark" id="scopeBookMark" aria-hidden="true">研</span>
+          <div class="scope-book-copy"><span class="scope-caption" id="scopeBookLabel">当前词书</span><strong id="scopeBookName">考研英语</strong><span id="scopeBookMeta" class="scope-book-meta"></span></div>
+          <button type="button" class="btn ghost sm" id="btnScopeBooks" aria-haspopup="dialog" aria-controls="bookSheet" aria-expanded="false">切换词书 <span aria-hidden="true">⌄</span></button>
+        </div>
         <div class="scope-summary"><div><span class="scope-caption">当前可背范围</span><strong class="scope-count" id="scopeCount"></strong><span class="scope-caption">已自动排除熟练词，所有筛选条件共同生效。</span></div><button type="button" class="btn primary sm" id="btnStartFromSettings">开始背诵 <span aria-hidden="true">↗</span></button></div>
         <div class="scope-empty" id="scopeEmpty" hidden role="status"><strong>当前条件下没有可背单词</strong><span>降低词频或套卷门槛，或恢复默认筛选后再试。</span><button type="button" class="btn ghost sm" data-combo="reset">恢复默认筛选</button></div>
         <div class="combo-cards" role="group" aria-label="常用筛选组合">
@@ -824,7 +829,8 @@
     </header>
     <div class="book-list" id="bookList"></div>
     <div class="book-page-mode" id="bookPageMode" role="group" aria-label="本页词书范围">
-      <div class="seg" id="bookPageModeSeg" role="group" aria-label="本页词书模式">
+      <p class="book-mode-label" id="bookModeLabel">切书影响范围</p>
+      <div class="seg book-mode-picker" id="bookPageModeSeg" role="group" aria-labelledby="bookModeLabel" aria-describedby="bookModeStatus">
         <button type="button" id="bookPageModeLocal" aria-pressed="true">仅本页</button>
         <button type="button" id="bookPageModeFollow" aria-pressed="false">同步到跟随页面</button>
       </div>
@@ -920,6 +926,6 @@
 <script src="js/combined-words-data.js"></script>
 <script src="js/senses-data.js"></script>
 <script src="js/txt-zip.js"></script>
-<script src="js/app.js?v=20261024-r50"></script>
+<script src="js/app.js?v=20261024-r53"></script>
 </body>
 </html>

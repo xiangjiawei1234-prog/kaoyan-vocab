@@ -314,6 +314,16 @@ test('特训不会被continue/加量抢占，统一返回只退出特训', () =>
   assert.equal(T.runStudyAction('continue').ok, false); assert.equal(T.addExtraAndStudy(10).ok, false); assert.equal(group(T), before);
   assert.equal(T.runStudyAction('return').ok, true); assert.equal(T.drillMode, false);
 });
+test('保存失败仍可用统一返回退出特训，保留父组与未落盘特训结果', () => {
+  const b=browser(),T=setup(b);T.judge(false);T.tryNext();const parent=group(T);
+  assert.equal(T.startDrill(),true);b.setFailWrites(true);T.judge(true);
+  const progress=JSON.stringify(T.getS().progress);
+  assert.equal(T.deriveStudyPresentation().actions.find(x=>x.id==='return').enabled,true);
+  assert.equal(T.runStudyAction('return').ok,true,'与可直接退出的按钮一致，不能额外用保存成功作返回前提');
+  assert.equal(T.drillMode,false);assert.equal(group(T),parent);
+  assert.equal(JSON.stringify(T.getS().progress),progress,'未落盘结果仍在本页');
+  assert.equal(b.query('#appAlert').hidden,false,'返回不清除持续保存错误');
+});
 test('无效数量/坏主记录均不半开组或授予', () => {
   const b = browser(), T = setup(b); finish(T); const before = group(T);
   for (const n of [0, 101, 1.5, '10']) { assert.equal(T.addExtraAndStudy(n).ok, false); assert.equal(T.getExtraDay().extra, 0); }

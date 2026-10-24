@@ -18,7 +18,21 @@ node --max-old-space-size=512 tests/browser/check-workspace-management.mjs
 node --max-old-space-size=512 tests/browser/check-input-preferences.mjs
 node --max-old-space-size=512 tests/browser/check-new-optimizations.mjs
 node --max-old-space-size=512 tests/browser/check-user-feedback.mjs
+node --max-old-space-size=512 tests/browser/check-workspace-close.mjs
+node --max-old-space-size=512 tests/browser/check-book-entry.mjs
+node --max-old-space-size=512 tests/browser/check-completion-keyboard.mjs
+node --max-old-space-size=512 tests/browser/check-preference-concurrency.mjs
+node --max-old-space-size=512 tests/browser/check-profile-scope.mjs
+node --max-old-space-size=512 tests/browser/check-first-use.mjs
 ```
+
+最终收尾新增：`check-profile-scope`验证真实UI个人方案只应用本书、同值冻结、未选类别不变、其他书保留设备值以及中性/错误提示区分；`check-first-use`验证320×568等短屏首次首词完整可见、非模态引导和键盘可用；`check-preference-concurrency`用真实双页验证延迟通知下的合并/冲突拒绝及跨书有效按键预检；`check-completion-keyboard`验证字符快捷键关闭时固定Enter仍可续组且不穿透其他控件。所有报告按脚本名写入`results/`，仿真不等于真机。
+
+`check-platform`另有真实旧v3备份文件（缺新增偏好字段）导入确认→四级深色/大字→离线冷刷新→键盘学习路径，核对有效偏好与非默认本页词书保持；与原A/B整组更新、失败安装、file://和原生200%一起验证，不把缓存注册成功当作离线已就绪。
+
+`check-book-entry.mjs` 验证设置页“词库范围”的新切书入口和同一词书浮层：320/375/1440×深浅主题、等宽模式按钮/44px点击高度、叉号/Esc返回入口、切书后仍在设置页并更新词书/词数/筛选上限、local不广播或改默认、旧顶部入口可用。报告`results/book-entry.json`，截图前缀`book-entry-`；真实点击与键盘路径，不通过业务写hook切书。
+
+`check-workspace-close.mjs` 实际点击两个首页入口弹窗的叉号、遮罩并按Esc，验证真正关闭、背景解锁、焦点/学习现场保持和关闭后键盘翻页；包含迟到文件读取不能污染重开的窗口。覆盖1440桌面与375手机仿真，报告`results/workspace-close.json`。它补充旧工作台检查只验证叉号命中、使用Esc关闭的缺口。
 
 `check-user-feedback.mjs` 对应 2026-10-24 六项使用反馈：自然完成组后的空格/自定义键续组、长按键松开边界、熟练浮动确认与取消/自动收起、五种屏幕尺寸的词卡自然高度与统一主区滚动、核心词频默认展开、两项控件紧凑宽度、统计默认展开/折叠与顺序刷新记忆、真实鼠标/触摸长按拖动及边缘连续滚动。可用 `--only=study,card,settings,stats` 分段；报告 `results/user-feedback.json`，截图前缀 `user-feedback-`。全程隔离profile，学习/排序走真实控件，不以业务写hook伪造完成组或排序。自然布局下先滚到动作再检验命中，保留原动作区高度与连击检查；真机/读屏仍不因此视为通过。
 
