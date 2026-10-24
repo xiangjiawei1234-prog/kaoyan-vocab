@@ -9,11 +9,11 @@
       "posIndexHash": "3692b4bb6165850d17f483e4de0ea18c1a3507b588610ade02f27d3ec3744966"
     },
     "cet4": {
-      "words": 7168,
-      "dv": 4,
-      "missingPh": 293,
-      "indexHash": "677b9b764aa95d83368e541e4b487cf5e1608cfd30c530bb1e3434a83fcf5f2f",
-      "posIndexHash": "86f1f0cacde7c89e72e563165590887b81233eaa3365bc34039859efe36f89d5"
+      "words": 7167,
+      "dv": 5,
+      "missingPh": 272,
+      "indexHash": "0402319acabbd640cf925a397721d30418a96baf86faafe5d5814209dd016df4",
+      "posIndexHash": "879c502289b405d51fb7246939b1046726d8556a4035deceb4ae24b0e5c8ae7c"
     },
     "cet6": {
       "words": 8821,
@@ -23,11 +23,11 @@
       "posIndexHash": "86ebc238119341c1eee017d319e7bef8ed22a7ca3bc367eb3220b60f35cab7d7"
     },
     "combined": {
-      "words": 12083,
-      "dv": 2,
-      "missingPh": 807,
-      "indexHash": "f8f9e2c0366d8a704949356967479fab01f0bdbafdd160a2b4c688ca2bcbf45c",
-      "posIndexHash": "9984e796240d134920ea6cff2b1bcf5fb9d2a26473a6d7656c4dda5241f232c3"
+      "words": 12082,
+      "dv": 3,
+      "missingPh": 785,
+      "indexHash": "dba86ee8652bf5dd97689db27b37b1809a1843e6f15ea3eca3364182c42da223",
+      "posIndexHash": "fd3cbbbd5595a16ac05aa622eeb1e63609ed9050d699f4c3bb3e8e7c27c1868e"
     }
   },
   "phonetics": {
@@ -465,7 +465,7 @@
     },
     {
       "book": "combined",
-      "index": 11599,
+      "index": 11598,
       "word": "tailoring",
       "source": "自编",
       "family": "R2-14"
@@ -493,14 +493,14 @@
     },
     {
       "book": "cet4",
-      "index": 6899,
+      "index": 6898,
       "word": "telecommuter",
       "source": "自编",
       "family": "R2-16"
     },
     {
       "book": "cet4",
-      "index": 7049,
+      "index": 7048,
       "word": "unshaven",
       "source": "自编",
       "family": "R2-16"
@@ -514,14 +514,14 @@
     },
     {
       "book": "combined",
-      "index": 11617,
+      "index": 11616,
       "word": "telecommuter",
       "source": "自编",
       "family": "R2-16"
     },
     {
       "book": "combined",
-      "index": 11891,
+      "index": 11890,
       "word": "unshaven",
       "source": "自编",
       "family": "R2-16"
@@ -612,7 +612,7 @@
     },
     {
       "book": "cet4",
-      "index": 6713,
+      "index": 6712,
       "word": "seep",
       "source": "自编",
       "family": "R2-23"
@@ -731,7 +731,7 @@
     },
     {
       "book": "combined",
-      "index": 11664,
+      "index": 11663,
       "word": "timberwork",
       "source": "自编",
       "family": "R2-29"
@@ -745,7 +745,7 @@
     },
     {
       "book": "combined",
-      "index": 11563,
+      "index": 11562,
       "word": "sundial",
       "source": "自编",
       "family": "R2-30"
@@ -773,7 +773,7 @@
     },
     {
       "book": "combined",
-      "index": 11342,
+      "index": 11341,
       "word": "shaping",
       "source": "自编",
       "family": "R2-32"
@@ -941,7 +941,7 @@
     },
     {
       "book": "combined",
-      "index": 11416,
+      "index": 11415,
       "word": "snooty",
       "source": "自编",
       "family": "R2-45"
@@ -976,14 +976,14 @@
       "unchangedOriginalReferences": [
         {
           "book": "cet4",
-          "index": 7135,
+          "index": 7134,
           "word": "winning",
           "source": "四级 2016.12",
           "example": "In fact, vaguely-stated possibilities of winning a prize were more effective than options with hard odds included."
         },
         {
           "book": "combined",
-          "index": 12046,
+          "index": 12045,
           "word": "winning",
           "source": "四级 2016.12",
           "example": "In fact, vaguely-stated possibilities of winning a prize were more effective than options with hard odds included."

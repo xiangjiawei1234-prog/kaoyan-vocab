@@ -1314,7 +1314,8 @@ await test("G8 本地记录 dv 高于 dataVersion：拒绝覆盖并保护原文"
 // 真实已发布词库的版本基线，来自审查通过的清理清单；不得仅随数组长度变化。
 const RELEASE_CONTRACT = {
   kaoyan: {version: 3, initial: 8100, previous: 8043, count: 7997},
-  cet4: {version: 4, initial: 7519, previous: 7201, count: 7168},
+  // 2026-10-24：OCR 假词条 relection 随 v4→v5 迁移删除，四级 7168→7167。
+  cet4: {version: 5, initial: 7519, previous: 7168, count: 7167},
   cet6: {version: 4, initial: 9373, previous: 8853, count: 8821}
 };
 const addedCountOf = (m) => Array.isArray(m?.added) ? m.added.length : (Array.isArray(m?.addedWords) ? m.addedWords.length : 0);
@@ -1343,12 +1344,23 @@ await test("G9 真实三书删除/新增迁移：版本、完整清单、每版�
     // 第一条迁移 = 2026-10-21 噪声清理；第二条 = 本次词频/词形修复。
     const cleanup = cleanupAudit.certain.filter(entry => entry.book === id).sort((a, b) => a.index - b.index);
     const repair = repairPlan.books[id].deletes;
-    const cleanupMigration = meta.migrations[meta.migrations.length - 2];
-    const latest = meta.migrations[meta.migrations.length - 1];
+    const cleanupFrom = {kaoyan: 1, cet4: 2, cet6: 2}[id];
+    const repairFrom = {kaoyan: 2, cet4: 3, cet6: 3}[id];
+    const cleanupMigration = meta.migrations.find(m => m.from === cleanupFrom);
+    const repairMigration = meta.migrations.find(m => m.from === repairFrom);
+    assert.ok(cleanupMigration && repairMigration, `${id} 清理/修复迁移必须存在`);
     assert.deepEqual(clone(cleanupMigration.removed), cleanup.map(entry => entry.index), `${id} 清理迁移下标须逐项等于清理清单`);
     assert.deepEqual(clone(cleanupMigration.removedWords), cleanup.map(entry => entry.word), `${id} 清理迁移词名须逐项等于清理清单`);
-    assert.deepEqual(clone(latest.removedWords), repair.map(entry => entry.w), `${id} 最新迁移删除词名须逐项等于修复清单`);
-    assert.deepEqual(clone(latest.addedWords || []), repairPlan.books[id].adds.map(entry => entry.w), `${id} 最新迁移新增词名须逐项等于修复清单`);
+    assert.deepEqual(clone(repairMigration.removedWords), repair.map(entry => entry.w), `${id} 修复迁移删除词名须逐项等于修复清单`);
+    assert.deepEqual(clone(repairMigration.addedWords || []), repairPlan.books[id].adds.map(entry => entry.w), `${id} 修复迁移新增词名须逐项等于修复清单`);
+    const latest = meta.migrations[meta.migrations.length - 1];
+    if (id === 'cet4') {
+      assert.deepEqual(clone(latest.removed), [6599], 'cet4 最新迁移删除下标为 relection');
+      assert.deepEqual(clone(latest.removedWords), ['relection'], 'cet4 最新迁移删除 relection');
+      assert.equal(latest.previousWordCount, 7168, 'cet4 relection 迁移前词数');
+    } else {
+      assert.equal(latest.from, repairFrom, `${id} 最新迁移仍是修复迁移`);
+    }
     meta.migrations.forEach((m, step) => {
       assert.equal(m.from, step + 1, `${id} 迁移起点连续`);
       assert.equal(m.to, step + 2, `${id} 每次只升一版`);

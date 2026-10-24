@@ -3,7 +3,7 @@
  * 执行真实 js/app.js（DOM 桩 + 真实四词书数据），不复制业务逻辑。
  * 覆盖：posMode 默认/迁移/非法回退、primary 与现状逐位一致、all 模式词性并集、
  * 单一判据一致性（inScope/直方图/队列/列表/统计/TXT）、x 其他口径、posline 展示、
- * 设置交互与持久化、四书独立、导出导入往返、12,083 词直方图冒烟。
+ * 设置交互与持久化、四书独立、导出导入往返、12,082 词直方图冒烟。
  * 运行：node --max-old-space-size=512 js/test-pos-filter.mjs
  */
 import fs from "node:fs";
@@ -629,12 +629,12 @@ console.log("== 8. 四书独立 ==");
   ck(T.switchBook("kaoyan") === true, "最终回到考研词书");
 }
 
-/* ---------------- 9. 12,083 词性能冒烟 ---------------- */
+/* ---------------- 9. 12,082 词性能冒烟 ---------------- */
 console.log("== 9. 综合词书直方图性能冒烟 ==");
 {
   ck(T.switchBook("combined") === true, "切换到综合词书");
   const W = T.getW();
-  ck(W.length === 12083, "综合词书为 12,083 词", String(W.length));
+  ck(W.length === 12082, "综合词书为 12,082 词", String(W.length));
   resetProgress();
   for (const mode of ["primary", "all"]) {
     setScope({ posMode: mode, pos: ["v"], fmin: 1, fmax: 0, pmin: 0, kyOnly: false });
@@ -642,8 +642,8 @@ console.log("== 9. 综合词书直方图性能冒烟 ==");
     const started = process.hrtime.bigint();
     const hist = T.freqHistogram();
     const ms = Number(process.hrtime.bigint() - started) / 1e6;
-    console.log(`  性能：综合书 12,083 词 freqHistogram（${mode}，选动词）耗时 ${ms.toFixed(1)}ms，total=${hist.total}`);
-    ck(ms < 500, `${mode} 模式 12,083 词 freqHistogram < 500ms`, `${ms.toFixed(1)}ms`);
+    console.log(`  性能：综合书 12,082 词 freqHistogram（${mode}，选动词）耗时 ${ms.toFixed(1)}ms，total=${hist.total}`);
+    ck(ms < 500, `${mode} 模式 12,082 词 freqHistogram < 500ms`, `${ms.toFixed(1)}ms`);
     const truth = manualInScopeCount();
     ck(hist.total === truth, `${mode} 模式综合书直方图 total = inScope 真值`, `${hist.total} vs ${truth}`);
   }
@@ -656,7 +656,7 @@ console.log("== 9. 综合词书直方图性能冒烟 ==");
   const swStart = process.hrtime.bigint();
   ck(T.switchBook("combined") === true, "再切回综合书（词性派生缓存失效）");
   const switchMs = Number(process.hrtime.bigint() - swStart) / 1e6;
-  console.log(`  性能：切回综合书（含一次 12,083 词词性派生层构建 + 重建队列）耗时 ${switchMs.toFixed(1)}ms`);
+  console.log(`  性能：切回综合书（含一次 12,082 词词性派生层构建 + 重建队列）耗时 ${switchMs.toFixed(1)}ms`);
   setScope({ posMode: "all", pos: ["v"], fmin: 1, fmax: 0, pmin: 0, kyOnly: false });
   const coldStart = process.hrtime.bigint();
   const coldHist = T.freqHistogram();
@@ -664,7 +664,7 @@ console.log("== 9. 综合词书直方图性能冒烟 ==");
   // 注意：切书时 startSession→buildQueue 已触发一次 O(n) 词性派生层构建，
   // 所以这里量到的是「切书后直方图」的真实用户路径耗时；派生层构建本身随切书一次性完成。
   console.log(`  性能：切书后综合书 freqHistogram（all，选动词）耗时 ${coldMs.toFixed(1)}ms，total=${coldHist.total}`);
-  ck(coldMs < 500, "12,083 词切书后直方图 < 500ms", `${coldMs.toFixed(1)}ms`);
+  ck(coldMs < 500, "12,082 词切书后直方图 < 500ms", `${coldMs.toFixed(1)}ms`);
   ck(coldHist.total === manualInScopeCount(), "冷缓存直方图 total 仍等于 inScope 真值");
 
   // 词性并集缓存：连续两次直方图不应重复解析释义（第二次明显更快或至少不更慢）。

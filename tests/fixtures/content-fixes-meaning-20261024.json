@@ -1,0 +1,2001 @@
+{
+ "schemaVersion": 1,
+ "date": "2026-10-24",
+ "scope": "全库释义错配修复 + OCR 假词条删除：37 个词头（cet4 17 + cet6 23 行，综合书同步 37 行）只改释义字段 2，robbing/rapper/uncleaned 同时按常用义改写自编例句；另删除 OCR 假词条 relection（cet4 与综合），cet4 dataVersion 4→5、综合 2→3 并记录迁移。不改剩余词序、r/f/c/ky、posIdx。",
+ "fieldNames": {
+  "2": "meaning",
+  "7": "example",
+  "8": "source"
+ },
+ "baseline": {
+  "kaoyan": {
+   "count": 7997,
+   "dataVersion": 3,
+   "indexHash": "501577d74614f2c993d47d037d05b56d914df7e9257684742ded62d9844bb13a",
+   "posIndexHash": "c9070152c65cfcfb32cd568153d28adbe3fb0371ec40b3198d565ec6663c2d40"
+  },
+  "cet4": {
+   "count": 7167,
+   "dataVersion": 5,
+   "indexHash": "0402319acabbd640cf925a397721d30418a96baf86faafe5d5814209dd016df4",
+   "posIndexHash": "879c502289b405d51fb7246939b1046726d8556a4035deceb4ae24b0e5c8ae7c"
+  },
+  "cet6": {
+   "count": 8821,
+   "dataVersion": 4,
+   "indexHash": "39ece5556c836563a79046f574dff2edf13c2c3a6c04378b8fc924cfa1a90ac9",
+   "posIndexHash": "7b4da024d37cf94450ecb9d0852acd74f43d685711a8115089b6cd57b5bb0841"
+  },
+  "combined": {
+   "count": 12082,
+   "dataVersion": 3,
+   "indexHash": "dba86ee8652bf5dd97689db27b37b1809a1843e6f15ea3eca3364182c42da223",
+   "posIndexHash": "fd3cbbbd5595a16ac05aa622eeb1e63609ed9050d699f4c3bb3e8e7c27c1868e"
+  }
+ },
+ "corrections": [
+  {
+   "id": "S-01",
+   "word": "troubling",
+   "before": {
+    "2": "n. 浊度；浑浊度"
+   },
+   "after": {
+    "2": "a. 令人不安的, 令人担忧的, 令人烦恼的"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: troubling adjective — making you feel worried or anxious",
+    "真题语境：bring to the surface a troubling software problem / sends a troubling message"
+   ],
+   "reason": "原释义「n. 浊度；浑浊度」实际是 turbidity 的释义，与 troubling（trouble 的现在分词，作形容词意为令人不安的）无关；真题例句 troubling software problem / troubling message 均为「令人不安的」。",
+   "references": [
+    {
+     "book": "cet4",
+     "index": 3994,
+     "originalRow": [
+      "troubling",
+      "",
+      "n. 浊度；浑浊度",
+      2,
+      3997,
+      3,
+      3,
+      "The unpredictability of the real world may bring to the surface a troubling software problem.",
+      "四级 2018.12",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "cet6",
+     "index": 4861,
+     "originalRow": [
+      "troubling",
+      "",
+      "n. 浊度；浑浊度",
+      2,
+      4861,
+      3,
+      3,
+      "But this vote of confidence in Oprah sends a troubling message at precisely the time when American universities need to do more to advance the cause of reason.",
+      "六级 2014.06",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 5095,
+     "originalRow": [
+      "troubling",
+      "",
+      "n. 浊度；浑浊度",
+      2,
+      5079,
+      6,
+      6,
+      "The unpredictability of the real world may bring to the surface a troubling software problem.",
+      "四级 2018.12",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-02",
+   "word": "outlier",
+   "before": {
+    "2": "n. 露宿者"
+   },
+   "after": {
+    "2": "n. 异常值, 离群者, 局外人"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: outlier noun — a person or thing that is different from or in a position separated from others"
+   ],
+   "reason": "原释义只收「露宿者」这一冷僻义；outlier 常用义为「异常值、离群者、局外人」，例句 behaving like outliers 指行为异于常人。",
+   "references": [
+    {
+     "book": "cet4",
+     "index": 5103,
+     "originalRow": [
+      "outlier",
+      "ˈautlaiə",
+      "n. 露宿者",
+      0,
+      5109,
+      2,
+      1,
+      "We are all capable of behaving like outliers.",
+      "四级 2022.12",
+      0,
+      "复数 outliers"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 8686,
+     "originalRow": [
+      "outlier",
+      "ˈautlaiə",
+      "n. 露宿者",
+      0,
+      8682,
+      2,
+      1,
+      "We are all capable of behaving like outliers.",
+      "四级 2022.12",
+      0,
+      "复数 outliers"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-03",
+   "word": "birdwatch",
+   "before": {
+    "2": "v. 鸟瞰"
+   },
+   "after": {
+    "2": "v. 观鸟, 观察野鸟"
+   },
+   "evidence": [
+    "WordNet: birdwatch verb — watch birds in their natural habitat"
+   ],
+   "reason": "原释义「鸟瞰」与 birdwatch 无关；birdwatch 意为「观鸟、观察野鸟」，例句 birdwatch, dive, surf and boat 列举户外活动。",
+   "references": [
+    {
+     "book": "cet4",
+     "index": 5353,
+     "originalRow": [
+      "birdwatch",
+      "",
+      "v. 鸟瞰",
+      1,
+      5358,
+      1,
+      1,
+      "You can birdwatch, dive, surf and boat.",
+      "四级 2026.06",
+      0,
+      "复数 birdwatches"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 9103,
+     "originalRow": [
+      "birdwatch",
+      "",
+      "v. 鸟瞰",
+      1,
+      9099,
+      1,
+      1,
+      "You can birdwatch, dive, surf and boat.",
+      "四级 2026.06",
+      0,
+      "复数 birdwatches"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-04",
+   "word": "clicking",
+   "before": {
+    "2": "n. 微小静电干扰声"
+   },
+   "after": {
+    "2": "n. 点击, 敲击声, 咔嗒声"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: click verb/noun — make a short sharp sound; press a mouse button"
+   ],
+   "reason": "原释义只收无线电术语「微小静电干扰声」；例句 typing and clicking 指点击，clicking 常用义为「点击（声）、咔嗒声」。",
+   "references": [
+    {
+     "book": "cet4",
+     "index": 5488,
+     "originalRow": [
+      "clicking",
+      "",
+      "n. 微小静电干扰声",
+      0,
+      5493,
+      1,
+      1,
+      "Some think voice could soon take over from typing and clicking as the main way to interact online.",
+      "四级 2023.06",
+      0,
+      "复数 clickings"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 9291,
+     "originalRow": [
+      "clicking",
+      "",
+      "n. 微小静电干扰声",
+      0,
+      9287,
+      1,
+      1,
+      "Some think voice could soon take over from typing and clicking as the main way to interact online.",
+      "四级 2023.06",
+      0,
+      "复数 clickings"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-05",
+   "word": "crippling",
+   "before": {
+    "2": "a. (往复)曲折, 断裂, 临界的, 极限的"
+   },
+   "after": {
+    "2": "a. 造成严重损害的, 使丧失能力的, 严重的"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: crippling adjective — causing serious damage or making somebody unable to move or walk"
+   ],
+   "reason": "原释义只收工程术语「曲折、断裂、临界、极限的」；crippling 常用义为「造成严重损害的、使丧失能力的」，cet4 例句 crippling fashions、cet6 例句 crippling burden 均为此义。",
+   "references": [
+    {
+     "book": "cet4",
+     "index": 5585,
+     "originalRow": [
+      "crippling",
+      "ˈkripliŋ",
+      "a. (往复)曲折, 断裂, 临界的, 极限的",
+      2,
+      5591,
+      1,
+      1,
+      "No one is spared his sharp analysis: not the easy targets of 19th century women's crippling fashions nor the modern uniforms of Silicon Valley T-shirts.",
+      "四级 2024.06",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "cet6",
+     "index": 6878,
+     "originalRow": [
+      "crippling",
+      "ˈkripliŋ",
+      "a. (往复)曲折, 断裂, 临界的, 极限的",
+      2,
+      6884,
+      1,
+      1,
+      "High repair costs placed a crippling burden on the small business.",
+      "自编",
+      1,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 7561,
+     "originalRow": [
+      "crippling",
+      "ˈkripliŋ",
+      "a. (往复)曲折, 断裂, 临界的, 极限的",
+      2,
+      7557,
+      2,
+      2,
+      "No one is spared his sharp analysis: not the easy targets of 19th century women's crippling fashions nor the modern uniforms of Silicon Valley T-shirts.",
+      "四级 2024.06",
+      1,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-06",
+   "word": "dockless",
+   "before": {
+    "2": "a. 无码"
+   },
+   "after": {
+    "2": "a. 无桩的, 无固定停放点的"
+   },
+   "evidence": [
+    "Collins English Dictionary (dockless submission): without docking stations, of bicycle-sharing systems"
+   ],
+   "reason": "原释义「无码」与 dockless 无关；dockless 指共享单车「无桩的、无固定停车点的」，例句 dockless bikeshare systems。",
+   "references": [
+    {
+     "book": "cet4",
+     "index": 5705,
+     "originalRow": [
+      "dockless",
+      "",
+      "a. 无码",
+      2,
+      5711,
+      1,
+      1,
+      "The system works like existing dockless bikeshare systems, where riders unlock bikes through a smartphone app.",
+      "四级 2020.12",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 9626,
+     "originalRow": [
+      "dockless",
+      "",
+      "a. 无码",
+      2,
+      9623,
+      1,
+      1,
+      "The system works like existing dockless bikeshare systems, where riders unlock bikes through a smartphone app.",
+      "四级 2020.12",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-07",
+   "word": "greening",
+   "before": {
+    "2": "n. 绿皮苹果, 恢复活力"
+   },
+   "after": {
+    "2": "n. 绿化, 环保化, 变绿"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: greening noun — the process of making something greener or more environmentally friendly"
+   ],
+   "reason": "原释义「绿皮苹果」为品种名冷僻义；例句 The greening of the West 指「绿化、环保化」，greening 常用义为「绿化、变绿」。",
+   "references": [
+    {
+     "book": "cet4",
+     "index": 5939,
+     "originalRow": [
+      "greening",
+      "ˈɡriːniŋ",
+      "n. 绿皮苹果, 恢复活力",
+      0,
+      5945,
+      1,
+      1,
+      "The greening of the West does not delight everyone.",
+      "四级 2020.12",
+      0,
+      "复数 greenings"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 10027,
+     "originalRow": [
+      "greening",
+      "ˈɡriːniŋ",
+      "n. 绿皮苹果, 恢复活力",
+      0,
+      10027,
+      1,
+      1,
+      "The greening of the West does not delight everyone.",
+      "四级 2020.12",
+      0,
+      "复数 greenings"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-08",
+   "word": "livability",
+   "before": {
+    "2": "n. (牲畜)存活率"
+   },
+   "after": {
+    "2": "n. 宜居性, 适居性；存活率"
+   },
+   "evidence": [
+    "Merriam-Webster: livability noun — suitability for living; quality of being livable"
+   ],
+   "reason": "原释义只收畜牧业的「(牲畜)存活率」；livability 常用义为「宜居性、适居性」，本词条自编例句仍保留「存活率」作第二义。",
+   "references": [
+    {
+     "book": "cet4",
+     "index": 6203,
+     "originalRow": [
+      "livability",
+      "ˌlivəˈbiliti",
+      "n. (牲畜)存活率",
+      0,
+      6209,
+      1,
+      1,
+      "Better feed and warm bedding improved the livability of the young animals.",
+      "自编",
+      0,
+      "复数 livabilities"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 10437,
+     "originalRow": [
+      "livability",
+      "ˌlivəˈbiliti",
+      "n. (牲畜)存活率",
+      0,
+      10439,
+      1,
+      1,
+      "Better feed and warm bedding improved the livability of the young animals.",
+      "自编",
+      0,
+      "复数 livabilities"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-09",
+   "word": "napping",
+   "before": {
+    "2": "n. 起绒, 拉绒, 拉毛"
+   },
+   "after": {
+    "2": "n. 打盹, 小睡"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: nap verb/noun — sleep lightly for a short time",
+    "纺织义 nap（起绒）属另一冷僻义，不作为本词条主释义"
+   ],
+   "reason": "原释义只收纺织术语「起绒、拉绒」；例句 Some bosses associate napping with laziness 指「打盹、小睡」。",
+   "references": [
+    {
+     "book": "cet4",
+     "index": 6310,
+     "originalRow": [
+      "napping",
+      "ˈnæpiŋ",
+      "n. 起绒, 拉绒, 拉毛",
+      0,
+      6316,
+      1,
+      1,
+      "Some bosses associate napping with laziness.",
+      "四级 2023.06",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 10638,
+     "originalRow": [
+      "napping",
+      "ˈnæpiŋ",
+      "n. 起绒, 拉绒, 拉毛",
+      0,
+      10640,
+      1,
+      1,
+      "Some bosses associate napping with laziness.",
+      "四级 2023.06",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-10",
+   "word": "overconsumption",
+   "before": {
+    "2": "n. un. 总消费量"
+   },
+   "after": {
+    "2": "n. 过度消费, 过量消耗"
+   },
+   "evidence": [
+    "Cambridge Dictionary: overconsumption noun — the consumption of too much"
+   ],
+   "reason": "原释义「总消费量」对应 consumption；overconsumption 意为「过度消费、过量消耗」，例句 overconsumption of snacks。",
+   "references": [
+    {
+     "book": "cet4",
+     "index": 6381,
+     "originalRow": [
+      "overconsumption",
+      "",
+      "n. un. 总消费量",
+      0,
+      6388,
+      1,
+      1,
+      "It is mainly caused by overconsumption of snacks.",
+      "四级 2018.12",
+      0,
+      "复数 overconsumptions"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 10769,
+     "originalRow": [
+      "overconsumption",
+      "",
+      "n. un. 总消费量",
+      0,
+      10773,
+      1,
+      1,
+      "It is mainly caused by overconsumption of snacks.",
+      "四级 2018.12",
+      0,
+      "复数 overconsumptions"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-11",
+   "word": "prioritization",
+   "before": {
+    "2": "n. 优化"
+   },
+   "after": {
+    "2": "n. 优先排序, 优先考虑"
+   },
+   "evidence": [
+    "Cambridge Dictionary: prioritization noun — the act of deciding which things are most important"
+   ],
+   "reason": "原释义「优化」对应 optimization；prioritization 意为「优先排序、优先重视」，例句 prioritization dropped off。",
+   "references": [
+    {
+     "book": "cet4",
+     "index": 6512,
+     "originalRow": [
+      "prioritization",
+      "",
+      "n. 优化",
+      0,
+      6519,
+      1,
+      1,
+      "Those between the ages of 18 and 34 prioritized it most, and that prioritization dropped off as respondents' ages went up.",
+      "四级 2022.09",
+      0,
+      "复数 prioritizations"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 10996,
+     "originalRow": [
+      "prioritization",
+      "",
+      "n. 优化",
+      0,
+      10999,
+      1,
+      1,
+      "Those between the ages of 18 and 34 prioritized it most, and that prioritization dropped off as respondents' ages went up.",
+      "四级 2022.09",
+      0,
+      "复数 prioritizations"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-12",
+   "word": "robbing",
+   "before": {
+    "2": "n. 回采矿柱",
+    "7": "Robbing is a mining method used to recover coal left in pillars."
+   },
+   "after": {
+    "2": "n. 抢劫, 掠夺；v. 抢劫（rob 的现在分词）",
+    "7": "The robbing of the village shop was recorded by the security camera."
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: rob verb — steal money or property from a person or place",
+    "原例句 Robbing is a mining method… 只服务冷僻采矿义，与考试常用义不符"
+   ],
+   "reason": "原释义只收采矿术语「回采矿柱」；robbing 常用义为「抢劫、掠夺」，原自编例句为冷僻义专门编写，已按常用义改写例句。",
+   "references": [
+    {
+     "book": "cet4",
+     "index": 6653,
+     "originalRow": [
+      "robbing",
+      "ˈrɔbiŋ",
+      "n. 回采矿柱",
+      0,
+      6660,
+      1,
+      1,
+      "Robbing is a mining method used to recover coal left in pillars.",
+      "自编",
+      0,
+      "复数 robbings"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 11253,
+     "originalRow": [
+      "robbing",
+      "ˈrɔbiŋ",
+      "n. 回采矿柱",
+      0,
+      11257,
+      1,
+      1,
+      "Robbing is a mining method used to recover coal left in pillars.",
+      "自编",
+      0,
+      "复数 robbings"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-13",
+   "word": "sequentially",
+   "before": {
+    "2": "adv. 继续地, 从而"
+   },
+   "after": {
+    "2": "adv. 按顺序地, 依次地"
+   },
+   "evidence": [
+    "Cambridge Dictionary: sequentially adverb — one after another in order"
+   ],
+   "reason": "原释义「继续地, 从而」与 sequentially 无关；sequentially 意为「按顺序地、依次地」，例句 organized sequentially / completed sequentially。",
+   "references": [
+    {
+     "book": "cet4",
+     "index": 6721,
+     "originalRow": [
+      "sequentially",
+      "siˈkwenʃəli",
+      "adv. 继续地, 从而",
+      3,
+      6729,
+      1,
+      1,
+      "They recognize that numbers are organized sequentially, but have little awareness of what each individual number means.",
+      "四级 2021.06",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "cet6",
+     "index": 8321,
+     "originalRow": [
+      "sequentially",
+      "siˈkwenʃəli",
+      "adv. 继续地, 从而",
+      3,
+      8328,
+      1,
+      1,
+      "The two tasks were completed sequentially rather than at the same time.",
+      "自编",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 8203,
+     "originalRow": [
+      "sequentially",
+      "siˈkwenʃəli",
+      "adv. 继续地, 从而",
+      3,
+      8196,
+      2,
+      2,
+      "They recognize that numbers are organized sequentially, but have little awareness of what each individual number means.",
+      "四级 2021.06",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-14",
+   "word": "stat",
+   "before": {
+    "2": "n. 静"
+   },
+   "after": {
+    "2": "n. 统计数字, 统计数据"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: stat noun — a statistic (informal, especially AmE)"
+   ],
+   "reason": "原释义「静」实际是 static/statics 的释义；stat 常用义为「统计数字、统计数据」，例句 The latest stat shows…。",
+   "references": [
+    {
+     "book": "cet4",
+     "index": 6834,
+     "originalRow": [
+      "stat",
+      "stæt",
+      "n. 静",
+      0,
+      6842,
+      1,
+      1,
+      "The latest stat shows that reading habits are changing.",
+      "自编",
+      0,
+      "复数 stats"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 11484,
+     "originalRow": [
+      "stat",
+      "stæt",
+      "n. 静",
+      0,
+      11488,
+      1,
+      1,
+      "The latest stat shows that reading habits are changing.",
+      "自编",
+      0,
+      "复数 stats"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-15",
+   "word": "unifying",
+   "before": {
+    "2": "n. 一致"
+   },
+   "after": {
+    "2": "n. 统一, 团结；a. 统一的, 使团结的"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: unifying adjective — making a group of people or things join together"
+   ],
+   "reason": "原释义「一致」缺 unifying 的常用形容词义；unifying 意为「统一的、使团结的」，例句 one unifying factor。",
+   "references": [
+    {
+     "book": "cet4",
+     "index": 7022,
+     "originalRow": [
+      "unifying",
+      "",
+      "n. 一致",
+      0,
+      7030,
+      1,
+      1,
+      "But Pasternak did take note of one unifying factor in all of the healthy societies he observed.",
+      "四级 2022.12",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 11830,
+     "originalRow": [
+      "unifying",
+      "",
+      "n. 一致",
+      0,
+      11834,
+      1,
+      1,
+      "But Pasternak did take note of one unifying factor in all of the healthy societies he observed.",
+      "四级 2022.12",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-16",
+   "word": "weaving",
+   "before": {
+    "2": "n. 织动"
+   },
+   "after": {
+    "2": "n. 编织, 织造；v. 编织, 编入（weave 的现在分词）"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: weave verb — make cloth by crossing threads; combine parts into a whole"
+   ],
+   "reason": "原释义「织动」不规范且缺常用义；weaving 意为「编织、织造；编入」，例句 weaving children into photographs。",
+   "references": [
+    {
+     "book": "cet4",
+     "index": 7121,
+     "originalRow": [
+      "weaving",
+      "",
+      "n. 织动",
+      0,
+      7129,
+      1,
+      1,
+      "Being multicultural often falls back on weaving children of color into photographs, or creating a few supporting characters that happen to be ethnic an improvement, but superficial nonetheless.",
+      "四级 2020.09",
+      0,
+      "复数 weavings"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 12018,
+     "originalRow": [
+      "weaving",
+      "",
+      "n. 织动",
+      0,
+      12022,
+      1,
+      1,
+      "Being multicultural often falls back on weaving children of color into photographs, or creating a few supporting characters that happen to be ethnic an improvement, but superficial nonetheless.",
+      "四级 2020.09",
+      0,
+      "复数 weavings"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-17",
+   "word": "worryingly",
+   "before": {
+    "2": "adv. 焦虑地, 烦恼地"
+   },
+   "after": {
+    "2": "adv. 令人担忧地, 担忧地"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: worryingly adverb — in a way that makes you feel anxious"
+   ],
+   "reason": "原释义「焦虑地、烦恼地」实际是 worriedly 的释义；worryingly 意为「令人担忧地」，也可指「担忧地」，例句 She spoke worryingly…。",
+   "references": [
+    {
+     "book": "cet4",
+     "index": 7150,
+     "originalRow": [
+      "worryingly",
+      "ˈwʌrɪɪŋlɪ",
+      "adv. 焦虑地, 烦恼地",
+      3,
+      7158,
+      1,
+      1,
+      "She spoke worryingly about her son's failing health and his future.",
+      "自编",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 12064,
+     "originalRow": [
+      "worryingly",
+      "ˈwʌrɪɪŋlɪ",
+      "adv. 焦虑地, 烦恼地",
+      3,
+      12068,
+      1,
+      1,
+      "She spoke worryingly about her son's failing health and his future.",
+      "自编",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-18",
+   "word": "collegial",
+   "before": {
+    "2": "a. 学校的, 大学的, 大学生的, 社团的"
+   },
+   "after": {
+    "2": "a. 同事间的, 同僚的；大学的, 社团的"
+   },
+   "evidence": [
+    "Cambridge Dictionary: collegial adjective — involving shared responsibility among colleagues"
+   ],
+   "reason": "原释义只收「学校的、社团的」次要义；collegial 常用义为「同事间的、同僚的」，例句 collegial relationships。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 4414,
+     "originalRow": [
+      "collegial",
+      "kəˈliːdʒiəl",
+      "a. 学校的, 大学的, 大学生的, 社团的",
+      2,
+      4415,
+      4,
+      1,
+      "What do we learn from many studies about collegial relationships?",
+      "六级 2019.06",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 6464,
+     "originalRow": [
+      "collegial",
+      "kəˈliːdʒiəl",
+      "a. 学校的, 大学的, 大学生的, 社团的",
+      2,
+      6456,
+      4,
+      1,
+      "What do we learn from many studies about collegial relationships?",
+      "六级 2019.06",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-19",
+   "word": "loophole",
+   "before": {
+    "2": "n. 枪眼, 小窗, 换气孔"
+   },
+   "after": {
+    "2": "n. 漏洞, 空子；枪眼, 窥孔"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: loophole noun — a mistake in an organization or law that allows something to be done"
+   ],
+   "reason": "原释义只收本义「枪眼、小窗」；例句 loopholes in the three laws 指「漏洞、空子」。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 5656,
+     "originalRow": [
+      "loophole",
+      "ˈluːphəul",
+      "n. 枪眼, 小窗, 换气孔",
+      0,
+      5659,
+      2,
+      2,
+      "The robots in Asimov's fiction expose complications and loopholes in the three laws, and even when the laws work, robots still have to assess situations.",
+      "六级 2017.12",
+      0,
+      "复数 loopholes"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 7888,
+     "originalRow": [
+      "loophole",
+      "ˈluːphəul",
+      "n. 枪眼, 小窗, 换气孔",
+      0,
+      7880,
+      2,
+      2,
+      "The robots in Asimov's fiction expose complications and loopholes in the three laws, and even when the laws work, robots still have to assess situations.",
+      "六级 2017.12",
+      0,
+      "复数 loopholes"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-20",
+   "word": "unanticipated",
+   "before": {
+    "2": "a. 非先行的"
+   },
+   "after": {
+    "2": "a. 未预料到的, 意外的"
+   },
+   "evidence": [
+    "Cambridge Dictionary: unanticipated adjective — not expected"
+   ],
+   "reason": "原释义「非先行的」是对 anticipated 的字面否定，不是词义；unanticipated 意为「未预料到的、意外的」，例句 unanticipated way。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 6001,
+     "originalRow": [
+      "unanticipated",
+      "",
+      "a. 非先行的",
+      2,
+      6005,
+      2,
+      2,
+      "We think there is some risk that people's options will be constrained by their past in a new and unanticipated way.",
+      "六级 2023.06",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 8334,
+     "originalRow": [
+      "unanticipated",
+      "",
+      "a. 非先行的",
+      2,
+      8328,
+      2,
+      2,
+      "We think there is some risk that people's options will be constrained by their past in a new and unanticipated way.",
+      "六级 2023.06",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-21",
+   "word": "achievability",
+   "before": {
+    "2": "n. 成就感"
+   },
+   "after": {
+    "2": "n. 可实现性, 可达成性"
+   },
+   "evidence": [
+    "Cambridge Dictionary: achievability noun — the quality of being achievable"
+   ],
+   "reason": "原释义「成就感」对应 achievement；achievability 意为「可实现性、可达成性」，例句 the achievability of the goal。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 6453,
+     "originalRow": [
+      "achievability",
+      "",
+      "n. 成就感",
+      0,
+      6457,
+      1,
+      1,
+      "The team questioned the achievability of the goal within one year.",
+      "自编",
+      0,
+      "复数 achievabilities"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 8885,
+     "originalRow": [
+      "achievability",
+      "",
+      "n. 成就感",
+      0,
+      8881,
+      1,
+      1,
+      "The team questioned the achievability of the goal within one year.",
+      "自编",
+      0,
+      "复数 achievabilities"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-22",
+   "word": "competency",
+   "before": {
+    "2": "n. 足以使人过舒适生活的富裕收入, 充裕的生活条件"
+   },
+   "after": {
+    "2": "n. 能力, 胜任力, 资格"
+   },
+   "evidence": [
+    "Merriam-Webster: competency noun — the quality or state of being competent; ability"
+   ],
+   "reason": "原释义只收冷僻义「足以使人过舒适生活的富裕收入」；competency 常用义为「能力、胜任力、资格」，例句 more general competencies。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 6808,
+     "originalRow": [
+      "competency",
+      "ˈkɔmpit(ə)nsi",
+      "n. 足以使人过舒适生活的富裕收入, 充裕的生活条件",
+      0,
+      6814,
+      1,
+      1,
+      "Among these children, Schneider has found that those who were enthusiastic about music and who practiced voluntarily showed improvements in hearing ability, as well as in more general competencies, such as the ability to concentrate.",
+      "六级 2021.12",
+      0,
+      "复数 competencies"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 9345,
+     "originalRow": [
+      "competency",
+      "ˈkɔmpit(ə)nsi",
+      "n. 足以使人过舒适生活的富裕收入, 充裕的生活条件",
+      0,
+      9342,
+      1,
+      1,
+      "Among these children, Schneider has found that those who were enthusiastic about music and who practiced voluntarily showed improvements in hearing ability, as well as in more general competencies, such as the ability to concentrate.",
+      "六级 2021.12",
+      0,
+      "复数 competencies"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-23",
+   "word": "geographically",
+   "before": {
+    "2": "adv. 自通地"
+   },
+   "after": {
+    "2": "adv. 在地理上, 从地理角度"
+   },
+   "evidence": [
+    "Cambridge Dictionary: geographically adverb — in a way that relates to geography"
+   ],
+   "reason": "原释义「自通地」与 geographically 无关；geographically 意为「在地理上、从地理角度」，例句 geographically dispersed。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 7277,
+     "originalRow": [
+      "geographically",
+      "",
+      "adv. 自通地",
+      3,
+      7284,
+      1,
+      1,
+      "Members of the geographically dispersed subculture that Levels is a part of call themselves \"digital nomads\".",
+      "六级 2026.06",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 9976,
+     "originalRow": [
+      "geographically",
+      "",
+      "adv. 自通地",
+      3,
+      9976,
+      1,
+      1,
+      "Members of the geographically dispersed subculture that Levels is a part of call themselves \"digital nomads\".",
+      "六级 2026.06",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-24",
+   "word": "ordering",
+   "before": {
+    "2": "n. 有序化"
+   },
+   "after": {
+    "2": "n. 点餐, 订购；次序, 排序"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: order verb — ask for food or goods; arrange things in a particular order"
+   ],
+   "reason": "原释义只收数学/计算机义的「有序化」；例句 at-table ordering 指点餐，ordering 常用义为「点餐、订购；次序、排序」。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 7881,
+     "originalRow": [
+      "ordering",
+      "ˈɔːdəriŋ",
+      "n. 有序化",
+      0,
+      7888,
+      1,
+      1,
+      "Automated at-table ordering and payment is seen as the next landmark.",
+      "六级 2025.12",
+      0,
+      "复数 orderings"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 10747,
+     "originalRow": [
+      "ordering",
+      "ˈɔːdəriŋ",
+      "n. 有序化",
+      0,
+      10750,
+      1,
+      1,
+      "Automated at-table ordering and payment is seen as the next landmark.",
+      "六级 2025.12",
+      0,
+      "复数 orderings"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-25",
+   "word": "overmining",
+   "before": {
+    "2": "n. 爆发"
+   },
+   "after": {
+    "2": "n. 过度开采"
+   },
+   "evidence": [
+    "构词：over- + mining；过度开采",
+    "语境：The overmining of Lake Natron's soda ash"
+   ],
+   "reason": "原释义「爆发」与 overmining 无关；overmining 意为「过度开采」，例句 the overmining of Lake Natron's soda ash。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 7914,
+     "originalRow": [
+      "overmining",
+      "",
+      "n. 爆发",
+      0,
+      7922,
+      1,
+      1,
+      "The overmining of Lake Natron's soda ash.",
+      "六级 2017.12",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 10782,
+     "originalRow": [
+      "overmining",
+      "",
+      "n. 爆发",
+      0,
+      10786,
+      1,
+      1,
+      "The overmining of Lake Natron's soda ash.",
+      "六级 2017.12",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-26",
+   "word": "proactively",
+   "before": {
+    "2": "adv. 前摄地"
+   },
+   "after": {
+    "2": "adv. 主动地, 积极地"
+   },
+   "evidence": [
+    "Cambridge Dictionary: proactive adjective — taking action by causing change before something happens"
+   ],
+   "reason": "原释义只收心理学义「前摄地」；proactively 常用义为「主动地、积极地」，例句 proactively checked the equipment。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 8070,
+     "originalRow": [
+      "proactively",
+      "ˌprəʊˈæktɪvlɪ",
+      "adv. 前摄地",
+      3,
+      8077,
+      1,
+      1,
+      "The team proactively checked the equipment before any problem appeared.",
+      "自编",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 10998,
+     "originalRow": [
+      "proactively",
+      "ˌprəʊˈæktɪvlɪ",
+      "adv. 前摄地",
+      3,
+      11001,
+      1,
+      1,
+      "The team proactively checked the equipment before any problem appeared.",
+      "自编",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-27",
+   "word": "rapper",
+   "before": {
+    "2": "n. 敲门人, (美)(非正式)控告人, 证人, 检举人",
+    "7": "The rapper knocked loudly, but nobody inside answered."
+   },
+   "after": {
+    "2": "n. 说唱歌手, 说唱艺人；敲门人",
+    "7": "The rapper performed his new song to a packed stadium."
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: rapper noun — a person who performs rap music"
+   ],
+   "reason": "原释义只收冷僻旧义「敲门人、控告人、证人」；rapper 常用义为「说唱歌手」，原自编例句为冷僻义专门编写，已按常用义改写例句。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 8130,
+     "originalRow": [
+      "rapper",
+      "ˈræpə",
+      "n. 敲门人, (美)(非正式)控告人, 证人, 检举人",
+      0,
+      8137,
+      1,
+      1,
+      "The rapper knocked loudly, but nobody inside answered.",
+      "自编",
+      0,
+      "复数 rappers"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 11081,
+     "originalRow": [
+      "rapper",
+      "ˈræpə",
+      "n. 敲门人, (美)(非正式)控告人, 证人, 检举人",
+      0,
+      11084,
+      1,
+      1,
+      "The rapper knocked loudly, but nobody inside answered.",
+      "自编",
+      0,
+      "复数 rappers"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-28",
+   "word": "sensing",
+   "before": {
+    "2": "n. 测向, 偏航显示"
+   },
+   "after": {
+    "2": "n. 感知, 传感；v. 察觉, 感觉到（sense 的现在分词）"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: sense verb — become aware of something"
+   ],
+   "reason": "原释义只收导航技术义「测向、偏航显示」；例句 sensing its chance 指「察觉到」，sensing 常用义为「感知、传感」。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 8317,
+     "originalRow": [
+      "sensing",
+      "ˈsensiŋ",
+      "n. 测向, 偏航显示",
+      0,
+      8324,
+      1,
+      1,
+      "Only Ukip, sensing its chance, has sided with those pleading for a more considered approach to using green land.",
+      "英语一 2016",
+      0,
+      "复数 sensings"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 11324,
+     "originalRow": [
+      "sensing",
+      "ˈsensiŋ",
+      "n. 测向, 偏航显示",
+      0,
+      11328,
+      1,
+      1,
+      "Only Ukip, sensing its chance, has sided with those pleading for a more considered approach to using green land.",
+      "英语一 2016",
+      0,
+      "复数 sensings"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-29",
+   "word": "socialiser",
+   "before": {
+    "2": "n. 三姑六婆"
+   },
+   "after": {
+    "2": "n. 社交者, 爱交际的人"
+   },
+   "evidence": [
+    "Merriam-Webster: socializer noun — a person who socializes"
+   ],
+   "reason": "原释义「三姑六婆」与 socialiser 无关；socialiser 意为「社交者、爱交际的人」，例句 a reluctant socialiser。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 8387,
+     "originalRow": [
+      "socialiser",
+      "",
+      "n. 三姑六婆",
+      0,
+      8394,
+      1,
+      1,
+      "I can be a reluctant socialiser.",
+      "六级 2025.06",
+      0,
+      "复数 socialisers"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 11421,
+     "originalRow": [
+      "socialiser",
+      "",
+      "n. 三姑六婆",
+      0,
+      11425,
+      1,
+      1,
+      "I can be a reluctant socialiser.",
+      "六级 2025.06",
+      0,
+      "复数 socialisers"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-30",
+   "word": "soundtrack",
+   "before": {
+    "2": "n. 声迹, 声槽, 声带"
+   },
+   "after": {
+    "2": "n. 电影配乐, 原声带, 音轨"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: soundtrack noun — the music used in a film"
+   ],
+   "reason": "原释义只收技术义「声迹、声槽、声带」；soundtrack 常用义为「电影配乐、原声带、音轨」，例句 life soundtrack。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 8399,
+     "originalRow": [
+      "soundtrack",
+      "",
+      "n. 声迹, 声槽, 声带",
+      0,
+      8406,
+      1,
+      1,
+      "Studies have shown that music can reduce stress and anxiety before surgeries and we are all attracted toward our own unique life soundtrack.",
+      "六级 2024.06",
+      0,
+      "复数 soundtracks"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 11443,
+     "originalRow": [
+      "soundtrack",
+      "",
+      "n. 声迹, 声槽, 声带",
+      0,
+      11447,
+      1,
+      1,
+      "Studies have shown that music can reduce stress and anxiety before surgeries and we are all attracted toward our own unique life soundtrack.",
+      "六级 2024.06",
+      0,
+      "复数 soundtracks"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-31",
+   "word": "stretching",
+   "before": {
+    "2": "n. 伸展作业, 锻伸作业"
+   },
+   "after": {
+    "2": "n. 伸展, 延伸；v. 伸展, 延伸（stretch 的现在分词）"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: stretch verb — spread over an area or a period of time"
+   ],
+   "reason": "原释义只收工业术语「伸展作业、锻伸作业」；例句 stretching from…to… 指「延伸」，stretching 常用义为「伸展、延伸」。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 8449,
+     "originalRow": [
+      "stretching",
+      "ˈstretʃiŋ",
+      "n. 伸展作业, 锻伸作业",
+      0,
+      8456,
+      1,
+      1,
+      "Derek Jarman's yellow-tinted film Towards Avebury, a collection of long, mostly still shots of the Wiltshire landscape, evokes a tradition of English landscape painting stretching from Samuel Palmer to Paul Nash.",
+      "英语二 2014",
+      0,
+      "复数 stretchings"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 11524,
+     "originalRow": [
+      "stretching",
+      "ˈstretʃiŋ",
+      "n. 伸展作业, 锻伸作业",
+      0,
+      11528,
+      1,
+      1,
+      "Derek Jarman's yellow-tinted film Towards Avebury, a collection of long, mostly still shots of the Wiltshire landscape, evokes a tradition of English landscape painting stretching from Samuel Palmer to Paul Nash.",
+      "英语二 2014",
+      0,
+      "复数 stretchings"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-32",
+   "word": "unassessed",
+   "before": {
+    "2": "a. 不可估价的, 不可征税的"
+   },
+   "after": {
+    "2": "a. 未评估的, 未评定的"
+   },
+   "evidence": [
+    "Merriam-Webster: unassessed adjective — not assessed"
+   ],
+   "reason": "原释义「不可估价的、不可征税的」实际是 unassessable 的释义；unassessed 意为「未评估的、未评定的」，例句 unassessed variables。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 8608,
+     "originalRow": [
+      "unassessed",
+      "",
+      "a. 不可估价的, 不可征税的",
+      2,
+      8615,
+      1,
+      1,
+      "I suspect that some experts in the field will be keen to address alternative explanations, such as unassessed variables playing a role in the wellbeing decline.",
+      "六级 2019.12",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 11749,
+     "originalRow": [
+      "unassessed",
+      "",
+      "a. 不可估价的, 不可征税的",
+      2,
+      11753,
+      1,
+      1,
+      "I suspect that some experts in the field will be keen to address alternative explanations, such as unassessed variables playing a role in the wellbeing decline.",
+      "六级 2019.12",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-33",
+   "word": "uncleaned",
+   "before": {
+    "2": "a. 未办清海关手续的",
+    "7": "The uncleaned vessel was not allowed to leave the port until customs approved it."
+   },
+   "after": {
+    "2": "a. 未清洁的, 未打扫的",
+    "7": "The uncleaned windows were covered with dust and fingerprints."
+   },
+   "evidence": [
+    "OED: uncleaned adjective — not cleaned"
+   ],
+   "reason": "原释义「未办清海关手续的」实际是 uncleared 的释义；uncleaned 意为「未清洁的、未打扫的」，原自编例句为错义专门编写，已按常用义改写例句。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 8618,
+     "originalRow": [
+      "uncleaned",
+      "",
+      "a. 未办清海关手续的",
+      2,
+      8625,
+      1,
+      1,
+      "The uncleaned vessel was not allowed to leave the port until customs approved it.",
+      "自编",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 11764,
+     "originalRow": [
+      "uncleaned",
+      "",
+      "a. 未办清海关手续的",
+      2,
+      11768,
+      1,
+      1,
+      "The uncleaned vessel was not allowed to leave the port until customs approved it.",
+      "自编",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-34",
+   "word": "uncontained",
+   "before": {
+    "2": "a. 非内含性"
+   },
+   "after": {
+    "2": "a. 未受控制的, 未被遏制的"
+   },
+   "evidence": [
+    "Merriam-Webster: uncontained adjective — not contained; not held back or controlled"
+   ],
+   "reason": "原释义「非内含性」与 uncontained 无关；uncontained 意为「未受控制的、未被遏制的」，例句 most uncontained environments to manage。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 8626,
+     "originalRow": [
+      "uncontained",
+      "",
+      "a. 非内含性",
+      2,
+      8633,
+      1,
+      1,
+      "In most cases, the problem is not that the technology does not work, the problem is that industry has not taken the time to respect that agriculture is one of the most uncontained environments to manage.",
+      "六级 2020.12",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 11772,
+     "originalRow": [
+      "uncontained",
+      "",
+      "a. 非内含性",
+      2,
+      11776,
+      1,
+      1,
+      "In most cases, the problem is not that the technology does not work, the problem is that industry has not taken the time to respect that agriculture is one of the most uncontained environments to manage.",
+      "六级 2020.12",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-35",
+   "word": "unreproducible",
+   "before": {
+    "2": "a. 不能繁殖的"
+   },
+   "after": {
+    "2": "a. 不可复现的, 无法重复的"
+   },
+   "evidence": [
+    "Merriam-Webster: unreproducible adjective — not reproducible"
+   ],
+   "reason": "原释义「不能繁殖的」实际是 unreproductive 的释义；unreproducible 意为「不可复现的、无法重复的」，例句 findings proved unreproducible。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 8676,
+     "originalRow": [
+      "unreproducible",
+      "ˌʌnriːprəˈdjuːsəbl",
+      "a. 不能繁殖的",
+      2,
+      8682,
+      1,
+      1,
+      "Psychologists have been battling charges that they don't do \"real\" science for some time-in large part because many findings from classic experiments have proved unreproducible.",
+      "六级 2021.12",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 11879,
+     "originalRow": [
+      "unreproducible",
+      "ˌʌnriːprəˈdjuːsəbl",
+      "a. 不能繁殖的",
+      2,
+      11883,
+      1,
+      1,
+      "Psychologists have been battling charges that they don't do \"real\" science for some time-in large part because many findings from classic experiments have proved unreproducible.",
+      "六级 2021.12",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-36",
+   "word": "unschedule",
+   "before": {
+    "2": "v. 无日程表"
+   },
+   "after": {
+    "2": "v. 取消…的安排, 使不作安排"
+   },
+   "evidence": [
+    "Merriam-Webster: unschedule verb — to remove from a schedule"
+   ],
+   "reason": "原释义「无日程表」把形容词 unscheduled 的意思误作动词；unschedule 意为「取消…的安排」，例句 weekends unscheduled。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 8679,
+     "originalRow": [
+      "unschedule",
+      "",
+      "v. 无日程表",
+      1,
+      8685,
+      1,
+      1,
+      "Even if you feel tempted to sacrifice your own vacation days for fake busyness, though,at least consider leaving your weekends unscheduled.",
+      "六级 2017.12",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 11884,
+     "originalRow": [
+      "unschedule",
+      "",
+      "v. 无日程表",
+      1,
+      11888,
+      1,
+      1,
+      "Even if you feel tempted to sacrifice your own vacation days for fake busyness, though,at least consider leaving your weekends unscheduled.",
+      "六级 2017.12",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S-37",
+   "word": "viewing",
+   "before": {
+    "2": "n. 可见的"
+   },
+   "after": {
+    "2": "n. 观看, 收看；v. 看待, 观看（view 的现在分词）"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: view verb — think about somebody or something in a particular way; watch"
+   ],
+   "reason": "原释义「可见的」对应 visible/viewable；viewing 意为「观看、收看；看待」，例句 viewing our lives as a race。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 8747,
+     "originalRow": [
+      "viewing",
+      "ˈvjuːiŋ",
+      "n. 可见的",
+      0,
+      8754,
+      1,
+      1,
+      "Instead of viewing our lives as a race, where everyone is on their own path to some form of success, we must relearn to value the connections we make along the track.",
+      "六级 2025.12",
+      0,
+      "复数 viewings"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 11980,
+     "originalRow": [
+      "viewing",
+      "ˈvjuːiŋ",
+      "n. 可见的",
+      0,
+      11984,
+      1,
+      1,
+      "Instead of viewing our lives as a race, where everyone is on their own path to some form of success, we must relearn to value the connections we make along the track.",
+      "六级 2025.12",
+      0,
+      "复数 viewings"
+     ]
+    }
+   ]
+  }
+ ],
+ "removedHeadwords": [
+  {
+   "book": "cet4",
+   "word": "relection",
+   "removedAt": "2026-10-24",
+   "removedIndex": 6599,
+   "reason": "OCR 假词条：四级 2021.12 原句应为 critical thinking and reflection，relection 系漏 f 的误拼；旧释义「n. 选择」又是 election/selection 混淆。reflection 已在四书收录且释义正确，删除假词条而非改词头（避免与已有 reflection 重复、避免无迁移地改进度主键）。",
+   "evidence": [
+    "四级 2021.12 原句：require critical thinking and reflection",
+    "reflection 已在四书收录且释义正确：n. 反思, 沉思, 反映, 映像",
+    "cet4 dataVersion 4→5 迁移：removed=[6599], removedWords=[relection], previousWordCount=7168"
+   ]
+  },
+  {
+   "book": "combined",
+   "word": "relection",
+   "removedAt": "2026-10-24",
+   "removedIndex": 11164,
+   "reason": "随 cet4 源书删除；综合书由 scripts/build-combined.mjs --allow-removals 保序移除并记录 v2→v3 迁移。",
+   "evidence": [
+    "combined dataVersion 2→3 迁移：removed=[11164], removedWords=[relection], previousWordCount=12083",
+    "reflection 已在四书收录且释义正确：n. 反思, 沉思, 反映, 映像",
+    "综合书 reflection 保留 kaoyan 优先人工释义 n. 反思, 沉思, 反映, 映像"
+   ]
+  }
+ ],
+ "migrations": {
+  "cet4": {
+   "from": 4,
+   "to": 5,
+   "removed": [
+    6599
+   ],
+   "removedWords": [
+    "relection"
+   ],
+   "previousWordCount": 7168
+  },
+  "combined": {
+   "from": 2,
+   "to": 3,
+   "removed": [
+    11164
+   ],
+   "removedWords": [
+    "relection"
+   ],
+   "added": [],
+   "addedWords": [],
+   "previousWordCount": 12083
+  }
+ }
+}

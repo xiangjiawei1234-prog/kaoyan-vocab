@@ -7,7 +7,7 @@ import vm from 'node:vm';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { contentEncodingFields, isConfirmedBadExample, exampleHasWordForm, mechanicalExampleRisks, confirmedCorrectionIssues } from './content-validation.mjs';
+import { contentEncodingFields, isConfirmedBadExample, exampleHasWordForm, mechanicalExampleRisks, confirmedCorrectionIssues, isRemovedHeadword, removedHeadwordIssues } from './content-validation.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
@@ -15,6 +15,7 @@ const fixture = JSON.parse(read('tests/fixtures/content-fixes-20261023.json'));
 const nextFixture = JSON.parse(read('tests/fixtures/content-fixes-batch2-20261023.json'));
 const thirdFixture = JSON.parse(read('tests/fixtures/content-fixes-batch3-20261023.json'));
 const maintenanceFixture = JSON.parse(read('tests/fixtures/content-fixes-maintenance-20261023.json'));
+const meaningFixture = JSON.parse(read('tests/fixtures/content-fixes-meaning-20261024.json'));
 const box = vm.createContext({ window: {} });
 const dataFiles = ['js/words-data.js', 'js/cet-words-data.js', 'js/combined-words-data.js'];
 dataFiles.forEach(file => vm.runInContext(read(file), box, { filename: file }));
@@ -230,6 +231,73 @@ check('维护批次进度主键/统计/版本全不动，主词性仅允许firef
     assert.equal(fixture.baseline[book].posIndexHash, baseline.expectedPosIndexHash, book + ' 既有基线精确更新');
   }
 });
+check('释义错配修复：37 词四书行与修复快照一致，进度主键/统计/主词性不变且旧值回流被门控', () => {
+  for (const [book, rows] of Object.entries(books)) {
+    const baseline = meaningFixture.baseline[book];
+    assert.equal(rows.length, baseline.count, book);
+    assert.equal(box.window.WORD_BOOK_META[book].dataVersion, baseline.dataVersion, book);
+    assert.equal(hash(rows.map(row => [row[0], row[4], row[5], row[6], row[9]])), baseline.indexHash, book + ' 进度主键');
+    assert.equal(hash(rows.map(row => [row[0], row[3], row[4], row[5], row[6], row[9]])), baseline.posIndexHash, book + ' 主词性');
+  }
+  assert.equal(meaningFixture.corrections.length, 37);
+  for (const item of meaningFixture.corrections) {
+    assert.notEqual(item.before['2'], item.after['2'], item.id + ' 释义必须有变化');
+    for (const reference of item.references) {
+      const row = books[reference.book][reference.index];
+      assert.equal(row[0], item.word, item.id + ' ' + reference.book + ' 词头');
+      const corrected = reference.originalRow.slice();
+      for (const [field, value] of Object.entries(item.after)) corrected[Number(field)] = value;
+      assert.equal(JSON.stringify(row), JSON.stringify(corrected), item.id + ' ' + item.word + ' ' + reference.book + ' 修后行');
+      assert.deepEqual(confirmedCorrectionIssues(reference.book, row), [], item.id + ' 修后行应允许');
+      for (const [field, before] of Object.entries(item.before)) {
+        const reverted = corrected.slice(); reverted[Number(field)] = before;
+        assert.ok(confirmedCorrectionIssues(reference.book, reverted).length > 0, item.id + ' ' + item.word + ' 字段' + field + ' 旧值应拒绝');
+        const otherHead = reverted.slice(); otherHead[0] = 'unrelated';
+        assert.deepEqual(confirmedCorrectionIssues(reference.book, otherHead), [], item.id + ' 其他词头不套此规则');
+      }
+      if (item.after['7']) {
+        assert.equal(row[7], item.after['7'], item.id + ' 新例句');
+        assert.equal(row[8], '自编', item.id + ' 改写句保留自编来源');
+        assert.equal(exampleHasWordForm(item.word, row[7], row[10]), true, item.id + ' 新例句含目标词形');
+      }
+    }
+    for (const book of ['cet4', 'cet6', 'combined']) {
+      const hit = books[book].find(row => row[0] === item.word);
+      if (hit) assert.notEqual(hit[2], item.before['2'], item.word + ' 旧释义残留 @' + book);
+    }
+  }
+});
+check('释义修复不改动词条顺序与历史基线；relection 走删除迁移而非改义', () => {
+  for (const [book, rows] of Object.entries(books)) {
+    assert.equal(meaningFixture.baseline[book].indexHash, fixture.baseline[book].indexHash, book + ' 索引基线沿用');
+    assert.equal(meaningFixture.baseline[book].posIndexHash, fixture.baseline[book].posIndexHash, book + ' 词性基线沿用');
+  }
+  assert.equal(meaningFixture.corrections.find(item => item.word === 'relection'), undefined, 'relection 走删除迁移，不得混入释义修正');
+  for (const [book, rows] of Object.entries(books)) {
+    assert.equal(rows.some(row => row[0] === 'relection'), false, book + ' OCR 假词条已删除');
+    const reflection = rows.find(row => row[0] === 'reflection');
+    assert.ok(reflection, book + ' reflection 必须存在');
+    assert.equal(reflection[2], 'n. 反思, 沉思, 反映, 映像', book + ' reflection 释义保持');
+  }
+  const cet4Meta = box.window.WORD_BOOK_META.cet4;
+  const combinedMeta = box.window.WORD_BOOK_META.combined;
+  assert.equal(cet4Meta.dataVersion, meaningFixture.baseline.cet4.dataVersion, 'cet4 数据版本');
+  assert.equal(combinedMeta.dataVersion, meaningFixture.baseline.combined.dataVersion, '综合书数据版本');
+  const cet4Migration = cet4Meta.migrations.find(m => m.from === meaningFixture.migrations.cet4.from);
+  const combinedMigration = combinedMeta.migrations.find(m => m.from === meaningFixture.migrations.combined.from);
+  assert.deepEqual(Array.from(cet4Migration.removed), meaningFixture.migrations.cet4.removed, 'cet4 删除下标');
+  assert.deepEqual(Array.from(cet4Migration.removedWords), meaningFixture.migrations.cet4.removedWords, 'cet4 删除词名');
+  assert.equal(cet4Migration.previousWordCount, meaningFixture.migrations.cet4.previousWordCount, 'cet4 迁移前词数');
+  assert.deepEqual(Array.from(combinedMigration.removed), meaningFixture.migrations.combined.removed, '综合书删除下标');
+  assert.deepEqual(Array.from(combinedMigration.removedWords), meaningFixture.migrations.combined.removedWords, '综合书删除词名');
+  assert.equal(combinedMigration.previousWordCount, meaningFixture.migrations.combined.previousWordCount, '综合书迁移前词数');
+  for (const item of meaningFixture.removedHeadwords) {
+    const fakeRow = ['relection', '', 'n. 选择', 0, 6606, 1, 1, 'Most of them require critical thinking and relection.', '四级 2021.12', 0, ''];
+    assert.deepEqual(removedHeadwordIssues(item.book, fakeRow), ['已删除词头回流：relection（2026-10-24 迁移删除）'], item.book + ' 删除词头门控');
+    assert.deepEqual(removedHeadwordIssues(item.book, books[item.book][0]), [], item.book + ' 其他词头不误伤');
+    assert.equal(isRemovedHeadword(item.book, 'relection'), true, item.book + ' isRemovedHeadword');
+  }
+});
 check('第三批夹具逐族 id/批次唯一，追加残留句全部可被机械污染 warning 扫描召回', () => {
   const ids = thirdFixture.families.map(family => family.id);
   assert.equal(ids.length, 400);
@@ -319,7 +387,7 @@ check('第三批 keep 句族不作防回归封禁；机械污染 warning 扫描�
 // 在隔离目录执行真实校验器，证明门控会使退出码失败，而不只是多打印一条 warning。
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'vocab-content-gate-'));
 try {
-  for (const file of [...dataFiles, 'js/content-validation.mjs', 'js/validate-words.mjs', 'js/validate-cet-data.mjs', 'tests/fixtures/content-fixes-20261023.json', 'tests/fixtures/content-fixes-batch2-20261023.json', 'tests/fixtures/content-fixes-batch3-20261023.json', 'tests/fixtures/content-fixes-maintenance-20261023.json']) {
+  for (const file of [...dataFiles, 'js/content-validation.mjs', 'js/validate-words.mjs', 'js/validate-cet-data.mjs', 'tests/fixtures/content-fixes-20261023.json', 'tests/fixtures/content-fixes-batch2-20261023.json', 'tests/fixtures/content-fixes-batch3-20261023.json', 'tests/fixtures/content-fixes-maintenance-20261023.json', 'tests/fixtures/content-fixes-meaning-20261024.json']) {
     const target = path.join(tmp, file); fs.mkdirSync(path.dirname(target), { recursive: true }); fs.writeFileSync(target, read(file));
   }
   for (const [validator, file, key] of [['js/validate-words.mjs', 'js/words-data.js', 'kaoyan'], ['js/validate-cet-data.mjs', 'js/cet-words-data.js', 'cet4']]) {
@@ -351,6 +419,33 @@ try {
           fs.writeFileSync(path.join(tmp, file), source);
         });
       }
+    }
+    const troublingFix = meaningFixture.corrections.find(item => item.word === 'troubling');
+    const troublingRef = troublingFix?.references.find(reference => sourceBooks.includes(reference.book));
+    if (troublingRef) {
+      check(validator + ' 对 troubling 旧释义回流返回失败', () => {
+        const row = Array.from(books[troublingRef.book][troublingRef.index]), original = JSON.stringify(row);
+        row[2] = troublingFix.before['2'];
+        const source = read(file); assert.equal(source.includes(original), true, '正式源中存在修后行');
+        fs.writeFileSync(path.join(tmp, file), source.replace(original, JSON.stringify(row)));
+        const result = spawnSync(process.execPath, ['--max-old-space-size=512', path.join(tmp, validator)], {cwd: tmp, encoding: 'utf8', maxBuffer: 2 * 1024 * 1024});
+        assert.equal(result.status, 1, 'troubling 旧释义应拒绝');
+        assert.match(result.stdout + result.stderr, /已确认内容修订回流/);
+        fs.writeFileSync(path.join(tmp, file), source);
+      });
+    }
+    if (key !== 'kaoyan') {
+      check(validator + ' 对已删除词头 relection 回流返回失败', () => {
+        const source = read(file);
+        const marker = 'window.WORDS_CET4 = [\n';
+        assert.equal(source.includes(marker), true, '正式源存在四级数组');
+        const injected = source.replace(marker, marker + '["relection","","n. 选择",0,6606,1,1,"Most of them require critical thinking and relection.","四级 2021.12",0,""],\n');
+        fs.writeFileSync(path.join(tmp, file), injected);
+        const result = spawnSync(process.execPath, ['--max-old-space-size=512', path.join(tmp, validator)], {cwd: tmp, encoding: 'utf8', maxBuffer: 2 * 1024 * 1024});
+        assert.equal(result.status, 1, 'relection 假词条回流应拒绝');
+        assert.match(result.stdout + result.stderr, /已删除词头回流/);
+        fs.writeFileSync(path.join(tmp, file), source);
+      });
     }
   }
 } finally { fs.rmSync(tmp, { recursive: true, force: true }); }

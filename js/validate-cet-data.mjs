@@ -15,7 +15,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
-import { contentEncodingFields, isConfirmedBadExample, exampleHasWordForm, mechanicalExampleRisks, confirmedCorrectionIssues } from "./content-validation.mjs";
+import { contentEncodingFields, isConfirmedBadExample, exampleHasWordForm, mechanicalExampleRisks, confirmedCorrectionIssues, isRemovedHeadword } from "./content-validation.mjs";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -137,6 +137,7 @@ function checkCommon(index, bookKey, entries) {
     if (badEncodingFields.length) err("编码", "字段含控制字符/替换符/私用区", bookKey, i, w, `字段 ${badEncodingFields.map(k => FIELD[k]).join("/")}`);
     if (isConfirmedBadExample(ex)) err("内容修订", "已确认污染例句回流", bookKey, i, w, short(ex));
     for (const issue of confirmedCorrectionIssues(bookKey, row)) err("内容修订", "已确认内容修订回流", bookKey, i, w, issue);
+    if (isRemovedHeadword(bookKey, w)) err("内容修订", "已删除词头回流", bookKey, i, w, "OCR 假词条已随 dataVersion 迁移删除，不得重新加入");
     const mechRisks = mechanicalExampleRisks(ex);
     if (mechRisks.length) warn("例句", "疑似机械污染（待人工核验：" + mechRisks.join("/") + "）", bookKey, i, w, short(ex));
     if (ky === 1) kyCount++;

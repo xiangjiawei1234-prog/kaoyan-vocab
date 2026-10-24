@@ -5,9 +5,9 @@
 | 词书 | 词数 | 词频来源 | 数据版本 |
 |:--|--:|:--|--:|
 | 考研英语 | 7,997 | 46 套考研真题（1998–2026） | 3 |
-| 英语四级 | 7,168 | 80 套四级真题（2014–2026） | 4 |
+| 英语四级 | 7,167 | 80 套四级真题（2014–2026） | 5 |
 | 英语六级 | 8,821 | 83 套六级真题（2013–2026） | 4 |
-| 综合词书 | 12,083 | 以上三书按单词去重合并 | 2 |
+| 综合词书 | 12,082 | 以上三书按单词去重合并 | 3 |
 
 **在线使用：<https://xiangjiawei1234-prog.github.io/kaoyan-vocab/>**
 
@@ -46,8 +46,8 @@ index.html                  主页面（背诵 / 词表 / 统计 / 设置）
 css/app.css                 样式：设计令牌、组件、响应式、深浅主题
 js/app.js                   状态机、SRS 调度、存储、渲染、快捷键、导入导出
 js/words-data.js            考研词库（7,997 词，dataVersion 3）
-js/cet-words-data.js        四级 / 六级词库（7,168 / 8,821 词，dataVersion 4）
-js/combined-words-data.js   综合词库（12,083 词，dataVersion 2）
+js/cet-words-data.js        四级 / 六级词库（7,167 / 8,821 词，dataVersion 5）
+js/combined-words-data.js   综合词库（12,082 词，dataVersion 3）
 js/senses-data.js           语境义数据（96 条 / 98 义项）
 js/txt-zip.js               TXT 分片 ZIP（无依赖）
 js/test-*.mjs               应用逻辑与数据回归测试
@@ -59,7 +59,7 @@ scripts/validate-senses.mjs 语境义数据校验
 scripts/wordbook-*.json     词库清理 / 修复证据
 tests/fixtures/             测试夹具
 tests/browser/              真实浏览器检查（可选，默认不跑）
-docs/                       使用手册、速查表、架构、性能测量、内容修订记录
+docs/                       使用手册、速查表、架构、性能测量、内容修订记录、释义修复记录
 manifest.webmanifest / sw.js PWA 清单与离线缓存
 assets/icons/               PWA 图标
 ```
@@ -86,6 +86,7 @@ node --max-old-space-size=512 scripts/verify.mjs
 - [架构说明](docs/architecture.md)
 - [性能测量](docs/性能测量-2026-10-22.md)
 - [内容修订记录](docs/内容修订记录-2026-10-22.md)
+- [内容释义修复记录（2026-10-24）](docs/内容释义修复记录-2026-10-24.md)
 
 ## 仓库说明
 

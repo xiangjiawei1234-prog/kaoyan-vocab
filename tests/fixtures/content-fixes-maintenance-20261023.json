@@ -1,360 +1,360 @@
 {
-  "schemaVersion": 1,
-  "date": "2026-10-23",
-  "scope": "下一大版本前维护M03–M06；仅四词八引用，不改词序/统计/数据版本",
-  "fieldNames": {
-    "1": "phonetic",
-    "2": "meaning",
-    "3": "posIdx",
-    "7": "example",
-    "8": "source",
-    "10": "forms"
+ "schemaVersion": 1,
+ "date": "2026-10-23",
+ "scope": "下一大版本前维护M03–M06；仅四词八引用，不改词序/统计/数据版本",
+ "fieldNames": {
+  "1": "phonetic",
+  "2": "meaning",
+  "3": "posIdx",
+  "7": "example",
+  "8": "source",
+  "10": "forms"
+ },
+ "baseline": {
+  "kaoyan": {
+   "count": 7997,
+   "dataVersion": 3,
+   "indexHash": "501577d74614f2c993d47d037d05b56d914df7e9257684742ded62d9844bb13a",
+   "oldPosIndexHash": "b6b38214733c645e88a2a0fadb5ba677b77433e010f4177b76da8ba95c80fdbe",
+   "expectedPosIndexHash": "c9070152c65cfcfb32cd568153d28adbe3fb0371ec40b3198d565ec6663c2d40"
   },
-  "baseline": {
-    "kaoyan": {
-      "count": 7997,
-      "dataVersion": 3,
-      "indexHash": "501577d74614f2c993d47d037d05b56d914df7e9257684742ded62d9844bb13a",
-      "oldPosIndexHash": "b6b38214733c645e88a2a0fadb5ba677b77433e010f4177b76da8ba95c80fdbe",
-      "expectedPosIndexHash": "c9070152c65cfcfb32cd568153d28adbe3fb0371ec40b3198d565ec6663c2d40"
-    },
-    "cet4": {
-      "count": 7168,
-      "dataVersion": 4,
-      "indexHash": "677b9b764aa95d83368e541e4b487cf5e1608cfd30c530bb1e3434a83fcf5f2f",
-      "oldPosIndexHash": "df4f2df75228c7528ba13e906925f53587fd5e985eb2a84aa8f911fe9b0dd83e",
-      "expectedPosIndexHash": "df4f2df75228c7528ba13e906925f53587fd5e985eb2a84aa8f911fe9b0dd83e"
-    },
-    "cet6": {
-      "count": 8821,
-      "dataVersion": 4,
-      "indexHash": "39ece5556c836563a79046f574dff2edf13c2c3a6c04378b8fc924cfa1a90ac9",
-      "oldPosIndexHash": "7b4da024d37cf94450ecb9d0852acd74f43d685711a8115089b6cd57b5bb0841",
-      "expectedPosIndexHash": "7b4da024d37cf94450ecb9d0852acd74f43d685711a8115089b6cd57b5bb0841"
-    },
-    "combined": {
-      "count": 12083,
-      "dataVersion": 2,
-      "indexHash": "f8f9e2c0366d8a704949356967479fab01f0bdbafdd160a2b4c688ca2bcbf45c",
-      "oldPosIndexHash": "92b0f46e85a53b501db22dae11aed6cccdec2a9e413488f4bb98d9ae33b402f0",
-      "expectedPosIndexHash": "1480a1961ed1369d4c11a0d07da3ae072d652ab2dcda62053352f3e2c2406c9d"
-    }
+  "cet4": {
+   "count": 7167,
+   "dataVersion": 5,
+   "indexHash": "0402319acabbd640cf925a397721d30418a96baf86faafe5d5814209dd016df4",
+   "oldPosIndexHash": "879c502289b405d51fb7246939b1046726d8556a4035deceb4ae24b0e5c8ae7c",
+   "expectedPosIndexHash": "879c502289b405d51fb7246939b1046726d8556a4035deceb4ae24b0e5c8ae7c"
   },
-  "corrections": [
+  "cet6": {
+   "count": 8821,
+   "dataVersion": 4,
+   "indexHash": "39ece5556c836563a79046f574dff2edf13c2c3a6c04378b8fc924cfa1a90ac9",
+   "oldPosIndexHash": "7b4da024d37cf94450ecb9d0852acd74f43d685711a8115089b6cd57b5bb0841",
+   "expectedPosIndexHash": "7b4da024d37cf94450ecb9d0852acd74f43d685711a8115089b6cd57b5bb0841"
+  },
+  "combined": {
+   "count": 12082,
+   "dataVersion": 3,
+   "indexHash": "dba86ee8652bf5dd97689db27b37b1809a1843e6f15ea3eca3364182c42da223",
+   "oldPosIndexHash": "b86c9aa8560801aee0297ea17a2ec6e9bda5ceac2e11d5ec2e638295ee805558",
+   "expectedPosIndexHash": "fd3cbbbd5595a16ac05aa622eeb1e63609ed9050d699f4c3bb3e8e7c27c1868e"
+  }
+ },
+ "corrections": [
+  {
+   "id": "M03",
+   "word": "resit",
+   "after": {
+    "1": "ˌriːˈsɪt",
+    "10": "第三人称单数 resits；现在分词 resitting；过去式 resat；过去分词 resat"
+   },
+   "evidence": [
+    "https://www.oxfordlearnersdictionaries.com/definition/english/resit_2",
+    "https://www.oxfordlearnersdictionaries.com/definition/english/resit_1"
+   ],
+   "reason": "保留真实词头与重考义；动词主读音和屈折以动词词条为准，不能把resit删成OCR误词。",
+   "before": {
+    "1": "ˈriːsit",
+    "10": "复数 resits；现在分词 resiting；过去分词 resited；过去式 resited"
+   },
+   "references": [
     {
-      "id": "M03",
-      "word": "resit",
-      "after": {
-        "1": "ˌriːˈsɪt",
-        "10": "第三人称单数 resits；现在分词 resitting；过去式 resat；过去分词 resat"
-      },
-      "evidence": [
-        "https://www.oxfordlearnersdictionaries.com/definition/english/resit_2",
-        "https://www.oxfordlearnersdictionaries.com/definition/english/resit_1"
-      ],
-      "reason": "保留真实词头与重考义；动词主读音和屈折以动词词条为准，不能把resit删成OCR误词。",
-      "before": {
-        "1": "ˈriːsit",
-        "10": "复数 resits；现在分词 resiting；过去分词 resited；过去式 resited"
-      },
-      "references": [
-        {
-          "book": "cet4",
-          "index": 6624,
-          "originalRow": [
-            "resit",
-            "ˈriːsit",
-            "vi.(考试不及格后)再考,重考；<英> vt.(尤指考试不及格后)再参加(考试)",
-            1,
-            6631,
-            1,
-            1,
-            "He had to resit the exam because his grade was too low.",
-            "自编",
-            0,
-            "复数 resits；现在分词 resiting；过去分词 resited；过去式 resited"
-          ]
-        },
-        {
-          "book": "combined",
-          "index": 11205,
-          "originalRow": [
-            "resit",
-            "ˈriːsit",
-            "vi.(考试不及格后)再考,重考；<英> vt.(尤指考试不及格后)再参加(考试)",
-            1,
-            11209,
-            1,
-            1,
-            "He had to resit the exam because his grade was too low.",
-            "自编",
-            0,
-            "复数 resits；现在分词 resiting；过去分词 resited；过去式 resited"
-          ]
-        }
-      ]
+     "book": "cet4",
+     "index": 6623,
+     "originalRow": [
+      "resit",
+      "ˈriːsit",
+      "vi.(考试不及格后)再考,重考；<英> vt.(尤指考试不及格后)再参加(考试)",
+      1,
+      6630,
+      1,
+      1,
+      "He had to resit the exam because his grade was too low.",
+      "自编",
+      0,
+      "复数 resits；现在分词 resiting；过去分词 resited；过去式 resited"
+     ]
     },
     {
-      "id": "M04",
-      "word": "shifty",
-      "after": {
-        "2": "a. 躲闪的, 显得不诚实的, 变化的"
-      },
-      "evidence": [
-        "https://www.oxfordlearnersdictionaries.com/definition/english/shifty"
-      ],
-      "reason": "现有自编shifty eyes例句需覆盖躲闪/显得不诚实义；保留已有变化义。",
-      "before": {
-        "2": "a. 变化的"
-      },
-      "references": [
-        {
-          "book": "cet6",
-          "index": 8338,
-          "originalRow": [
-            "shifty",
-            "ˈʃifti",
-            "a. 变化的",
-            2,
-            8345,
-            1,
-            1,
-            "His shifty eyes made the interviewer doubt his story.",
-            "自编",
-            0,
-            "比较级 shiftier；最高级 shiftiest"
-          ]
-        },
-        {
-          "book": "combined",
-          "index": 11346,
-          "originalRow": [
-            "shifty",
-            "ˈʃifti",
-            "a. 变化的",
-            2,
-            11350,
-            1,
-            1,
-            "His shifty eyes made the interviewer doubt his story.",
-            "自编",
-            0,
-            "比较级 shiftier；最高级 shiftiest"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "M05",
-      "word": "wad",
-      "after": {
-        "7": "Please wad the paper into a ball.",
-        "8": "自编"
-      },
-      "evidence": [
-        "https://www.oxfordlearnersdictionaries.com/definition/english/wad_2",
-        "https://www.oxfordlearnersdictionaries.com/definition/english/wade"
-      ],
-      "reason": "旧句wading是wade词形，不是wad屈折；新句独立自编并与揉成团义一致。",
-      "before": {
-        "7": "Although only a research project at this stage, the request has raised the prospect of regulators wading into early-stage tech markets that until now have been beyond their reach.",
-        "8": "英语二 2021"
-      },
-      "references": [
-        {
-          "book": "kaoyan",
-          "index": 7921,
-          "originalRow": [
-            "wad",
-            "wɒd",
-            "n. 一叠（钞票）, 小团, 填料；vt. 揉成一团, 填塞",
-            1,
-            7931,
-            1,
-            1,
-            "Although only a research project at this stage, the request has raised the prospect of regulators wading into early-stage tech markets that until now have been beyond their reach.",
-            "英语二 2021",
-            0,
-            "复数 wads；过去式 wadded；过去分词 wadded；第三人称单数 wads"
-          ]
-        },
-        {
-          "book": "combined",
-          "index": 11991,
-          "originalRow": [
-            "wad",
-            "wɒd",
-            "n. 一叠（钞票）, 小团, 填料；vt. 揉成一团, 填塞",
-            1,
-            11995,
-            1,
-            1,
-            "Although only a research project at this stage, the request has raised the prospect of regulators wading into early-stage tech markets that until now have been beyond their reach.",
-            "英语二 2021",
-            0,
-            "复数 wads；过去式 wadded；过去分词 wadded；第三人称单数 wads"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "M06",
-      "word": "firefight",
-      "after": {
-        "3": 0,
-        "7": "The soldiers took cover during a brief firefight.",
-        "8": "自编"
-      },
-      "evidence": [
-        "https://www.oxfordlearnersdictionaries.com/definition/english/firefight",
-        "https://www.oxfordlearnersdictionaries.com/definition/english/firefighting"
-      ],
-      "reason": "枪战义为主名词；旧消防例句对firefighting等其他词合法，只替换firefight关联。",
-      "before": {
-        "3": 1,
-        "7": "This deficit is a testament to the effectiveness of modern firefighting, said Kelly Martin, a past president of the International Association of Wildland Fire.",
-        "8": "英语一 2026"
-      },
-      "references": [
-        {
-          "book": "kaoyan",
-          "index": 6169,
-          "originalRow": [
-            "firefight",
-            "ˈfaiəfait",
-            "n. 交火, 枪战, 炮战",
-            1,
-            6167,
-            1,
-            1,
-            "This deficit is a testament to the effectiveness of modern firefighting, said Kelly Martin, a past president of the International Association of Wildland Fire.",
-            "英语一 2026",
-            0,
-            "复数 firefights"
-          ]
-        },
-        {
-          "book": "combined",
-          "index": 9858,
-          "originalRow": [
-            "firefight",
-            "ˈfaiəfait",
-            "n. 交火, 枪战, 炮战",
-            1,
-            9856,
-            1,
-            1,
-            "This deficit is a testament to the effectiveness of modern firefighting, said Kelly Martin, a past president of the International Association of Wildland Fire.",
-            "英语一 2026",
-            0,
-            "复数 firefights"
-          ]
-        }
-      ]
+     "book": "combined",
+     "index": 11204,
+     "originalRow": [
+      "resit",
+      "ˈriːsit",
+      "vi.(考试不及格后)再考,重考；<英> vt.(尤指考试不及格后)再参加(考试)",
+      1,
+      11208,
+      1,
+      1,
+      "He had to resit the exam because his grade was too low.",
+      "自编",
+      0,
+      "复数 resits；现在分词 resiting；过去分词 resited；过去式 resited"
+     ]
     }
-  ],
-  "protectedReferences": [
+   ]
+  },
+  {
+   "id": "M04",
+   "word": "shifty",
+   "after": {
+    "2": "a. 躲闪的, 显得不诚实的, 变化的"
+   },
+   "evidence": [
+    "https://www.oxfordlearnersdictionaries.com/definition/english/shifty"
+   ],
+   "reason": "现有自编shifty eyes例句需覆盖躲闪/显得不诚实义；保留已有变化义。",
+   "before": {
+    "2": "a. 变化的"
+   },
+   "references": [
     {
-      "book": "kaoyan",
-      "index": 3492,
-      "row": [
-        "deficit",
-        "ˈdefisit",
-        "n. 赤字, 亏损, 不足, 缺额",
-        0,
-        3474,
-        3,
-        3,
-        "This deficit is a testament to the effectiveness of modern firefighting, said Kelly Martin, a past president of the International Association of Wildland Fire.",
-        "英语一 2026",
-        1,
-        "复数 deficits"
-      ]
+     "book": "cet6",
+     "index": 8338,
+     "originalRow": [
+      "shifty",
+      "ˈʃifti",
+      "a. 变化的",
+      2,
+      8345,
+      1,
+      1,
+      "His shifty eyes made the interviewer doubt his story.",
+      "自编",
+      0,
+      "比较级 shiftier；最高级 shiftiest"
+     ]
     },
     {
-      "book": "kaoyan",
-      "index": 5056,
-      "row": [
-        "firefighting",
-        "ˈfaɪəfaɪtɪŋ",
-        "n. 消防, 灭火",
-        0,
-        5042,
-        2,
-        1,
-        "This deficit is a testament to the effectiveness of modern firefighting, said Kelly Martin, a past president of the International Association of Wildland Fire.",
-        "英语一 2026",
-        0,
-        "复数 firefightings"
-      ]
-    },
-    {
-      "book": "kaoyan",
-      "index": 7667,
-      "row": [
-        "testament",
-        "ˈtestəmənt",
-        "n. 证明, 证据（a testament to）, 遗嘱",
-        0,
-        7677,
-        1,
-        1,
-        "This deficit is a testament to the effectiveness of modern firefighting, said Kelly Martin, a past president of the International Association of Wildland Fire.",
-        "英语一 2026",
-        0,
-        "复数 testaments"
-      ]
-    },
-    {
-      "book": "combined",
-      "index": 2507,
-      "row": [
-        "deficit",
-        "ˈdefisit",
-        "n. 赤字, 亏损, 不足, 缺额",
-        0,
-        2485,
-        22,
-        15,
-        "This deficit is a testament to the effectiveness of modern firefighting, said Kelly Martin, a past president of the International Association of Wildland Fire.",
-        "英语一 2026",
-        1,
-        "复数 deficits"
-      ]
-    },
-    {
-      "book": "combined",
-      "index": 8581,
-      "row": [
-        "firefighting",
-        "ˈfaɪəfaɪtɪŋ",
-        "n. 消防, 灭火",
-        0,
-        8577,
-        2,
-        1,
-        "This deficit is a testament to the effectiveness of modern firefighting, said Kelly Martin, a past president of the International Association of Wildland Fire.",
-        "英语一 2026",
-        0,
-        "复数 firefightings"
-      ]
-    },
-    {
-      "book": "combined",
-      "index": 11634,
-      "row": [
-        "testament",
-        "ˈtestəmənt",
-        "n. 证明, 证据（a testament to）, 遗嘱",
-        0,
-        11638,
-        1,
-        1,
-        "This deficit is a testament to the effectiveness of modern firefighting, said Kelly Martin, a past president of the International Association of Wildland Fire.",
-        "英语一 2026",
-        0,
-        "复数 testaments"
-      ]
+     "book": "combined",
+     "index": 11345,
+     "originalRow": [
+      "shifty",
+      "ˈʃifti",
+      "a. 变化的",
+      2,
+      11349,
+      1,
+      1,
+      "His shifty eyes made the interviewer doubt his story.",
+      "自编",
+      0,
+      "比较级 shiftier；最高级 shiftiest"
+     ]
     }
-  ]
+   ]
+  },
+  {
+   "id": "M05",
+   "word": "wad",
+   "after": {
+    "7": "Please wad the paper into a ball.",
+    "8": "自编"
+   },
+   "evidence": [
+    "https://www.oxfordlearnersdictionaries.com/definition/english/wad_2",
+    "https://www.oxfordlearnersdictionaries.com/definition/english/wade"
+   ],
+   "reason": "旧句wading是wade词形，不是wad屈折；新句独立自编并与揉成团义一致。",
+   "before": {
+    "7": "Although only a research project at this stage, the request has raised the prospect of regulators wading into early-stage tech markets that until now have been beyond their reach.",
+    "8": "英语二 2021"
+   },
+   "references": [
+    {
+     "book": "kaoyan",
+     "index": 7921,
+     "originalRow": [
+      "wad",
+      "wɒd",
+      "n. 一叠（钞票）, 小团, 填料；vt. 揉成一团, 填塞",
+      1,
+      7931,
+      1,
+      1,
+      "Although only a research project at this stage, the request has raised the prospect of regulators wading into early-stage tech markets that until now have been beyond their reach.",
+      "英语二 2021",
+      0,
+      "复数 wads；过去式 wadded；过去分词 wadded；第三人称单数 wads"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 11990,
+     "originalRow": [
+      "wad",
+      "wɒd",
+      "n. 一叠（钞票）, 小团, 填料；vt. 揉成一团, 填塞",
+      1,
+      11994,
+      1,
+      1,
+      "Although only a research project at this stage, the request has raised the prospect of regulators wading into early-stage tech markets that until now have been beyond their reach.",
+      "英语二 2021",
+      0,
+      "复数 wads；过去式 wadded；过去分词 wadded；第三人称单数 wads"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "M06",
+   "word": "firefight",
+   "after": {
+    "3": 0,
+    "7": "The soldiers took cover during a brief firefight.",
+    "8": "自编"
+   },
+   "evidence": [
+    "https://www.oxfordlearnersdictionaries.com/definition/english/firefight",
+    "https://www.oxfordlearnersdictionaries.com/definition/english/firefighting"
+   ],
+   "reason": "枪战义为主名词；旧消防例句对firefighting等其他词合法，只替换firefight关联。",
+   "before": {
+    "3": 1,
+    "7": "This deficit is a testament to the effectiveness of modern firefighting, said Kelly Martin, a past president of the International Association of Wildland Fire.",
+    "8": "英语一 2026"
+   },
+   "references": [
+    {
+     "book": "kaoyan",
+     "index": 6169,
+     "originalRow": [
+      "firefight",
+      "ˈfaiəfait",
+      "n. 交火, 枪战, 炮战",
+      1,
+      6167,
+      1,
+      1,
+      "This deficit is a testament to the effectiveness of modern firefighting, said Kelly Martin, a past president of the International Association of Wildland Fire.",
+      "英语一 2026",
+      0,
+      "复数 firefights"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 9858,
+     "originalRow": [
+      "firefight",
+      "ˈfaiəfait",
+      "n. 交火, 枪战, 炮战",
+      1,
+      9856,
+      1,
+      1,
+      "This deficit is a testament to the effectiveness of modern firefighting, said Kelly Martin, a past president of the International Association of Wildland Fire.",
+      "英语一 2026",
+      0,
+      "复数 firefights"
+     ]
+    }
+   ]
+  }
+ ],
+ "protectedReferences": [
+  {
+   "book": "kaoyan",
+   "index": 3492,
+   "row": [
+    "deficit",
+    "ˈdefisit",
+    "n. 赤字, 亏损, 不足, 缺额",
+    0,
+    3474,
+    3,
+    3,
+    "This deficit is a testament to the effectiveness of modern firefighting, said Kelly Martin, a past president of the International Association of Wildland Fire.",
+    "英语一 2026",
+    1,
+    "复数 deficits"
+   ]
+  },
+  {
+   "book": "kaoyan",
+   "index": 5056,
+   "row": [
+    "firefighting",
+    "ˈfaɪəfaɪtɪŋ",
+    "n. 消防, 灭火",
+    0,
+    5042,
+    2,
+    1,
+    "This deficit is a testament to the effectiveness of modern firefighting, said Kelly Martin, a past president of the International Association of Wildland Fire.",
+    "英语一 2026",
+    0,
+    "复数 firefightings"
+   ]
+  },
+  {
+   "book": "kaoyan",
+   "index": 7667,
+   "row": [
+    "testament",
+    "ˈtestəmənt",
+    "n. 证明, 证据（a testament to）, 遗嘱",
+    0,
+    7677,
+    1,
+    1,
+    "This deficit is a testament to the effectiveness of modern firefighting, said Kelly Martin, a past president of the International Association of Wildland Fire.",
+    "英语一 2026",
+    0,
+    "复数 testaments"
+   ]
+  },
+  {
+   "book": "combined",
+   "index": 2507,
+   "row": [
+    "deficit",
+    "ˈdefisit",
+    "n. 赤字, 亏损, 不足, 缺额",
+    0,
+    2485,
+    22,
+    15,
+    "This deficit is a testament to the effectiveness of modern firefighting, said Kelly Martin, a past president of the International Association of Wildland Fire.",
+    "英语一 2026",
+    1,
+    "复数 deficits"
+   ]
+  },
+  {
+   "book": "combined",
+   "index": 8581,
+   "row": [
+    "firefighting",
+    "ˈfaɪəfaɪtɪŋ",
+    "n. 消防, 灭火",
+    0,
+    8577,
+    2,
+    1,
+    "This deficit is a testament to the effectiveness of modern firefighting, said Kelly Martin, a past president of the International Association of Wildland Fire.",
+    "英语一 2026",
+    0,
+    "复数 firefightings"
+   ]
+  },
+  {
+   "book": "combined",
+   "index": 11633,
+   "row": [
+    "testament",
+    "ˈtestəmənt",
+    "n. 证明, 证据（a testament to）, 遗嘱",
+    0,
+    11637,
+    1,
+    1,
+    "This deficit is a testament to the effectiveness of modern firefighting, said Kelly Martin, a past president of the International Association of Wildland Fire.",
+    "英语一 2026",
+    0,
+    "复数 testaments"
+   ]
+  }
+ ]
 }

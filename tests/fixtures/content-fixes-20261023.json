@@ -126,10 +126,10 @@
       "posIndexHash": "c9070152c65cfcfb32cd568153d28adbe3fb0371ec40b3198d565ec6663c2d40"
     },
     "cet4": {
-      "count": 7168,
-      "dataVersion": 4,
-      "indexHash": "677b9b764aa95d83368e541e4b487cf5e1608cfd30c530bb1e3434a83fcf5f2f",
-      "posIndexHash": "df4f2df75228c7528ba13e906925f53587fd5e985eb2a84aa8f911fe9b0dd83e"
+      "count": 7167,
+      "dataVersion": 5,
+      "indexHash": "0402319acabbd640cf925a397721d30418a96baf86faafe5d5814209dd016df4",
+      "posIndexHash": "879c502289b405d51fb7246939b1046726d8556a4035deceb4ae24b0e5c8ae7c"
     },
     "cet6": {
       "count": 8821,
@@ -138,10 +138,10 @@
       "posIndexHash": "7b4da024d37cf94450ecb9d0852acd74f43d685711a8115089b6cd57b5bb0841"
     },
     "combined": {
-      "count": 12083,
-      "dataVersion": 2,
-      "indexHash": "f8f9e2c0366d8a704949356967479fab01f0bdbafdd160a2b4c688ca2bcbf45c",
-      "posIndexHash": "1480a1961ed1369d4c11a0d07da3ae072d652ab2dcda62053352f3e2c2406c9d"
+      "count": 12082,
+      "dataVersion": 3,
+      "indexHash": "dba86ee8652bf5dd97689db27b37b1809a1843e6f15ea3eca3364182c42da223",
+      "posIndexHash": "fd3cbbbd5595a16ac05aa622eeb1e63609ed9050d699f4c3bb3e8e7c27c1868e"
     }
   },
   "repairedExamples": [
@@ -393,13 +393,13 @@
     },
     {
       "book": "cet4",
-      "index": 6865,
+      "index": 6864,
       "word": "successor",
       "source": "自编"
     },
     {
       "book": "cet4",
-      "index": 6952,
+      "index": 6951,
       "word": "tracking",
       "source": "自编"
     },
@@ -585,13 +585,13 @@
     },
     {
       "book": "cet4",
-      "index": 6922,
+      "index": 6921,
       "word": "thieve",
       "source": "自编"
     },
     {
       "book": "cet4",
-      "index": 6983,
+      "index": 6982,
       "word": "umber",
       "source": "自编"
     },

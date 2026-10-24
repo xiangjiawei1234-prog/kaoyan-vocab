@@ -6,17 +6,37 @@ const nextFixes = JSON.parse(fs.readFileSync(new URL('../tests/fixtures/content-
 const thirdFixesPath = new URL('../tests/fixtures/content-fixes-batch3-20261023.json', import.meta.url);
 const thirdFixes = fs.existsSync(thirdFixesPath) ? JSON.parse(fs.readFileSync(thirdFixesPath, 'utf8')) : { confirmedBadExamples: [] };
 const maintenanceFixes = JSON.parse(fs.readFileSync(new URL('../tests/fixtures/content-fixes-maintenance-20261023.json', import.meta.url), 'utf8'));
+const meaningFixesPath = new URL('../tests/fixtures/content-fixes-meaning-20261024.json', import.meta.url);
+const meaningFixes = fs.existsSync(meaningFixesPath) ? JSON.parse(fs.readFileSync(meaningFixesPath, 'utf8')) : { corrections: [] };
+const FIELD_NAMES = { 1: 'phonetic', 2: 'meaning', 3: 'posIdx', 7: 'example', 8: 'source', 10: 'forms' };
 const normalized = text => String(text || '').replace(/\s+/g, ' ').trim();
 const confirmedBadExamples = new Set(fixes.confirmedBadExamples.concat(nextFixes.confirmedBadExamples, thirdFixes.confirmedBadExamples || []).map(normalized));
 const correctionByBookWord = new Map();
-for (const correction of maintenanceFixes.corrections) {
+for (const correction of [...maintenanceFixes.corrections, ...meaningFixes.corrections]) {
   for (const reference of correction.references) correctionByBookWord.set(reference.book + ':' + correction.word, correction);
+}
+// 已删除的 OCR 假词条（如 relection）：删除走 dataVersion 迁移，不允许以任何释义重新回流。
+const removedByBook = new Map();
+for (const item of (meaningFixes.removedHeadwords || [])) {
+  if (!removedByBook.has(item.book)) removedByBook.set(item.book, new Map());
+  removedByBook.get(item.book).set(item.word, item);
 }
 // TAB/LF/CR 可作文本排版；其余 C0、DEL/C1、替换符与私用区不应成为交付学习文本。
 export const BAD_CONTENT_CHAR_RE = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\ufffd\ufffe\uffff\u{e000}-\u{f8ff}\u{f0000}-\u{ffffd}\u{100000}-\u{10fffd}]/u;
 
 export function contentEncodingFields(row) {
   return Array.isArray(row) ? row.flatMap((value, index) => typeof value === 'string' && BAD_CONTENT_CHAR_RE.test(value) ? [index] : []) : [];
+}
+
+export function isRemovedHeadword(book, word) {
+  return Boolean(removedByBook.get(book)?.has(String(word || '')));
+}
+
+export function removedHeadwordIssues(book, rows) {
+  const list = Array.isArray(rows) && Array.isArray(rows[0]) ? rows : [rows];
+  return list.flatMap(row => Array.isArray(row) && isRemovedHeadword(book, row[0])
+    ? ['已删除词头回流：' + row[0] + '（' + removedByBook.get(book).get(row[0]).removedAt + ' 迁移删除）']
+    : []);
 }
 
 export function isConfirmedBadExample(example) {
@@ -33,7 +53,7 @@ export function confirmedCorrectionIssues(book, row) {
   return Object.entries(correction.before).flatMap(([field, before]) => {
     if (field === '8' || before === correction.after[field]) return [];
     const reverted = field === '7' ? normalized(row[7]) === normalized(before) : row[Number(field)] === before;
-    return reverted ? [correction.id + ' ' + maintenanceFixes.fieldNames[Number(field)] + ' 旧值'] : [];
+    return reverted ? [correction.id + ' ' + FIELD_NAMES[Number(field)] + ' 旧值'] : [];
   });
 }
 
