@@ -14,6 +14,18 @@ const learning=`(()=>{const v=window.__vocab,s=v.getS();return {book:v.getBook()
 async function ready(){await p.waitFor('window.__vocab&&document.querySelector("#card")');await p.send('Page.bringToFront');}
 async function click(selector){await p.send('Page.bringToFront');await p.scrollIntoView(selector);await sleep(160);if(!await p.isClickable(selector))throw Error('控件不可命中：'+selector);await p.clickSelector(selector);await sleep(100);}
 async function shot(name){await p.waitFor(`!document.querySelector('#toast').classList.contains('on')`);report.shots.push(await p.screenshot('book-entry-'+name+'.png'));}
+async function bookMetricGeometry(){
+  return p.eval(`(()=>[...document.querySelectorAll('#bookList .book-meta')].map(meta=>{
+    const text=meta.textContent,walker=document.createTreeWalker(meta,NodeFilter.SHOW_TEXT),nodes=[];let node,offset=0;
+    while(node=walker.nextNode()){nodes.push({node,start:offset,end:offset+node.textContent.length});offset+=node.textContent.length;}
+    return {text,metrics:[...text.matchAll(/\\d+ 词|已学 \\d+|已掌握 \\d+/g)].map(match=>{
+      const first=nodes.find(x=>x.end>match.index),last=nodes.find(x=>x.end>=match.index+match[0].length),range=document.createRange();
+      range.setStart(first.node,match.index-first.start);range.setEnd(last.node,match.index+match[0].length-last.start);
+      const rects=[...range.getClientRects()].filter(r=>r.width>.1),rows=[...new Set(rects.map(r=>Math.round(r.top)))];
+      return {text:match[0],rows,rects:rects.map(r=>({left:r.left,right:r.right,top:r.top,width:r.width}))};
+    })};
+  }))()`);
+}
 let template,deviceTemplate;
 async function seed(width,theme){
   await p.setViewport(width,width<500?812:1000,{mobile:width<500});
@@ -34,6 +46,8 @@ try{
     const layout=await p.eval(`(()=>{const panel=document.querySelector('#bookSheet .sheet-panel'),seg=document.querySelector('#bookPageModeSeg'),list=document.querySelector('#bookList'),r=seg.getBoundingClientRect(),pr=panel.getBoundingClientRect(),lr=list.getBoundingClientRect();return {doc:document.documentElement.scrollWidth,width:innerWidth,panel:{left:pr.left,right:pr.right,scroll:panel.scrollWidth,client:panel.clientWidth},seg:{left:r.left,right:r.right,width:r.width,gap:r.top-lr.bottom},buttons:[...seg.querySelectorAll('button')].map(x=>{const b=x.getBoundingClientRect();return {width:b.width,height:b.height,scroll:x.scrollWidth,client:x.clientWidth,pressed:x.getAttribute('aria-pressed')};}),count:document.querySelectorAll('#bookList [data-book]').length,expanded:document.querySelector('#btnScopeBooks').getAttribute('aria-expanded')};})()`);
     check(label+' 模式控件等宽且44px可点、列表与模式分隔协调',layout.buttons.length===2&&layout.buttons.every(x=>x.height>=43&&x.scroll<=x.client+1)&&Math.abs(layout.buttons[0].width-layout.buttons[1].width)<=2&&layout.seg.gap>=10,layout);
     check(label+' 弹窗与模式无横向溢出，沿用四词书同一弹窗',layout.doc<=layout.width+1&&layout.panel.left>=-1&&layout.panel.right<=layout.width+1&&layout.panel.scroll<=layout.panel.client+1&&layout.count===4&&layout.expanded==='true',layout);
+    const metrics=await bookMetricGeometry();
+    check(label+' 词书的词数/已学/已掌握只在指标之间换行，不拆标签或数值',metrics.length===4&&metrics.every(m=>m.metrics.length===3&&m.metrics.every(x=>x.rows.length===1)),metrics);
     await click('#bookPageModeFollow');
     const follow=await p.eval(`({mode:sessionStorage.getItem('vocab_page_book_mode_v1'),local:document.querySelector('#bookPageModeLocal').getAttribute('aria-pressed'),follow:document.querySelector('#bookPageModeFollow').getAttribute('aria-pressed')})`);
     check(label+' 模式按钮选择态与真实follow状态一致',follow.mode==='follow'&&follow.local==='false'&&follow.follow==='true',follow);
@@ -55,6 +69,20 @@ try{
     await p.key('Escape');check(label+' 页头键盘入口关闭回原触发按钮',await p.eval(`document.querySelector('#bookSheet').hidden&&document.activeElement.id==='btnBooks'`));
     report.errors.push(...p.errors());p.clearLogs();
   }
+  // 正常满书累计的长数值也不能把“已学/已掌握”标签和数字拆开；只通过存储夹具初始化。
+  await p.setViewport(320,812,{mobile:true});
+  await p.eval(`(()=>{for(const [id,key,rows] of [['kaoyan','kaoyan_vocab_v1',window.WORDS_RAW],['combined','combined_vocab_v1',window.WORDS_COMBINED]]){
+    const state=${JSON.stringify(template)};state.dv=window.WORD_BOOK_META[id].dataVersion;state.progress={};state.days={};state.stars={};state.proficient={};
+    for(let i=0;i<rows.length;i++)state.progress[i]=[state.settings.stages.length+1,0,1,0,Date.now()];
+    localStorage.setItem(key,JSON.stringify(state));localStorage.setItem(id==='kaoyan'?'kaoyan_vocab_proficient_v1':'combined_vocab_proficient_v1','{}');
+  }})()`);
+  await p.reload();await ready();await click('#btnBooks');
+  const longMetrics=await bookMetricGeometry();
+  check('320px正常全书累计数值保持完整，包含12082已学/已掌握',longMetrics.some(m=>/已学 12082/.test(m.text)&&/已掌握 12082/.test(m.text))
+    &&longMetrics.some(m=>/已学 7997/.test(m.text)&&/已掌握 7997/.test(m.text))
+    &&longMetrics.every(m=>m.metrics.length===3&&m.metrics.every(x=>x.rows.length===1)),longMetrics);
+  await shot('dialog-320-long-counts');
+  report.errors.push(...p.errors());p.clearLogs();
   check('六组词书入口旅程无console错误',report.errors.length===0,report.errors);
   report.sourceEnd=fingerprint();check('取证期间运行时源字节稳定',same(sourceStart,report.sourceEnd),report.sourceEnd);
 }catch(e){check('词书入口旅程执行完整',false,String(e.stack||e));}

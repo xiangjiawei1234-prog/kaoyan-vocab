@@ -22,14 +22,14 @@ const today = now => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
-function browser({ initial = null, raw = null, storageThrows = false, sharedStorage = null } = {}) {
+function browser({ initial = null, raw = null, storageThrows = false, sharedStorage = null, deferredReads = false } = {}) {
   let now = new Date(2026, 9, 10, 12, 0, 0).getTime();
   const registry = new Map();
   const documentEvents = new Map();
   const windowEvents = new Map();
   const intervals = [];
   const storage = sharedStorage || new Map(initial === null ? [] : [[KEY, typeof initial === "string" ? initial : JSON.stringify(initial)]]);
-  const created = [];
+  const created = [], readers = [];
   function element(tag = "div", id = "") {
     const events = new Map();
     const classes = new Set();
@@ -90,6 +90,7 @@ function browser({ initial = null, raw = null, storageThrows = false, sharedStor
   query("#fst").value = "all";
   query("#fsc").value = "scope";
   query("#helpSheet").hidden = true;
+  query("#importSheet").hidden = true;
   const document = {
     querySelector: query, querySelectorAll: queryAll,
     documentElement: { dataset: {}, style: {} }, body: element("body"),
@@ -102,7 +103,8 @@ function browser({ initial = null, raw = null, storageThrows = false, sharedStor
     static now() { return now; }
   }
   class Reader {
-    readAsText(file) { this.result = file.text; this.onload?.({ target: this }); }
+    readAsText(file) { this.result = file.text; if (deferredReads) readers.push(this); else this.onload?.({ target: this }); }
+    abort() { this.aborted = true; }
   }
   const window = {
     document, addEventListener(type, fn) { if (!windowEvents.has(type)) windowEvents.set(type, []); windowEvents.get(type).push(fn); },
@@ -128,11 +130,11 @@ function browser({ initial = null, raw = null, storageThrows = false, sharedStor
   const T = window.__vocab;
   assert.ok(T, "app.js 应提供测试入口");
   return {
-    T, window, context, registry, storage, intervals, created, query, nav, keyButtons,
+    T, window, context, registry, storage, intervals, created, query, nav, keyButtons, readers,
     get now() { return now; }, advance(ms) { now += ms; },
     storageEvent(key) { for (const fn of windowEvents.get("storage") || []) fn({ key, newValue: storage.get(key) ?? null }); },
     key(data) { const e = { key: "", code: "", target: document.body, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, repeat: false, isComposing: false, preventDefault() {}, stopPropagation() {}, ...data }; for (const fn of documentEvents.get("keydown") || []) fn(e); },
-    async importFile(value) { const el = query("#file"); await el.dispatch("change", { target: { files: [{ text: typeof value === "string" ? value : JSON.stringify(value), size: 100, name: "backup.json" }], value: "backup.json" } }); }
+    async importFile(value, size = 100) { const el = query("#file"); await el.dispatch("change", { target: { files: [{ text: typeof value === "string" ? value : JSON.stringify(value), size, name: "backup.json" }], value: "backup.json" } }); }
   };
 }
 
@@ -586,6 +588,90 @@ await test("损坏本地备份不造成白屏、保护原记录，显式重置�
     b.query("#rst").click();
     assert.equal(b.T.getStorageOK(), true);
     assert.doesNotThrow(() => JSON.parse(b.storage.get(KEY)));
+  }
+});
+
+/** 只控制浏览器文件读取完成顺序；解析、预览、确认和写入仍走真实app.js。 */
+function importRaceFixture() {
+  const b = browser({deferredReads: true}); fullScope(b); b.T.judge(true);
+  const oldBackup = clone(b.T.buildExport()), latestBackup = clone(oldBackup);
+  oldBackup.exportedAt = "2026-10-20T04:00:00.000Z";
+  latestBackup.exportedAt = "2026-10-25T04:00:00.000Z";
+  oldBackup.books.kaoyan.settings.dailyNew = 5;
+  latestBackup.books.kaoyan.settings.dailyNew = 17;
+  return {b, oldBackup, latestBackup};
+}
+
+await test("备份文件晚到旧读取不得覆盖后来选择，最新确认真实生效", async () => {
+  const {b, oldBackup, latestBackup} = importRaceFixture();
+  await b.importFile(oldBackup); await b.importFile(latestBackup);
+  b.readers[1].onload();
+  assert.match(b.query("#importSummary").textContent, /2026-10-25/);
+  const alertBefore = b.query("#appAlertTitle").textContent;
+  b.readers[0].onload();
+  b.readers[0].onerror();
+  assert.equal(b.query("#appAlertTitle").textContent, alertBefore);
+  assert.match(b.query("#importSummary").textContent, /2026-10-25/);
+  b.query("#importConfirm").click();
+  assert.equal(b.T.getS().settings.dailyNew, 17);
+  assert.equal(b.query("#importSheet").hidden, true);
+});
+
+await test("重新选择备份先撤销旧确认，新预览的确认按钮不因关旧层失效", async () => {
+  const {b, oldBackup, latestBackup} = importRaceFixture();
+  await b.importFile(oldBackup); b.readers[0].onload();
+  assert.equal(b.query("#importSheet").hidden, false);
+  await b.importFile(latestBackup);
+  assert.equal(b.query("#importSheet").hidden, true);
+  b.readers[1].onload();
+  assert.match(b.query("#importSummary").textContent, /2026-10-25/);
+  b.query("#importConfirm").click();
+  assert.equal(b.T.getS().settings.dailyNew, 17);
+  assert.equal(b.query("#importSheet").hidden, true);
+});
+
+await test("取消确认或打开其他浮层后，旧备份读取不再重新抢窗口", async () => {
+  for (const cancel of ["escape", "help"]) {
+    const {b, oldBackup, latestBackup} = importRaceFixture();
+    const before = JSON.stringify(b.T.getS()); const raw = b.storage.get(KEY);
+    await b.importFile(oldBackup); await b.importFile(latestBackup);
+    b.readers[1].onload();
+    if (cancel === "escape") b.key({key: "Escape"});
+    else b.query("#btnHelp").click();
+    b.readers[0].onload();
+    assert.equal(b.query("#importSheet").hidden, true, cancel);
+    if (cancel === "help") assert.equal(b.query("#helpSheet").hidden, false);
+    assert.equal(JSON.stringify(b.T.getS()), before); assert.equal(b.storage.get(KEY), raw);
+  }
+});
+
+await test("无效或过大新备份会取消旧读取及确认，迟到错误不污染新选择", async () => {
+  for (const invalid of ["json", "oversize", "read-error"]) {
+    const {b, oldBackup, latestBackup} = importRaceFixture();
+    const before = JSON.stringify(b.T.getS()); const raw = b.storage.get(KEY);
+    await b.importFile(oldBackup); b.readers[0].onload();
+    if (invalid === "oversize") await b.importFile(latestBackup, 10 * 1024 * 1024 + 1);
+    else { await b.importFile(invalid === "json" ? "{invalid" : latestBackup); if (invalid === "json") b.readers[1].onload(); else b.readers[1].onerror(); }
+    assert.equal(b.query("#importSheet").hidden, true, invalid);
+    b.readers[0].onload(); b.readers[0].onerror();
+    b.query("#importConfirm").click();
+    assert.equal(JSON.stringify(b.T.getS()), before); assert.equal(b.storage.get(KEY), raw);
+  }
+});
+
+await test("单个备份读取中退出页面、开其他浮层或重选取消，都不会迟到抢窗口", async () => {
+  for (const leave of ["help", "view", "pick-again", "empty-choice"]) {
+    const {b, oldBackup} = importRaceFixture();
+    const before = JSON.stringify(b.T.getS()), raw = b.storage.get(KEY);
+    await b.importFile(oldBackup);
+    if (leave === "help") b.query("#btnHelp").click();
+    if (leave === "view") b.T.show("list");
+    if (leave === "pick-again") b.query("#imp").click();
+    if (leave === "empty-choice") await b.query("#file").dispatch("change", {target: {files: [], value: ""}});
+    b.readers[0].onload(); b.readers[0].onerror();
+    assert.equal(b.query("#importSheet").hidden, true, leave);
+    if (leave === "help") assert.equal(b.query("#helpSheet").hidden, false);
+    assert.equal(JSON.stringify(b.T.getS()), before); assert.equal(b.storage.get(KEY), raw);
   }
 });
 

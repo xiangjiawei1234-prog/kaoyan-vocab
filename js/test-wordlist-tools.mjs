@@ -603,5 +603,57 @@ test('批量整理与视图应用不写学习进度/天数/时长，导出沿用
   assert.equal(b.T.wordBookTxt('filter').trimEnd().split('\n').length, 6);
 });
 
+test('保存视图名称的输入确认不提前落盘，正常Enter仍保存', () => {
+  const b=browser();b.T.show('list');const input=b.query('#listViewName');
+  for(const [i,opts] of [{isComposing:true},{keyCode:229},{getModifierState:k=>k==='AltGraph'},{repeat:true},{ctrlKey:true},{metaKey:true},{altKey:true}].entries()) {
+    input.value='候选未确认'+i;input.focus();const event=b.key('Enter',opts);
+    assert.equal(b.storage.has(LIST_VIEWS_KEY),false,'输入确认或长按不能创建视图');
+    assert.equal(event.defaultPrevented,false);assert.equal(b.doc.activeElement,input);
+  }
+  input.value='正常确认';input.focus();assert.equal(b.key('Enter').defaultPrevented,true);
+  assert.equal(parsedViews(b).views.length,1);assert.equal(parsedViews(b).views[0].name,'正常确认');
+});
+
+test('重命名视图的输入确认不提前落盘，正常Enter仍提交', () => {
+  const b=browser();b.T.show('list');b.query('#listViewName').value='原视图';b.query('#btnSaveListView').click();
+  let input=b.query('[data-view-rename-input]');assert.ok(input);
+  const before=b.storage.get(LIST_VIEWS_KEY);
+  for(const [i,opts] of [{isComposing:true},{keyCode:229},{getModifierState:k=>k==='AltGraph'},{repeat:true},{ctrlKey:true},{metaKey:true},{altKey:true}].entries()) {
+    input.value='候选未确认'+i;input.focus();const event=b.key('Enter',opts);
+    assert.equal(b.storage.get(LIST_VIEWS_KEY),before,'输入确认或长按不能重命名');
+    assert.equal(event.defaultPrevented,false);assert.equal(b.doc.activeElement,input);
+  }
+  input.value='正常更名';input.focus();assert.equal(b.key('Enter').defaultPrevented,true);
+  assert.equal(parsedViews(b).views[0].name,'正常更名');
+});
+
+test('整理模式在单词、选择、熟练之间始终保留唯一Tab停靠点', () => {
+  const b=browser();b.T.show('list');enterOrganize(b);b.rowWords()[0].focus();
+  for(const [key,attr] of [['ArrowRight','data-row-check'],['ArrowRight','data-proficient'],['ArrowLeft','data-row-check'],['ArrowLeft','data-open-word'],['ArrowDown','data-open-word']]) {
+    b.key(key);assert.notEqual(b.doc.activeElement.getAttribute(attr),null,attr);
+    const stops=b.all('#listInner [tabindex="0"]');assert.equal(stops.length,1,'虚拟列表需恰一个Tab入口');
+    assert.equal(stops[0],b.doc.activeElement,'当前活动操作可重新Tab进入');
+  }
+});
+
+test('词表方向键不拦截浏览器组合或输入法，裸键及长按仍逐行导航', () => {
+  const b=browser();b.T.show('list');b.rowWords()[0].focus();
+  for(const opts of [{altKey:true},{ctrlKey:true},{metaKey:true},{isComposing:true},{keyCode:229},{getModifierState:k=>k==='AltGraph'}]) {
+    const before=b.doc.activeElement;const event=b.key('ArrowRight',opts);
+    assert.equal(event.defaultPrevented,false,'组合键/输入法保留原行为');assert.equal(b.doc.activeElement,before);
+  }
+  const first=+b.doc.activeElement.dataset.openWord;
+  assert.equal(b.key('ArrowDown',{repeat:true}).defaultPrevented,true,'长按方向仍可导航');
+  assert.notEqual(+b.doc.activeElement.dataset.openWord,first);
+});
+
+test('统计图表方向键不截获浏览器修饰组合或输入法，裸键长按仍选相邻点', () => {
+  const b=browser();b.T.show('stats');const first=b.query('#forecast [data-fc-label]');assert.ok(first);first.focus();
+  for(const opts of [{altKey:true},{ctrlKey:true},{metaKey:true},{isComposing:true},{keyCode:229},{getModifierState:k=>k==='AltGraph'}]) {
+    const event=b.key('ArrowRight',opts);assert.equal(event.defaultPrevented,false);assert.equal(b.doc.activeElement,first);
+  }
+  assert.equal(b.key('ArrowRight',{repeat:true}).defaultPrevented,true);assert.notEqual(b.doc.activeElement,first);
+});
+
 console.log(`\nE 词表整理回归：${passed} 通过，${failed} 失败`);
 process.exitCode = failed ? 1 : 0;

@@ -7,7 +7,7 @@ import vm from 'node:vm';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { contentEncodingFields, isConfirmedBadExample, exampleHasWordForm, mechanicalExampleRisks, confirmedCorrectionIssues, isRemovedHeadword, removedHeadwordIssues } from './content-validation.mjs';
+import { contentEncodingFields, isConfirmedBadExample, exampleHasWordForm, mechanicalExampleRisks, confirmedCorrectionIssues, isRemovedHeadword, removedHeadwordIssues, meaningContentIssues } from './content-validation.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
@@ -16,6 +16,10 @@ const nextFixture = JSON.parse(read('tests/fixtures/content-fixes-batch2-2026102
 const thirdFixture = JSON.parse(read('tests/fixtures/content-fixes-batch3-20261023.json'));
 const maintenanceFixture = JSON.parse(read('tests/fixtures/content-fixes-maintenance-20261023.json'));
 const meaningFixture = JSON.parse(read('tests/fixtures/content-fixes-meaning-20261024.json'));
+const variantFixture = JSON.parse(read('tests/fixtures/content-fixes-meaning-20261025.json'));
+const phoneticFixture = JSON.parse(read('tests/fixtures/content-fixes-phonetic-20261025.json'));
+const normalizeFixture = JSON.parse(read('tests/fixtures/content-fixes-phonetic-normalize-20261025.json'));
+const formsFixture = JSON.parse(read('tests/fixtures/content-fixes-forms-20261025.json'));
 const box = vm.createContext({ window: {} });
 const dataFiles = ['js/words-data.js', 'js/cet-words-data.js', 'js/combined-words-data.js'];
 dataFiles.forEach(file => vm.runInContext(read(file), box, { filename: file }));
@@ -298,6 +302,152 @@ check('释义修复不改动词条顺序与历史基线；relection 走删除迁
     assert.equal(isRemovedHeadword(item.book, 'relection'), true, item.book + ' isRemovedHeadword');
   }
 });
+check('释义交叉引用/变形说明修复：19 词落地，旧值回流被拒绝，规则门控可召回且不误伤', () => {
+  assert.equal(variantFixture.corrections.length, 19);
+  for (const item of variantFixture.corrections) {
+    for (const reference of item.references) {
+      const row = books[reference.book][reference.index];
+      assert.equal(row[0], item.word, item.id + ' ' + reference.book + ' 词头');
+      const corrected = reference.originalRow.slice();
+      for (const [field, value] of Object.entries(item.after)) corrected[Number(field)] = value;
+      assert.equal(JSON.stringify(row), JSON.stringify(corrected), item.id + ' ' + item.word + ' ' + reference.book + ' 修后行');
+      assert.deepEqual(confirmedCorrectionIssues(reference.book, row), [], item.id + ' 修后行应允许');
+      for (const [field, before] of Object.entries(item.before)) {
+        const reverted = corrected.slice(); reverted[Number(field)] = before;
+        assert.ok(confirmedCorrectionIssues(reference.book, reverted).length > 0, item.id + ' ' + item.word + ' 字段' + field + ' 旧值应拒绝');
+      }
+    }
+  }
+  const badSamples = ['v. <主英>=rationalize', 'a. organise的变形', 'n. <美>=cancellation', 'a. & n.<口>=postdoctoral', 'adv. oversleep的过去式和过去分词', 'n. 生态旅游 (ecotourism的变形)', 'a. prove的过去分词', 'n. = rationalize'];
+  for (const bad of badSamples) assert.ok(meaningContentIssues(bad).length > 0, '规则门控应召回：' + bad);
+  const goodSamples = ['n. 广告（advertisement 的缩写）', 'n. (=barbecue)烤肉野餐, 烤肉架；v. 烤肉', 'pl. 牙齿（tooth 的复数）', 'n. 月', 'n. 博士后（postdoctoral 的缩写）', 'v. 睡过头（oversleep 的过去式和过去分词）', 'a. 更安静的（quiet 的比较级）', 'n. 代表（representative 缩写）, 名声（俚）'];
+  for (const good of goodSamples) assert.deepEqual(meaningContentIssues(good), [], '规则门控不应误伤：' + good);
+  for (const [book, rows] of Object.entries(books)) for (const [index, row] of rows.entries()) {
+    assert.deepEqual(meaningContentIssues(row[2]), [], book + '#' + index + ' ' + row[0] + ' 当前释义规则');
+  }
+});
+check('音标空缺已全量补齐：792 词头/1077 行落地，旧空音标回流被拒绝，四书无缺失', () => {
+  assert.equal(phoneticFixture.corrections.length, 792);
+  assert.deepEqual(phoneticFixture.missingAfter, []);
+  assert.deepEqual(phoneticFixture.sourceStats, {"youdao.us": 42, "youdao.uk": 606, "youdao.collins": 19, manual: 125});
+  const reg = /^[ ()\-.;a-zæðŋɑɒɔəɛɜɝɡɪʃʊʌʒθˈˌː]*$/i;
+  const vowel = /[aeiouyæɑɒɔəɛɜɪʊʌ]/i;
+  // 批次 A 已把其中 22 个多读音/跨书矛盾词规范为单一主读音；空音标回流仍由本夹具门控。
+  const normalizedLater = new Set(normalizeFixture.corrections.map(item => item.word));
+  for (const item of phoneticFixture.corrections) {
+    assert.equal(item.before['1'], '', item.id + ' 原值为空');
+    assert.ok(reg.test(item.after['1']) && vowel.test(item.after['1']) && item.after['1'].length <= 45, item.id + ' 音标格式 ' + item.after['1']);
+    for (const reference of item.references) {
+      const row = books[reference.book].find(row => row[0] === item.word);
+      assert.ok(row, item.id + ' ' + reference.book + ' 行存在');
+      if (normalizedLater.has(item.word)) assert.ok(String(row[1] || '').trim(), item.id + ' ' + item.word + ' 规范化后仍须非空');
+      else assert.equal(row[1], item.after['1'], item.id + ' ' + item.word + ' ' + reference.book + ' 音标');
+      assert.deepEqual(confirmedCorrectionIssues(reference.book, row), [], item.id + ' 修后行应允许');
+      const reverted = row.slice(); reverted[1] = '';
+      assert.ok(confirmedCorrectionIssues(reference.book, reverted).length > 0, item.id + ' 空音标旧值应拒绝');
+    }
+  }
+  for (const [book, rows] of Object.entries(books)) {
+    assert.equal(rows.filter(row => !String(row[1] || '').trim()).length, 0, book + ' 不得再有缺音标');
+  }
+  for (const item of phoneticFixture.corrections) {
+    const row = books.combined.find(row => row[0] === item.word);
+    if (row) assert.ok(String(row[1] || '').trim(), '综合书 ' + item.word + ' 音标同步');
+  }
+});
+check('批次 A 音标规范化：1,191 词头/2,217 行落地，单主读音且旧畸形值不能静默回流', () => {
+  assert.equal(normalizeFixture.corrections.length, 2217);
+  assert.equal(new Set(normalizeFixture.corrections.map(item => item.word)).size, 1191);
+  const clean = /^[()\-a-zæðŋɑɒɔəɛɜɝɡɪʃʊʌʒθˈˌː]+$/i;
+  const vowel = /[aeiouyæɑɒɔəɛɜɪʊʌ]/i;
+  for (const item of normalizeFixture.corrections) {
+    assert.deepEqual(Object.keys(item.after), ['1'], item.id);
+    assert.ok(clean.test(item.after['1']) && vowel.test(item.after['1']) && item.after['1'].length <= 45, item.id + ' 音标格式 ' + item.after['1']);
+    for (const reference of item.references) {
+      const row = books[reference.book].find(row => row[0] === item.word);
+      assert.ok(row, item.id + ' ' + reference.book + ' 行存在');
+      assert.equal(row[1], item.after['1'], item.id + ' ' + item.word + ' ' + reference.book + ' 音标');
+      assert.deepEqual(confirmedCorrectionIssues(reference.book, row), [], item.id + ' 修后行应允许');
+      const reverted = row.slice(); reverted[1] = item.before['1'];
+      const gated = confirmedCorrectionIssues(reference.book, reverted).length > 0;
+      const malformed = !clean.test(item.before['1']);
+      assert.ok(gated || malformed || item.action === 'cross-book-dict', item.id + ' 旧值回流必须被门控或格式拒绝：' + item.before['1']);
+    }
+  }
+});
+check('四书音标无前导点/多读音/空白/悬空连字符/非标准符号，源书同词与综合书逐字节一致', () => {
+  const legacy = /[\u02b9\u03b5\u02ca\u02cb\u025a\u0279]/;
+  for (const [book, rows] of Object.entries(books)) for (const [index, row] of rows.entries()) {
+    assert.doesNotMatch(row[1], /^\s*\./, book + '#' + index + ' ' + row[0] + ' 前导点');
+    assert.doesNotMatch(row[1], /[;；]|\.\s/, book + '#' + index + ' ' + row[0] + ' 多读音分隔');
+    assert.doesNotMatch(row[1], /\s/, book + '#' + index + ' ' + row[0] + ' 空白');
+    assert.doesNotMatch(row[1], /-$/, book + '#' + index + ' ' + row[0] + ' 悬空连字符');
+    assert.doesNotMatch(row[1], legacy, book + '#' + index + ' ' + row[0] + ' 非标准符号');
+  }
+  const byWord = new Map();
+  for (const book of ['kaoyan', 'cet4', 'cet6']) for (const row of books[book]) {
+    if (!byWord.has(row[0])) byWord.set(row[0], new Map());
+    byWord.get(row[0]).set(book, row[1]);
+  }
+  for (const [word, map] of byWord) {
+    if (map.size > 1) assert.equal(new Set(map.values()).size, 1, word + ' 跨书音标不一致：' + [...map.entries()].join(' | '));
+  }
+  for (const row of books.combined) {
+    const source = byWord.get(row[0]);
+    if (source) assert.equal(row[1], [...source.values()][0], row[0] + ' 综合书音标未同步');
+  }
+  for (const word of ['healthcare', 'parenting', 'childcare', 'cosmos', 'carer', 'hardworking', 'will', 'may', 'own', 'politics']) {
+    const values = new Set(['kaoyan', 'cet4', 'cet6'].map(book => books[book].find(row => row[0] === word)?.[1]).filter(Boolean));
+    assert.equal(values.size, 1, word + ' 跨书音标矛盾未统一');
+  }
+});
+check('批次 B 词形说明：82 词头/135 行落地，复数畸形清零、跨书一致、旧值回流被拒绝', () => {
+  assert.equal(formsFixture.corrections.length, 135);
+  assert.equal(new Set(formsFixture.corrections.map(item => item.word)).size, 82);
+  const fmPart = /^(?:复数|过去式|过去分词|现在分词|第三人称单数|比较级|最高级)\s+[a-z]+(?:\/[a-z]+)*$/;
+  for (const item of formsFixture.corrections) {
+    assert.deepEqual(Object.keys(item.after), ['10'], item.id);
+    for (const reference of item.references) {
+      const row = books[reference.book].find(row => row[0] === item.word);
+      assert.ok(row, item.id + ' ' + reference.book + ' 行存在');
+      assert.equal(row[10], item.after['10'], item.id + ' ' + item.word + ' ' + reference.book + ' 词形');
+      const reverted = row.slice(); reverted[10] = item.before['10'];
+      assert.ok(confirmedCorrectionIssues(reference.book, reverted).length > 0, item.id + ' 旧词形应拒绝');
+    }
+  }
+  for (const [book, rows] of Object.entries(books)) for (const [index, row] of rows.entries()) {
+    const fm = String(row[10] || '');
+    if (!fm || row[0] === 'lie') continue;
+    for (const part of fm.split(/[；;]/).map(x => x.trim()).filter(Boolean)) assert.match(part, fmPart, book + '#' + index + ' ' + row[0] + ' 不可解析：' + part);
+    for (const match of fm.matchAll(/复数\s+([a-z]+)/g)) {
+      if (/(ss|zz|xx)$/.test(match[1]) && !/(ss|zz|xx)$/.test(row[0])) assert.fail(book + '#' + index + ' ' + row[0] + ' 复数畸形：' + match[1]);
+    }
+  }
+  const byWord = new Map();
+  for (const book of ['kaoyan', 'cet4', 'cet6']) for (const row of books[book]) {
+    if (!byWord.has(row[0])) byWord.set(row[0], new Map());
+    byWord.get(row[0]).set(book, row[10]);
+  }
+  for (const [word, map] of byWord) if (map.size > 1) assert.equal(new Set(map.values()).size, 1, word + ' 跨书词形不一致：' + [...map.entries()].join(' | '));
+  for (const row of books.combined) {
+    const source = byWord.get(row[0]);
+    if (source) assert.equal(row[10], [...source.values()][0], row[0] + ' 综合书词形未同步');
+  }
+  const expect = {
+    campus: '复数 campuses', politics: '', alumnus: '复数 alumni', calculus: '复数 calculi',
+    coronavirus: '复数 coronaviruses', lotus: '复数 lotuses', cosmos: '复数 cosmoses',
+    bite: null, strike: null, medium: null, daydream: null,
+  };
+  for (const [word, fm] of Object.entries(expect)) {
+    const row = books.kaoyan.find(row => row[0] === word) || books.cet6.find(row => row[0] === word);
+    assert.ok(row, word + ' 词条存在');
+    if (fm !== null) assert.equal(row[10], fm, word);
+  }
+  assert.match(books.kaoyan.find(row => row[0] === 'bite')[10], /过去分词 bitten/);
+  assert.match(books.kaoyan.find(row => row[0] === 'strike')[10], /现在分词 striking/);
+  assert.match(books.kaoyan.find(row => row[0] === 'medium')[10], /media/);
+  assert.doesNotMatch(books.cet6.find(row => row[0] === 'daydream')[10], /'/);
+});
 check('第三批夹具逐族 id/批次唯一，追加残留句全部可被机械污染 warning 扫描召回', () => {
   const ids = thirdFixture.families.map(family => family.id);
   assert.equal(ids.length, 400);
@@ -387,7 +537,7 @@ check('第三批 keep 句族不作防回归封禁；机械污染 warning 扫描�
 // 在隔离目录执行真实校验器，证明门控会使退出码失败，而不只是多打印一条 warning。
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'vocab-content-gate-'));
 try {
-  for (const file of [...dataFiles, 'js/content-validation.mjs', 'js/validate-words.mjs', 'js/validate-cet-data.mjs', 'tests/fixtures/content-fixes-20261023.json', 'tests/fixtures/content-fixes-batch2-20261023.json', 'tests/fixtures/content-fixes-batch3-20261023.json', 'tests/fixtures/content-fixes-maintenance-20261023.json', 'tests/fixtures/content-fixes-meaning-20261024.json']) {
+  for (const file of [...dataFiles, 'js/content-validation.mjs', 'js/validate-words.mjs', 'js/validate-cet-data.mjs', 'tests/fixtures/content-fixes-20261023.json', 'tests/fixtures/content-fixes-batch2-20261023.json', 'tests/fixtures/content-fixes-batch3-20261023.json', 'tests/fixtures/content-fixes-maintenance-20261023.json', 'tests/fixtures/content-fixes-meaning-20261024.json', 'tests/fixtures/content-fixes-meaning-20261025.json', 'tests/fixtures/content-fixes-phonetic-20261025.json', 'tests/fixtures/content-fixes-phonetic-normalize-20261025.json', 'tests/fixtures/content-fixes-forms-20261025.json']) {
     const target = path.join(tmp, file); fs.mkdirSync(path.dirname(target), { recursive: true }); fs.writeFileSync(target, read(file));
   }
   for (const [validator, file, key] of [['js/validate-words.mjs', 'js/words-data.js', 'kaoyan'], ['js/validate-cet-data.mjs', 'js/cet-words-data.js', 'cet4']]) {
@@ -444,6 +594,64 @@ try {
         const result = spawnSync(process.execPath, ['--max-old-space-size=512', path.join(tmp, validator)], {cwd: tmp, encoding: 'utf8', maxBuffer: 2 * 1024 * 1024});
         assert.equal(result.status, 1, 'relection 假词条回流应拒绝');
         assert.match(result.stdout + result.stderr, /已删除词头回流/);
+        fs.writeFileSync(path.join(tmp, file), source);
+      });
+    }
+    check(validator + ' 对音标缺失回流返回失败', () => {
+      const bookKey = key === 'kaoyan' ? 'kaoyan' : 'cet4';
+      const row = Array.from(books[bookKey][0]), original = JSON.stringify(row);
+      const changed = row.slice(); changed[1] = '';
+      const source = read(file); assert.equal(source.includes(original), true, '正式源存在首行');
+      fs.writeFileSync(path.join(tmp, file), source.replace(original, JSON.stringify(changed)));
+      const result = spawnSync(process.execPath, ['--max-old-space-size=512', path.join(tmp, validator)], {cwd: tmp, encoding: 'utf8', maxBuffer: 2 * 1024 * 1024});
+      assert.equal(result.status, 1, '音标缺失应拒绝');
+      assert.match(result.stdout + result.stderr, /音标缺失/);
+      fs.writeFileSync(path.join(tmp, file), source);
+    });
+    for (const [label, badPh, expected] of [
+      ['前导点', '.juːniˈvəːsiti', /音标以分隔点开头/],
+      ['分号多读音', 'ˈesei; eˈsei', /音标含多读音/],
+      ['内部空白', 'ˈmiθikə l', /音标含空白/],
+      ['悬空连字符', 'ˈriəlaiz-', /音标以连字符结尾/],
+      ['非标准符号', 'kənˊtent', /音标含非标准符号/],
+    ]) {
+      check(validator + ' 对音标' + label + '返回失败', () => {
+        const bookKey = key === 'kaoyan' ? 'kaoyan' : 'cet4';
+        const row = Array.from(books[bookKey][0]), original = JSON.stringify(row);
+        const changed = row.slice(); changed[1] = badPh;
+        const source = read(file); assert.equal(source.includes(original), true, '正式源存在首行');
+        fs.writeFileSync(path.join(tmp, file), source.replace(original, JSON.stringify(changed)));
+        const result = spawnSync(process.execPath, ['--max-old-space-size=512', path.join(tmp, validator)], {cwd: tmp, encoding: 'utf8', maxBuffer: 2 * 1024 * 1024});
+        assert.equal(result.status, 1, label + ' 应拒绝');
+        assert.match(result.stdout + result.stderr, expected);
+        fs.writeFileSync(path.join(tmp, file), source);
+      });
+    }
+    for (const [label, badFm, expected] of [
+      ['不可解析', "第三人称单数 daydreams'", /词形说明不可解析/],
+      ['复数机械加s', '复数 thuss', /复数词形疑似机械加 s/],
+    ]) {
+      check(validator + ' 对词形' + label + '返回失败', () => {
+        const bookKey = key === 'kaoyan' ? 'kaoyan' : 'cet4';
+        const row = Array.from(books[bookKey][0]), original = JSON.stringify(row);
+        const changed = row.slice(); changed[10] = badFm;
+        const source = read(file); assert.equal(source.includes(original), true, '正式源存在首行');
+        fs.writeFileSync(path.join(tmp, file), source.replace(original, JSON.stringify(changed)));
+        const result = spawnSync(process.execPath, ['--max-old-space-size=512', path.join(tmp, validator)], {cwd: tmp, encoding: 'utf8', maxBuffer: 2 * 1024 * 1024});
+        assert.equal(result.status, 1, label + ' 应拒绝');
+        assert.match(result.stdout + result.stderr, expected);
+        fs.writeFileSync(path.join(tmp, file), source);
+      });
+    }
+    if (key !== 'kaoyan') {
+      check(validator + ' 对交叉引用/变形说明释义回流返回失败', () => {
+        const row = Array.from(books.cet4[0]), original = JSON.stringify(row);
+        const changed = row.slice(); changed[2] = 'a. organise的变形';
+        const source = read(file); assert.equal(source.includes(original), true, '正式源存在首行');
+        fs.writeFileSync(path.join(tmp, file), source.replace(original, JSON.stringify(changed)));
+        const result = spawnSync(process.execPath, ['--max-old-space-size=512', path.join(tmp, validator)], {cwd: tmp, encoding: 'utf8', maxBuffer: 2 * 1024 * 1024});
+        assert.equal(result.status, 1, '变形说明释义应拒绝');
+        assert.match(result.stdout + result.stderr, /释义内容异常/);
         fs.writeFileSync(path.join(tmp, file), source);
       });
     }

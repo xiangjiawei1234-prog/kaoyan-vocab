@@ -1,0 +1,1029 @@
+{
+ "schemaVersion": 1,
+ "date": "2026-10-25",
+ "scope": "释义交叉引用/派生词变形说明修复：19 个词头（21 行源书 + 综合 19 行）。只改释义字段 2；overslept 主词性 3→1 并修正词形、textless 主词性 0→2。不删词、不改数组顺序/r/f/c/ky/dataVersion。",
+ "fieldNames": {
+  "2": "meaning",
+  "3": "posIdx",
+  "10": "forms"
+ },
+ "baseline": {
+  "kaoyan": {
+   "count": 7997,
+   "dataVersion": 3,
+   "indexHash": "501577d74614f2c993d47d037d05b56d914df7e9257684742ded62d9844bb13a",
+   "posIndexHash": "c9070152c65cfcfb32cd568153d28adbe3fb0371ec40b3198d565ec6663c2d40"
+  },
+  "cet4": {
+   "count": 7167,
+   "dataVersion": 5,
+   "indexHash": "0402319acabbd640cf925a397721d30418a96baf86faafe5d5814209dd016df4",
+   "posIndexHash": "879c502289b405d51fb7246939b1046726d8556a4035deceb4ae24b0e5c8ae7c"
+  },
+  "cet6": {
+   "count": 8821,
+   "dataVersion": 4,
+   "indexHash": "39ece5556c836563a79046f574dff2edf13c2c3a6c04378b8fc924cfa1a90ac9",
+   "posIndexHash": "2ef3b66c7b4ecd3cbe510c770e6b6c1f22c06292b54ffd836f36ee8f0e3a2fde"
+  },
+  "combined": {
+   "count": 12082,
+   "dataVersion": 3,
+   "indexHash": "dba86ee8652bf5dd97689db27b37b1809a1843e6f15ea3eca3364182c42da223",
+   "posIndexHash": "27e0b0e24e1a91311d1551b9f0b4f2347b145a755e086af7095d9b3ecfbd1db0"
+  }
+ },
+ "corrections": [
+  {
+   "id": "W-01",
+   "word": "crew",
+   "before": {
+    "2": "n. 全体人员, 一群人, 全体队员；crow的过去式"
+   },
+   "after": {
+    "2": "n. 全体人员, 一群人, 全体队员"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: crew noun — all the people working on a ship, plane, etc."
+   ],
+   "reason": "释义把 crew 误标为 crow 的过去式（crow 的过去式是 crowed）；crew 意为「全体人员、船员」。",
+   "references": [
+    {
+     "book": "cet4",
+     "index": 2937,
+     "originalRow": [
+      "crew",
+      "kruː",
+      "n. 全体人员, 一群人, 全体队员；crow的过去式",
+      0,
+      2935,
+      5,
+      5,
+      "Like the Scooby crew, we may find ourselves hunting for an easy fix, one word for people who do bad things.",
+      "四级 2022.12",
+      1,
+      "复数 crews；过去分词 crewed；过去式 crewed；现在分词 crewing"
+     ]
+    },
+    {
+     "book": "cet6",
+     "index": 4354,
+     "originalRow": [
+      "crew",
+      "kruː",
+      "n. 全体人员, 一群人, 全体队员；crow的过去式",
+      0,
+      4354,
+      4,
+      2,
+      "Crew members were up at dawn, dragging sensors from their expedition vessels back and forth, day in and day out, year after year, to detect metal of any kind.",
+      "六级 2023.12",
+      1,
+      "复数 crews；过去分词 crewed；过去式 crewed；现在分词 crewing"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 4216,
+     "originalRow": [
+      "crew",
+      "kruː",
+      "n. 全体人员, 一群人, 全体队员；crow的过去式",
+      0,
+      4201,
+      9,
+      7,
+      "Like the Scooby crew, we may find ourselves hunting for an easy fix, one word for people who do bad things.",
+      "四级 2022.12",
+      1,
+      "复数 crews；过去分词 crewed；过去式 crewed；现在分词 crewing"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "W-02",
+   "word": "organisational",
+   "before": {
+    "2": "a. organise的变形"
+   },
+   "after": {
+    "2": "a. 组织的, 组织上的"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: organizational adjective — connected with the way an organization is organized"
+   ],
+   "reason": "原释义「a. organise的变形」只是派生词说明，没有中文词义；organisational 是 organizational 的英式拼写，意为「组织的、组织上的」。",
+   "references": [
+    {
+     "book": "cet4",
+     "index": 3879,
+     "originalRow": [
+      "organisational",
+      "ˌɔːɡənaɪˈzeɪʃənl",
+      "a. organise的变形",
+      2,
+      3881,
+      3,
+      3,
+      "Without organisational support, any personal effort to maintain work-life balance will be unsuccessful.",
+      "四级 2024.12",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "cet6",
+     "index": 3851,
+     "originalRow": [
+      "organisational",
+      "ˌɔːɡənaɪˈzeɪʃənl",
+      "a. organise的变形",
+      2,
+      3853,
+      5,
+      2,
+      "If universities decide to engage in this learning model, they will have to cope with many organisational challenges that might shake their unity of place and action.",
+      "六级 2020.12",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 4573,
+     "originalRow": [
+      "organisational",
+      "ˌɔːɡənaɪˈzeɪʃənl",
+      "a. organise的变形",
+      2,
+      4556,
+      8,
+      5,
+      "Without organisational support, any personal effort to maintain work-life balance will be unsuccessful.",
+      "四级 2024.12",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "W-03",
+   "word": "socioeconomically",
+   "before": {
+    "2": "adv. socioeconomic的变形"
+   },
+   "after": {
+    "2": "adv. 在社会经济方面, 从社会经济角度"
+   },
+   "evidence": [
+    "Cambridge Dictionary: socioeconomically — in a way that relates to social and economic matters"
+   ],
+   "reason": "原释义「adv. socioeconomic的变形」不是释义；意为「在社会经济方面」。",
+   "references": [
+    {
+     "book": "cet4",
+     "index": 6788,
+     "originalRow": [
+      "socioeconomically",
+      "ˌsəʊsiəʊˌiːkəˈnɒmɪkli",
+      "adv. socioeconomic的变形",
+      3,
+      6796,
+      1,
+      1,
+      "After all, not all socioeconomically disadvantaged people consume poor diets.",
+      "四级 2022.12",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 11425,
+     "originalRow": [
+      "socioeconomically",
+      "ˌsəʊsiəʊˌiːkəˈnɒmɪkli",
+      "adv. socioeconomic的变形",
+      3,
+      11429,
+      1,
+      1,
+      "After all, not all socioeconomically disadvantaged people consume poor diets.",
+      "四级 2022.12",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "W-04",
+   "word": "postdoc",
+   "before": {
+    "2": "a. & n.<口>=postdoctoral"
+   },
+   "after": {
+    "2": "n. 博士后（postdoctoral 的缩写）"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: postdoc noun — a person who is doing a postdoctoral research position"
+   ],
+   "reason": "原释义是「=postdoctoral」的交叉引用；postdoc 是名词，指博士后（人）。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 4383,
+     "originalRow": [
+      "postdoc",
+      "pəjstˈdɔk",
+      "a. & n.<口>=postdoctoral",
+      0,
+      4383,
+      4,
+      2,
+      "Since then, several academic institutions have begun to require IDPs for postdocs.",
+      "六级 2013.12",
+      0,
+      "复数 postdocs"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 6430,
+     "originalRow": [
+      "postdoc",
+      "pəjstˈdɔk",
+      "a. & n.<口>=postdoctoral",
+      0,
+      6422,
+      4,
+      2,
+      "Since then, several academic institutions have begun to require IDPs for postdocs.",
+      "六级 2013.12",
+      0,
+      "复数 postdocs"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "W-05",
+   "word": "evolutionarily",
+   "before": {
+    "2": "adv. 演化地, 演进地(evolutionary的变形)"
+   },
+   "after": {
+    "2": "adv. 演化地, 演进地"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: evolutionarily adverb — in a way that relates to evolution"
+   ],
+   "reason": "去掉「(evolutionary的变形)」说明，给规范副词释义「演化地、演进地」。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 5471,
+     "originalRow": [
+      "evolutionarily",
+      "ˌiːvəˌluːʃənˈærili",
+      "adv. 演化地, 演进地(evolutionary的变形)",
+      3,
+      5473,
+      2,
+      2,
+      "Humans and other apes are evolutionarily related.",
+      "自编",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 7675,
+     "originalRow": [
+      "evolutionarily",
+      "ˌiːvəˌluːʃənˈærili",
+      "adv. 演化地, 演进地(evolutionary的变形)",
+      3,
+      7670,
+      2,
+      2,
+      "Humans and other apes are evolutionarily related.",
+      "自编",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "W-06",
+   "word": "rationalise",
+   "before": {
+    "2": "v. <主英>=rationalize"
+   },
+   "after": {
+    "2": "v. 使合理化, 合理地解释；合理地思考"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: rationalize verb — to find or give a logical explanation for something",
+    "词库既有人工释义 rationalize：vi. 合理地思考；vt. 使合理, 合理地处理, 使有理化"
+   ],
+   "reason": "原释义「v. <主英>=rationalize」是英式拼写交叉引用，没有中文义；按 rationalize 词典义补「使合理化、合理地解释；合理地思考」。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 5813,
+     "originalRow": [
+      "rationalise",
+      "ˈræʃənəlaiz",
+      "v. <主英>=rationalize",
+      1,
+      5816,
+      2,
+      2,
+      "For instance, physics allows you to observe and rationalise the world, but also to integrate observations into models and, sometimes, models into theories or laws that can be used to make predictions.",
+      "六级 2020.12",
+      0,
+      "过去分词 rationalised；现在分词 rationalising；过去式 rationalised；第三人称单数 rationalises"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 8113,
+     "originalRow": [
+      "rationalise",
+      "ˈræʃənəlaiz",
+      "v. <主英>=rationalize",
+      1,
+      8106,
+      2,
+      2,
+      "For instance, physics allows you to observe and rationalise the world, but also to integrate observations into models and, sometimes, models into theories or laws that can be used to make predictions.",
+      "六级 2020.12",
+      0,
+      "过去分词 rationalised；现在分词 rationalising；过去式 rationalised；第三人称单数 rationalises"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "W-07",
+   "word": "technophobic",
+   "before": {
+    "2": "a. technophobe的变形"
+   },
+   "after": {
+    "2": "a. 惧怕技术的, 技术恐惧的"
+   },
+   "evidence": [
+    "Merriam-Webster: technophobic adjective — having a fear of technology"
+   ],
+   "reason": "原释义为 technophobe 的变形说明；意为「惧怕技术的、技术恐惧的」。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 5966,
+     "originalRow": [
+      "technophobic",
+      "ˌteknəˈfəʊbɪk",
+      "a. technophobe的变形",
+      2,
+      5970,
+      2,
+      2,
+      "Her technophobic uncle preferred letters to emails.",
+      "自编",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 8295,
+     "originalRow": [
+      "technophobic",
+      "ˌteknəˈfəʊbɪk",
+      "a. technophobe的变形",
+      2,
+      8289,
+      2,
+      2,
+      "Her technophobic uncle preferred letters to emails.",
+      "自编",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "W-08",
+   "word": "nonscientific",
+   "before": {
+    "2": "a. adj. 不涉及科学的；与科学无关的"
+   },
+   "after": {
+    "2": "a. 不涉及科学的, 与科学无关的"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: non-scientific adjective — not connected with science"
+   ],
+   "reason": "清理重复词性标签「a. adj.」，中文义保留并规范为「不涉及科学的、与科学无关的」。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 6263,
+     "originalRow": [
+      "nonscientific",
+      "ˌnɒnsaɪənˈtɪfɪk",
+      "a. adj. 不涉及科学的；与科学无关的",
+      2,
+      6267,
+      2,
+      1,
+      "It is equally imperative to emphasize that being an expert on a topic does not automatically make a scholar qualified to communicate it to a nonscientific audience.",
+      "六级 2022.06",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 8680,
+     "originalRow": [
+      "nonscientific",
+      "ˌnɒnsaɪənˈtɪfɪk",
+      "a. adj. 不涉及科学的；与科学无关的",
+      2,
+      8676,
+      2,
+      1,
+      "It is equally imperative to emphasize that being an expert on a topic does not automatically make a scholar qualified to communicate it to a nonscientific audience.",
+      "六级 2022.06",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "W-09",
+   "word": "cancelation",
+   "before": {
+    "2": "n. <美>=cancellation"
+   },
+   "after": {
+    "2": "n. 取消, 撤销"
+   },
+   "evidence": [
+    "Merriam-Webster: cancelation noun — variant spelling of cancellation"
+   ],
+   "reason": "原释义是「n. <美>=cancellation」的变体交叉引用；意为「取消、撤销」。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 6712,
+     "originalRow": [
+      "cancelation",
+      "ˌkænsəˈleɪʃən",
+      "n. <美>=cancellation",
+      0,
+      6717,
+      1,
+      1,
+      "Amtrak says bookings are down 50 percent and cancelations are up 300 percent.",
+      "六级 2020.12",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 9206,
+     "originalRow": [
+      "cancelation",
+      "ˌkænsəˈleɪʃən",
+      "n. <美>=cancellation",
+      0,
+      9202,
+      1,
+      1,
+      "Amtrak says bookings are down 50 percent and cancelations are up 300 percent.",
+      "六级 2020.12",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "W-10",
+   "word": "democratise",
+   "before": {
+    "2": "v. <主英> = democratize"
+   },
+   "after": {
+    "2": "v. (使)民主化, (使)大众化"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: democratize verb — to make a country or an organization more democratic"
+   ],
+   "reason": "原释义是「v. <主英> = democratize」的变体交叉引用；意为「(使)民主化、(使)大众化」。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 6934,
+     "originalRow": [
+      "democratise",
+      "diˈmɔkrətaiz",
+      "v. <主英> = democratize",
+      1,
+      6940,
+      1,
+      1,
+      "One view is that we have democratised tourism and gallery-going so much that we have made it effectively impossible to appreciate what we've travelled to see.",
+      "六级 2020.12",
+      0,
+      "复数 democratises"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 9515,
+     "originalRow": [
+      "democratise",
+      "diˈmɔkrətaiz",
+      "v. <主英> = democratize",
+      1,
+      9512,
+      1,
+      1,
+      "One view is that we have democratised tourism and gallery-going so much that we have made it effectively impossible to appreciate what we've travelled to see.",
+      "六级 2020.12",
+      0,
+      "复数 democratises"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "W-11",
+   "word": "ecotourist",
+   "before": {
+    "2": "n. 生态旅游, 生态旅行（前往生态资源未被破坏的地方旅行） (ecotourism的变形)"
+   },
+   "after": {
+    "2": "n. 生态旅游者"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: ecotourist noun — a person who takes part in ecotourism"
+   ],
+   "reason": "原释义把 ecotourism（生态旅游）的释义配给 ecotourist（生态旅游者），且只有变形说明；更正为「生态旅游者」。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 7070,
+     "originalRow": [
+      "ecotourist",
+      "ˈiːkəʊtʊərɪst",
+      "n. 生态旅游, 生态旅行（前往生态资源未被破坏的地方旅行） (ecotourism的变形)",
+      0,
+      7076,
+      1,
+      1,
+      "Or you can even grow the forest hoping that biodiversity will attract ecotourists who'd pay for lodging, birdwatching tours and meals.",
+      "六级 2026.06",
+      0,
+      "复数 ecotourists"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 9685,
+     "originalRow": [
+      "ecotourist",
+      "ˈiːkəʊtʊərɪst",
+      "n. 生态旅游, 生态旅行（前往生态资源未被破坏的地方旅行） (ecotourism的变形)",
+      0,
+      9683,
+      1,
+      1,
+      "Or you can even grow the forest hoping that biodiversity will attract ecotourists who'd pay for lodging, birdwatching tours and meals.",
+      "六级 2026.06",
+      0,
+      "复数 ecotourists"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "W-12",
+   "word": "episodically",
+   "before": {
+    "2": "adv. episodic, episodical的变形"
+   },
+   "after": {
+    "2": "adv. 偶发地, 间歇地"
+   },
+   "evidence": [
+    "Cambridge Dictionary: episodically adverb — in a way that happens sometimes, but not regularly"
+   ],
+   "reason": "原释义为派生词变形说明；意为「偶发地、间歇地」。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 7117,
+     "originalRow": [
+      "episodically",
+      "ˌepɪˈsɒdɪkli",
+      "adv. episodic, episodical的变形",
+      3,
+      7123,
+      1,
+      1,
+      "The old machine works episodically, stopping for hours between short bursts.",
+      "自编",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 9750,
+     "originalRow": [
+      "episodically",
+      "ˌepɪˈsɒdɪkli",
+      "adv. episodic, episodical的变形",
+      3,
+      9748,
+      1,
+      1,
+      "The old machine works episodically, stopping for hours between short bursts.",
+      "自编",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "W-13",
+   "word": "materialistically",
+   "before": {
+    "2": "adv. materialist的变形"
+   },
+   "after": {
+    "2": "adv. 物质主义地, 实利主义地"
+   },
+   "evidence": [
+    "Cambridge Dictionary: materialistically adverb — in a way that relates to material possessions"
+   ],
+   "reason": "原释义为 materialist 的变形说明；意为「物质主义地、实利主义地」。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 7701,
+     "originalRow": [
+      "materialistically",
+      "məˌtɪəriəˈlɪstɪkli",
+      "adv. materialist的变形",
+      3,
+      7708,
+      1,
+      1,
+      "They may also be moral those who practice gratitude also view their lives less materialistically and suffer from less envy.",
+      "六级 2023.06",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 10509,
+     "originalRow": [
+      "materialistically",
+      "məˌtɪəriəˈlɪstɪkli",
+      "adv. materialist的变形",
+      3,
+      10511,
+      1,
+      1,
+      "They may also be moral those who practice gratitude also view their lives less materialistically and suffer from less envy.",
+      "六级 2023.06",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "W-14",
+   "word": "overcook",
+   "before": {
+    "2": "v. vt 烹调过分的, 烹调过度的"
+   },
+   "after": {
+    "2": "v. 烹调过度, 煮过头"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: overcook verb — to cook something for too long"
+   ],
+   "reason": "清理「v. vt」重复标签，给规范动词释义「烹调过度、煮过头」。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 7903,
+     "originalRow": [
+      "overcook",
+      "ˈəuvəˈkuk",
+      "v. vt 烹调过分的, 烹调过度的",
+      1,
+      7911,
+      1,
+      1,
+      "Be careful not to overcook the vegetables, or they will lose texture.",
+      "自编",
+      0,
+      "过去分词 overcooked；过去式 overcooked；现在分词 overcooking；第三人称单数 overcooks"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 10770,
+     "originalRow": [
+      "overcook",
+      "ˈəuvəˈkuk",
+      "v. vt 烹调过分的, 烹调过度的",
+      1,
+      10774,
+      1,
+      1,
+      "Be careful not to overcook the vegetables, or they will lose texture.",
+      "自编",
+      0,
+      "过去分词 overcooked；过去式 overcooked；现在分词 overcooking；第三人称单数 overcooks"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "W-15",
+   "word": "overprescribed",
+   "before": {
+    "2": "vt. overprescribe（开药剂量过高，超量开药，超过实际需要开药）的变形"
+   },
+   "after": {
+    "2": "a. 过度开药的, 超量开药的"
+   },
+   "evidence": [
+    "Merriam-Webster: overprescribed — prescribed too much or too often"
+   ],
+   "reason": "原释义是「overprescribe 的变形」说明且与主词性不符；意为「过度开药的、超量开药的」。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 7915,
+     "originalRow": [
+      "overprescribed",
+      "ˌəuvəpriˈskraib",
+      "vt. overprescribe（开药剂量过高，超量开药，超过实际需要开药）的变形",
+      2,
+      7923,
+      1,
+      1,
+      "They are overprescribed antibiotics.",
+      "六级 2017.06",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 10787,
+     "originalRow": [
+      "overprescribed",
+      "ˌəuvəpriˈskraib",
+      "vt. overprescribe（开药剂量过高，超量开药，超过实际需要开药）的变形",
+      2,
+      10791,
+      1,
+      1,
+      "They are overprescribed antibiotics.",
+      "六级 2017.06",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "W-16",
+   "word": "overslept",
+   "before": {
+    "2": "adv. oversleep的过去式和过去分词",
+    "3": 3,
+    "10": "复数 overslepts"
+   },
+   "after": {
+    "2": "v. 睡过头（oversleep 的过去式和过去分词）",
+    "3": 1,
+    "10": "过去式 overslept；过去分词 overslept"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: oversleep verb — to sleep longer than you intended"
+   ],
+   "reason": "原释义词性误标为 adv. 且只有词形说明；overslept 是 oversleep 的过去式/过去分词（动词），补「睡过头」并修正主词性与词形。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 7925,
+     "originalRow": [
+      "overslept",
+      "ˌəuvəˈslept",
+      "adv. oversleep的过去式和过去分词",
+      3,
+      7933,
+      1,
+      1,
+      "She overslept and missed the flight.",
+      "六级 2020.09",
+      0,
+      "过去式 overslept；过去分词 overslept"
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 10800,
+     "originalRow": [
+      "overslept",
+      "ˌəuvəˈslept",
+      "adv. oversleep的过去式和过去分词",
+      3,
+      10804,
+      1,
+      1,
+      "She overslept and missed the flight.",
+      "六级 2020.09",
+      0,
+      "过去式 overslept；过去分词 overslept"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "W-17",
+   "word": "proven",
+   "before": {
+    "2": "a. prove的过去分词"
+   },
+   "after": {
+    "2": "a. 被证明的, 经证实的"
+   },
+   "evidence": [
+    "Oxford Learner's Dictionaries: proven adjective — tested and shown to be true"
+   ],
+   "reason": "原释义只有「prove的过去分词」词形说明；proven 作形容词意为「被证明的、经证实的」。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 8098,
+     "originalRow": [
+      "proven",
+      "ˈpruːvn",
+      "a. prove的过去分词",
+      2,
+      8105,
+      1,
+      1,
+      "It is proven that not only is personality unrelated to the different halves of the brain, but people aren't really right- or left-brained to begin with.",
+      "六级 2024.12",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 11029,
+     "originalRow": [
+      "proven",
+      "ˈpruːvn",
+      "a. prove的过去分词",
+      2,
+      11032,
+      1,
+      1,
+      "It is proven that not only is personality unrelated to the different halves of the brain, but people aren't really right- or left-brained to begin with.",
+      "六级 2024.12",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "W-18",
+   "word": "reputational",
+   "before": {
+    "2": "a. reputation（名声, 声誉）的变形"
+   },
+   "after": {
+    "2": "a. 声誉的, 名声的"
+   },
+   "evidence": [
+    "Cambridge Dictionary: reputational adjective — related to reputation"
+   ],
+   "reason": "原释义为 reputation 的变形说明；意为「声誉的、名声的」。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 8211,
+     "originalRow": [
+      "reputational",
+      "ˌrepjuˈteiʃən",
+      "a. reputation（名声, 声誉）的变形",
+      2,
+      8218,
+      1,
+      1,
+      "By offering services to help expand the longevity of their products, they're promising quality and durability to consumers, and receiving the reputational gains for being environmentally friendly.",
+      "六级 2019.06",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 11197,
+     "originalRow": [
+      "reputational",
+      "ˌrepjuˈteiʃən",
+      "a. reputation（名声, 声誉）的变形",
+      2,
+      11201,
+      1,
+      1,
+      "By offering services to help expand the longevity of their products, they're promising quality and durability to consumers, and receiving the reputational gains for being environmentally friendly.",
+      "六级 2019.06",
+      0,
+      ""
+     ]
+    }
+   ]
+  },
+  {
+   "id": "W-19",
+   "word": "textless",
+   "before": {
+    "2": "n. adj. 无原文的",
+    "3": 0
+   },
+   "after": {
+    "2": "a. 无文本的, 无原文的",
+    "3": 2
+   },
+   "evidence": [
+    "Oxford English Dictionary: textless adjective — having no text"
+   ],
+   "reason": "原释义「n. adj. 无原文的」词性标签重复且主词性错误；textless 是形容词「无文本的、无原文的」。",
+   "references": [
+    {
+     "book": "cet6",
+     "index": 8539,
+     "originalRow": [
+      "textless",
+      "ˈtekstləs",
+      "n. adj. 无原文的",
+      0,
+      8546,
+      1,
+      1,
+      "She began in her 20s, making textless, decorative paintings of flowers with insects.",
+      "六级 2018.12",
+      0,
+      ""
+     ]
+    },
+    {
+     "book": "combined",
+     "index": 11634,
+     "originalRow": [
+      "textless",
+      "ˈtekstləs",
+      "n. adj. 无原文的",
+      0,
+      11638,
+      1,
+      1,
+      "She began in her 20s, making textless, decorative paintings of flowers with insects.",
+      "六级 2018.12",
+      0,
+      ""
+     ]
+    }
+   ]
+  }
+ ]
+}

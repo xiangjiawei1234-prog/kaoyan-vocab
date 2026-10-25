@@ -16,28 +16,32 @@
    "dataVersion": 3,
    "indexHash": "501577d74614f2c993d47d037d05b56d914df7e9257684742ded62d9844bb13a",
    "oldPosIndexHash": "b6b38214733c645e88a2a0fadb5ba677b77433e010f4177b76da8ba95c80fdbe",
-   "expectedPosIndexHash": "c9070152c65cfcfb32cd568153d28adbe3fb0371ec40b3198d565ec6663c2d40"
+   "expectedPosIndexHash": "c9070152c65cfcfb32cd568153d28adbe3fb0371ec40b3198d565ec6663c2d40",
+   "posIndexHash": "c9070152c65cfcfb32cd568153d28adbe3fb0371ec40b3198d565ec6663c2d40"
   },
   "cet4": {
    "count": 7167,
    "dataVersion": 5,
    "indexHash": "0402319acabbd640cf925a397721d30418a96baf86faafe5d5814209dd016df4",
    "oldPosIndexHash": "879c502289b405d51fb7246939b1046726d8556a4035deceb4ae24b0e5c8ae7c",
-   "expectedPosIndexHash": "879c502289b405d51fb7246939b1046726d8556a4035deceb4ae24b0e5c8ae7c"
+   "expectedPosIndexHash": "879c502289b405d51fb7246939b1046726d8556a4035deceb4ae24b0e5c8ae7c",
+   "posIndexHash": "879c502289b405d51fb7246939b1046726d8556a4035deceb4ae24b0e5c8ae7c"
   },
   "cet6": {
    "count": 8821,
    "dataVersion": 4,
    "indexHash": "39ece5556c836563a79046f574dff2edf13c2c3a6c04378b8fc924cfa1a90ac9",
-   "oldPosIndexHash": "7b4da024d37cf94450ecb9d0852acd74f43d685711a8115089b6cd57b5bb0841",
-   "expectedPosIndexHash": "7b4da024d37cf94450ecb9d0852acd74f43d685711a8115089b6cd57b5bb0841"
+   "oldPosIndexHash": "2ef3b66c7b4ecd3cbe510c770e6b6c1f22c06292b54ffd836f36ee8f0e3a2fde",
+   "expectedPosIndexHash": "2ef3b66c7b4ecd3cbe510c770e6b6c1f22c06292b54ffd836f36ee8f0e3a2fde",
+   "posIndexHash": "2ef3b66c7b4ecd3cbe510c770e6b6c1f22c06292b54ffd836f36ee8f0e3a2fde"
   },
   "combined": {
    "count": 12082,
    "dataVersion": 3,
    "indexHash": "dba86ee8652bf5dd97689db27b37b1809a1843e6f15ea3eca3364182c42da223",
-   "oldPosIndexHash": "b86c9aa8560801aee0297ea17a2ec6e9bda5ceac2e11d5ec2e638295ee805558",
-   "expectedPosIndexHash": "fd3cbbbd5595a16ac05aa622eeb1e63609ed9050d699f4c3bb3e8e7c27c1868e"
+   "oldPosIndexHash": "6550d187e1ad246dafa85013413f449eb5ee3bbc66db8e3736c73469243d09b4",
+   "expectedPosIndexHash": "27e0b0e24e1a91311d1551b9f0b4f2347b145a755e086af7095d9b3ecfbd1db0",
+   "posIndexHash": "27e0b0e24e1a91311d1551b9f0b4f2347b145a755e086af7095d9b3ecfbd1db0"
   }
  },
  "corrections": [
@@ -63,7 +67,7 @@
      "index": 6623,
      "originalRow": [
       "resit",
-      "ˈriːsit",
+      "ˌriːˈsɪt",
       "vi.(考试不及格后)再考,重考；<英> vt.(尤指考试不及格后)再参加(考试)",
       1,
       6630,
@@ -72,7 +76,7 @@
       "He had to resit the exam because his grade was too low.",
       "自编",
       0,
-      "复数 resits；现在分词 resiting；过去分词 resited；过去式 resited"
+      "第三人称单数 resits；现在分词 resitting；过去式 resat；过去分词 resat"
      ]
     },
     {
@@ -80,7 +84,7 @@
      "index": 11204,
      "originalRow": [
       "resit",
-      "ˈriːsit",
+      "ˌriːˈsɪt",
       "vi.(考试不及格后)再考,重考；<英> vt.(尤指考试不及格后)再参加(考试)",
       1,
       11208,
@@ -89,7 +93,7 @@
       "He had to resit the exam because his grade was too low.",
       "自编",
       0,
-      "复数 resits；现在分词 resiting；过去分词 resited；过去式 resited"
+      "第三人称单数 resits；现在分词 resitting；过去式 resat；过去分词 resat"
      ]
     }
    ]

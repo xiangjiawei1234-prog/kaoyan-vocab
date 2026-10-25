@@ -24,6 +24,8 @@ node --max-old-space-size=512 tests/browser/check-completion-keyboard.mjs
 node --max-old-space-size=512 tests/browser/check-preference-concurrency.mjs
 node --max-old-space-size=512 tests/browser/check-profile-scope.mjs
 node --max-old-space-size=512 tests/browser/check-first-use.mjs
+node --max-old-space-size=512 tests/browser/check-transient-menus.mjs
+node --max-old-space-size=512 tests/browser/check-local-keyboard.mjs
 ```
 
 最终收尾新增：`check-profile-scope`验证真实UI个人方案只应用本书、同值冻结、未选类别不变、其他书保留设备值以及中性/错误提示区分；`check-first-use`验证320×568等短屏首次首词完整可见、非模态引导和键盘可用；`check-preference-concurrency`用真实双页验证延迟通知下的合并/冲突拒绝及跨书有效按键预检；`check-completion-keyboard`验证字符快捷键关闭时固定Enter仍可续组且不穿透其他控件。所有报告按脚本名写入`results/`，仿真不等于真机。
@@ -57,3 +59,6 @@ node --max-old-space-size=512 tests/browser/check-first-use.mjs
 窄屏和触摸仿真不代表真机。真实读屏、系统语音、软键盘、Safari/Firefox、系统级后台休眠和PWA安装为系统应用仍需独立记录。前两个布局脚本的200%使用CSS zoom；平台脚本另有原生200%实测，不混淆两者。
 
 `check-platform.mjs` 使用临时应用副本模拟A/B整组发布和单资源缺失，验证真实Service Worker离线刷新、更新等待、关闭旧页后的整组启用；另测file://、Chrome原生200%页面缩放与已安装浏览器能力。报告为 `results/platform.json`。它通过临时Chrome设置页原生Page zoom控件设置200%，并核对CSS zoom=1、visualViewport.scale=1、DPR翻倍和布局宽度减半，不使用CSS zoom或捏合替代。Safari自动化未开启时只记录限制；不修改系统设置，不安装新浏览器，也不使用日常profile。2026-10-24 修订：D1 统一动作守卫会拒绝 `document.visibilityState==="hidden"` 的后台页；打开 chrome://settings 后学习页变为后台标签，平台脚本在像素/指针断言前先 `Page.bringToFront()` 并在采样记录 visibility，不修改产品守卫。
+
+
+体验打磨新增：`check-transient-menus`检查词表视图/导出与学习更多菜单互斥、外点/Esc/离焦收起、模态返回、草稿保留和减少动态；`check-local-keyboard`检查局部输入候选守卫、普通Enter与导航、组合键放行和整理选择框唯一Tab0。`check-book-entry`新增320指标Range真实行数和7997/12082长累计，当前扩展81项；不把合成输入或屏幕仿真当真机已验。全部18个check源独立运行，报告仍写ignored目录。

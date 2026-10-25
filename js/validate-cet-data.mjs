@@ -15,7 +15,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
-import { contentEncodingFields, isConfirmedBadExample, exampleHasWordForm, mechanicalExampleRisks, confirmedCorrectionIssues, isRemovedHeadword } from "./content-validation.mjs";
+import { contentEncodingFields, isConfirmedBadExample, exampleHasWordForm, mechanicalExampleRisks, confirmedCorrectionIssues, isRemovedHeadword, meaningContentIssues } from "./content-validation.mjs";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -47,6 +47,13 @@ const YEAR_RANGE_RE = /^(\d{4})[–-](\d{4})$/;
 const PLACEHOLDER_RE = /TODO|FIXME|待补|暂无|无释义|占位|N\/A|\bnull\b|\bundefined\b|xxx+/i;
 const DANGER_RE = /<script|onerror\s*=|onload\s*=|javascript:|<\/?iframe|<\/?img|<\/?svg/i;
 const BAD_CHAR_RE = /[\uFFFD\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/;
+// 2026-10-25 批次 A/B：与考研校验器同一口径；只保留单主读音、词形说明可解析。
+const PH_LEAD_DOT = /^\s*\./;
+const PH_MULTI_SEP = /[;；]|\.\s/;
+const PH_SPACE = /\s/;
+const PH_TRAIL_HYPHEN = /-\s*$/;
+const PH_NONSTD = /[\u02b9\u03b5\u02ca\u02cb\u025a\u0279]/;
+const FM_PART_RE = /^(?:复数|过去式|过去分词|现在分词|第三人称单数|比较级|最高级)\s+[a-z]+(?:\/[a-z]+)*$/;
 
 // ---------- 结果收集 ----------
 const issues = [];
@@ -118,10 +125,29 @@ function checkCommon(index, bookKey, entries) {
       if (!m.trim() || PLACEHOLDER_RE.test(m)) meaningBad++;
       if (!CJK.test(m)) nonCjkMeaning++;
       if (DANGER_RE.test(m)) htmlDanger++;
+      for (const issue of meaningContentIssues(m)) err("释义", "释义内容异常", bookKey, i, w, issue);
     }
     if (typeof w === "string" && DANGER_RE.test(w)) htmlDanger++;
-    if (typeof ph === "string") { if (ph.trim()) phoneticCount++; if (DANGER_RE.test(ph) || BAD_CHAR_RE.test(ph)) htmlDanger++; }
-    if (typeof fm === "string" && fm.trim()) fmCount++;
+    if (typeof ph === "string") {
+      if (ph.trim()) phoneticCount++; else err("音标", "音标缺失", bookKey, i, w, "2026-10-25 已全量补齐；新缺失须由 content-fixes-phonetic-20261025 记录");
+      if (DANGER_RE.test(ph) || BAD_CHAR_RE.test(ph)) htmlDanger++;
+      if (PH_LEAD_DOT.test(ph)) err("音标", "音标以分隔点开头（应为次重音 ˌ 或删除）", bookKey, i, w, short(ph));
+      if (PH_MULTI_SEP.test(ph)) err("音标", "音标含多读音/分隔符", bookKey, i, w, short(ph));
+      if (PH_SPACE.test(ph)) err("音标", "音标含空白字符", bookKey, i, w, JSON.stringify(ph));
+      if (PH_TRAIL_HYPHEN.test(ph)) err("音标", "音标以连字符结尾（变体缩写残留）", bookKey, i, w, short(ph));
+      if (PH_NONSTD.test(ph)) err("音标", "音标含非标准符号（疑似误植）", bookKey, i, w, short(ph));
+    }
+    if (typeof fm === "string" && fm.trim()) {
+      fmCount++;
+      if (w !== "lie") {
+        for (const part of fm.split(/[；;]/).map((x) => x.trim()).filter(Boolean)) {
+          if (!FM_PART_RE.test(part)) err("词形", "词形说明不可解析", bookKey, i, w, short(part));
+        }
+      }
+      for (const match of fm.matchAll(/复数\s+([a-z]+)/g)) {
+        if (/(ss|zz|xx)$/.test(match[1]) && !/(ss|zz|xx)$/.test(w)) err("词形", "复数词形疑似机械加 s", bookKey, i, w, short(fm));
+      }
+    }
     if (typeof ex === "string" && ex.trim()) {
       exampleCount++;
       if (DANGER_RE.test(ex) || BAD_CHAR_RE.test(ex)) htmlDanger++;

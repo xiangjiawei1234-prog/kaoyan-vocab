@@ -4625,6 +4625,7 @@
       }
     });
     root.addEventListener("keydown", (e) => {
+      if (inputEventIgnored(e, {allowRepeat: true}) || e.ctrlKey || e.metaKey || e.altKey) return;
       const container = exContainerOf(e.target);
       if (!container) return;
       const words = Array.from(container.querySelectorAll ? container.querySelectorAll(".ex-word") : []);
@@ -4988,7 +4989,7 @@
     return true;
   }
   function onFreqRangeKey(e, which){
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (inputEventIgnored(e, {allowRepeat: true}) || e.ctrlKey || e.metaKey || e.altKey) return;
     const keys = ["ArrowLeft", "ArrowDown", "ArrowRight", "ArrowUp", "PageDown", "PageUp", "Home", "End"];
     if (!keys.includes(e.key)) return;
     e.preventDefault();
@@ -7879,6 +7880,7 @@
       const txt = listStatusText(i);
       const wordTab = active && listActiveAction === "open-word" ? "0" : "-1";
       const profTab = active && listActiveAction === "proficient" ? "0" : "-1";
+      const checkTab = active && listActiveAction === "row-check" ? "0" : "-1";
       const selected = listOrganize && listSelection.has(i);
       // 非整理模式保持原有「单词按钮本身就是网格单元」的 DOM，整理模式才包一层放选择按钮。
       const wordButton = '<button type="button" class="' + (listOrganize ? "row-word" : "c-word row-word") +
@@ -7886,7 +7888,7 @@
         ' 详情">' + esc(x.w) + (isStar(i) ? " ★" : "") + "</button>";
       const wordCell = listOrganize
         ? '<span class="c-word has-check"><button type="button" class="row-check" role="checkbox" aria-checked="' +
-          (selected ? "true" : "false") + '" data-row-check="' + i + '" tabindex="-1" aria-label="' +
+          (selected ? "true" : "false") + '" data-row-check="' + i + '" tabindex="' + checkTab + '" aria-label="' +
           (selected ? "已选择 " : "选择 ") + esc(x.w) + '">✓</button>' + wordButton + "</span>"
         : wordButton;
       html += '<div class="row' + (active ? " row-active" : "") + (selected ? " row-selected" : "") + '" data-i="' + i + '" style="top:' + (k * RH) + 'px">' +
@@ -7932,6 +7934,7 @@
     return true;
   }
   function navigateList(e){
+    if (inputEventIgnored(e, {allowRepeat: true}) || e.ctrlKey || e.metaKey || e.altKey) return;
     const target = e.target;
     const isWord = target.dataset?.openWord !== undefined;
     const isProficientButton = target.dataset?.proficient !== undefined;
@@ -8084,6 +8087,10 @@
     listViewBookId = currentBookId;
     const list = $("#listViewsList"), saveBtn = $("#btnSaveListView"),
       resetBtn = $("#btnResetListViews"), input = $("#listViewName");
+    const focused = document.activeElement;
+    const focusKey = list?.contains?.(focused) && ["viewApply", "viewRenameInput", "viewRename", "viewDelete"]
+      .find(key => focused?.dataset?.[key] != null);
+    const focusId = focusKey && focused.dataset[focusKey];
     const corrupt = listViewStore.corrupt || !listViewStore.ready;
     if (list) {
       if (corrupt) list.innerHTML = "";
@@ -8100,6 +8107,11 @@
     }
     if (saveBtn) saveBtn.disabled = corrupt || !!statsDrill;
     if (input) input.disabled = corrupt || !!statsDrill;
+    if (focusKey) {
+      const target = Array.from(list?.querySelectorAll?.("button, input") || [])
+        .find(el => el.dataset?.[focusKey] === focusId);
+      (target || input)?.focus?.({preventScroll: true});
+    }
     if (resetBtn) resetBtn.hidden = !listViewStore.corrupt;
     if (listViewStore.corrupt) {
       setListViewStatus("筛选视图存储已损坏，已保留原文并拒绝覆写：" + listViewStore.error
@@ -8765,6 +8777,7 @@
     root.addEventListener("click", select);
     root.addEventListener("focusin", select);
     root.addEventListener("keydown", e => {
+      if (inputEventIgnored(e, {allowRepeat: true}) || e.ctrlKey || e.metaKey || e.altKey) return;
       const point = e.target.closest?.(selector);
       if (!point) return;
       const nodes = Array.from(root.querySelectorAll?.(selector) || []).filter(x => !x.disabled);
@@ -10127,7 +10140,7 @@
     for (const id of ["#btnStudyProfiles","#btnSettingsProfiles"]) $(id).onclick=()=>openSettingsWorkspace("profiles");
     for (const [pane,id] of [["quick","#workspaceQuickTab"],["profiles","#workspaceProfilesTab"]]) {
       $(id).onclick=()=>showWorkspacePane(pane);
-      $(id).onkeydown=e=>{if (["ArrowLeft","ArrowRight","Home","End"].includes(e.key)) {e.preventDefault(); const p = e.key==="Home"?"quick":e.key==="End"?"profiles":pane==="quick"?"profiles":"quick";showWorkspacePane(p);$(p==="quick"?"#workspaceQuickTab":"#workspaceProfilesTab").focus();}};
+      $(id).onkeydown=e=>{if(inputEventIgnored(e, {allowRepeat: true}) || e.ctrlKey || e.metaKey || e.altKey)return;if (["ArrowLeft","ArrowRight","Home","End"].includes(e.key)) {e.preventDefault(); const p = e.key==="Home"?"quick":e.key==="End"?"profiles":pane==="quick"?"profiles":"quick";showWorkspacePane(p);$(p==="quick"?"#workspaceQuickTab":"#workspaceProfilesTab").focus();}};
     }
     $("#quickSettingsFields").onchange=e=>{if(e.target.dataset.quickKey)quickSettingsChanged(e.target);};
     $("#quickPinsChoices").onchange=e=>{
@@ -10138,7 +10151,7 @@
     };
     $("#workspaceAllSettings").onclick=()=>{closeSheet();show("set");$("#settingsSearch").focus?.();};
     $("#settingsSearch").oninput=renderSettingsSearch;
-    $("#settingsSearch").onkeydown=e=>{if(e.key==="ArrowDown"||e.key==="Enter"){const b=$("#settingsSearchResults button");if(b){e.preventDefault();b.focus();}}else if(e.key==="Escape"){$("#settingsSearchResults").hidden=true;}};
+    $("#settingsSearch").onkeydown=e=>{if(inputEventIgnored(e) || e.ctrlKey || e.metaKey || e.altKey)return;if(e.key==="ArrowDown"||e.key==="Enter"){const b=$("#settingsSearchResults button");if(b){e.preventDefault();b.focus();}}else if(e.key==="Escape"){$("#settingsSearchResults").hidden=true;}};
     $("#settingsSearchResults").onclick=e=>{const b=e.target.closest?.("[data-setting-target]");if(b)focusSetting(b.dataset.settingTarget);};
     $("#settingsAdvancedToggle").onclick=()=>{const open=$("#settingsAdvancedToggle").getAttribute("aria-pressed")!=="true";$$("#v-set .settings-advanced").forEach(x=>x.open=open);$("#settingsAdvancedToggle").setAttribute("aria-pressed",String(open));$("#settingsAdvancedToggle").textContent=open?"收起高级设置":"展开高级设置";};
     $("#profileApplyCategories").onchange=renderSettingsProfiles;
@@ -11298,7 +11311,7 @@
       };
     });
   }
-  /** 词书选择列表：名称、词数 · 已学 · 已掌握，当前书高亮 */
+  /** 词书选择列表：指标分别排版，窄屏只在指标之间换行，当前书高亮。 */
   function renderBookList(){
     const list = $("#bookList");
     if (!list) return;
@@ -11313,14 +11326,15 @@
           '<span class="book-meta">词书数据未载入</span></span></button>';
       }
       const st = bookStats(def.id);
-      const meta = book.words.length + " 词 · " + (st.ok
-        ? "已学 " + st.learned + " · 已掌握 " + st.mastered
-        : "记录无法读取");
+      const metrics = [book.words.length + " 词"].concat(st.ok
+        ? ["已学 " + st.learned, "已掌握 " + st.mastered]
+        : ["记录无法读取"]);
+      const meta = metrics.map(text => '<span class="book-metric">' + esc(text) + "</span>").join(" ");
       return '<button type="button" class="book-item' + (on ? " on" : "") +
         '" data-book="' + esc(def.id) + '" aria-pressed="' + on + '">' +
         '<span class="book-mark">' + esc(def.mark) + "</span>" +
         '<span class="book-main"><b class="book-name">' + esc(def.name) + "</b>" +
-        '<span class="book-meta">' + esc(meta) + "</span></span>" +
+        '<span class="book-meta">' + meta + "</span></span>" +
         (on ? '<span class="book-check" aria-hidden="true">✓</span>' : "") +
         "</button>";
     }).join("");
@@ -11349,8 +11363,8 @@
     const arrows={ArrowLeft:"←",ArrowRight:"→",ArrowUp:"↑",ArrowDown:"↓"};
     return arrows[k] || (k.length===1?k.toUpperCase():k);
   }
-  function inputEventIgnored(e){
-    return !!(e.repeat || e.isComposing || e.keyCode===229 || e.key==="Dead" || e.key==="Unidentified" || e.getModifierState?.("AltGraph"));
+  function inputEventIgnored(e, {allowRepeat = false} = {}){
+    return !!((e.repeat && !allowRepeat) || e.isComposing || e.keyCode===229 || e.key==="Dead" || e.key==="Unidentified" || e.getModifierState?.("AltGraph"));
   }
   function bindingFromEvent(e){
     if(inputEventIgnored(e) || e.ctrlKey || e.metaKey || e.altKey)return null;
@@ -11519,12 +11533,45 @@
       "<li><span>" + esc(t) + '</span><span class="k">' + esc(k) + "</span></li>"
     ).join("");
   }
+  // 瞬时操作菜单与阅读用details分开：互斥、外点/离焦收起，Esc归还入口。
+  function transientMenuFor(node){
+    return node?.closest?.("#listViewsMenu, #listExportMenu, #actsMore") || null;
+  }
+  function transientMenuForEvent(e){
+    // 菜单内动作可能同步替换点击节点；事件路径仍保留最初的菜单上下文。
+    for (const node of e.composedPath?.() || [e.target]) {
+      const menu = transientMenuFor(node);
+      if (menu) return menu;
+    }
+    return null;
+  }
+  function closeTransientMenus({except = null, restoreFocus = false} = {}){
+    let closed = false, trigger = null;
+    for (const menu of $$("#listViewsMenu, #listExportMenu, #actsMore")) {
+      if (!menu.open || menu === except) continue;
+      if (restoreFocus && menu.contains?.(document.activeElement)) trigger = menu.querySelector?.("summary");
+      menu.open = false;
+      closed = true;
+    }
+    trigger?.focus?.({preventScroll: true});
+    return closed;
+  }
+  function initTransientMenus(){
+    document.addEventListener("toggle", (e) => {
+      const menu = transientMenuFor(e.target);
+      if (menu && menu === e.target && menu.open) closeTransientMenus({except: menu});
+    }, true);
+    document.addEventListener("click", (e) => closeTransientMenus({except: transientMenuForEvent(e)}));
+    document.addEventListener("focusin", (e) => closeTransientMenus({except: transientMenuForEvent(e)}));
+  }
   let activeSheet = null, previousFocus = null, detailWord = null;
   function openSheet(id){
     cancelInputGesture();
+    if (id !== "#importSheet") cancelBackupImportRead();
     if (rebinding) { rebinding = null; renderKeys(); }
     hideExPop();
     if (activeSheet) closeSheet();
+    closeTransientMenus({restoreFocus: true});
     previousFocus = document.activeElement;
     activeSheet = $(id);
     activeSheet.hidden = false;
@@ -11536,6 +11583,7 @@
   }
   function closeSheet(){
     if (!activeSheet) return;
+    cancelBackupImportRead();
     hideExPop();
     const closedId = activeSheet.id;
     if (closedId === "settingsWorkspaceSheet") {
@@ -11990,6 +12038,7 @@
   /* ================= 视图 ================= */
   function show(v){
     cancelInputGesture();
+    closeTransientMenus();
     if (v !== "set" && rebinding) { rebinding = null; renderKeys(); }
     const wasList = $("#v-list").classList.contains("on");
     if (wasList && v !== "list") saveListUi();
@@ -11998,7 +12047,7 @@
       studyReadingScroll = {book: currentBookId, word: cur, plan: sessionPlan, top: main.scrollTop || 0};
     }
     // 其他页从顶部开始；返回同词同组时，末尾恢复学习页自己的阅读位置。
-    if (changingView) main.scrollTop = 0;
+    if (changingView) { cancelBackupImportRead(); main.scrollTop = 0; }
     $$(".view").forEach(x => x.classList.remove("on"));
     $("#v-" + v).classList.add("on");
     $$(".nav button").forEach(b => {
@@ -12424,7 +12473,14 @@
   }
 
   /* ================= 导入确认 ================= */
-  let pendingImport = null;
+  let pendingImport = null, backupImportReadSequence = 0, backupImportReader = null;
+  /** 文件选择可重复发生；取消、换页或打开另一浮层后，不再接受旧读取结果。 */
+  function cancelBackupImportRead(){
+    backupImportReadSequence++;
+    const reader = backupImportReader;
+    backupImportReader = null;
+    try { if (reader?.readyState === 1) reader.abort?.(); } catch (e) { /* 代次守卫仍会拒绝迟到回调 */ }
+  }
   function formatBackupTime(iso){
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return iso || "未记录";
@@ -12454,9 +12510,10 @@
   function openImportConfirm(o){
     try {
       const plan = prepareImportPlan(o);
+      // openSheet会关闭旧确认并清pendingImport；新请求必须在此后才提交。
+      openSheet("#importSheet");
       pendingImport = {data: o, plan: plan};
       renderImportPlan(plan);
-      openSheet("#importSheet");
     } catch (err) {
       pendingImport = null;
       showAlert("无法导入备份", (err && err.message ? err.message : "文件格式不正确") + "。现有记录未改动。", {kind: "import"});
@@ -12515,6 +12572,10 @@
     if (pop && pop.classList && pop.classList.contains("on") && e.key === "Escape") {
       e.preventDefault();
       hideExPop(true);
+      return;
+    }
+    if (!activeSheet && e.key === "Escape" && closeTransientMenus({restoreFocus: true})) {
+      e.preventDefault();
       return;
     }
     const tag = e.target.tagName;
@@ -12592,6 +12653,7 @@
   initBookPageUi();
   initSettingsWorkspace();
   initInputControls();
+  initTransientMenus();
   bindReadingLayoutControls();
   bindExLookup($("#card"));
   bindExLookup($("#wordDetail"));
@@ -12602,7 +12664,9 @@
     if (!e.detail) return;
     const t = e.target;
     const btn = t && t.closest ? t.closest("button") : null;
-    if (btn && !(btn.closest && btn.closest(".sheet"))) btn.blur?.();
+    // 词表菜单内的按钮保留入口上下文，打开模态后才能回到可见的summary。
+    // 学习区按钮仍沿用指针移焦，点击后空格继续翻页的契约不变。
+    if (btn && !(btn.closest && btn.closest(".sheet, .list-export-menu"))) btn.blur?.();
   }, true);
   document.addEventListener("click", (e) => {
     const pop = $("#exPop");
@@ -12732,6 +12796,7 @@
   if (resetListViewsBtn) resetListViewsBtn.onclick = resetListViewStore;
   const listViewNameInput = $("#listViewName");
   if (listViewNameInput) listViewNameInput.addEventListener("keydown", (e) => {
+    if (inputEventIgnored(e) || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === "Enter") { e.preventDefault(); saveCurrentListView(); }
   });
   const viewsMenu = $("#listViewsMenu");
@@ -12751,6 +12816,7 @@
       if (deleteView) deleteSavedListView(deleteView.dataset.viewDelete);
     });
     viewsMenu.addEventListener("keydown", (e) => {
+      if (inputEventIgnored(e) || e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key !== "Enter") return;
       const input = e.target.closest?.("[data-view-rename-input]");
       if (input) {
@@ -12964,13 +13030,21 @@
   const doPrintEl = $("#btnDoPrint");
   if (doPrintEl) doPrintEl.onclick = () => { renderPrintBook(); window.print?.(); };
   $$("#printSheet [data-print-close]").forEach(el => { el.onclick = closeSheet; });
-  $("#imp").onclick = () => $("#file").click();
+  $("#imp").onclick = () => {
+    cancelBackupImportRead();
+    if (activeSheet?.id === "importSheet") closeSheet();
+    pendingImport = null;
+    $("#file").click();
+  };
   /** 兼容 v1（平铺，按考研书）与 v2/v3（books 分书全量备份）；返回当前书 state */
   function importState(o){
     if (isRecord(o) && (o.version === 2 || o.version === 3)) return importBooksBackup(o);
     return importLegacyV1(o);
   }
   $("#file").onchange = (e) => {
+    cancelBackupImportRead();
+    if (activeSheet?.id === "importSheet") closeSheet();
+    pendingImport = null;
     const f = e.target.files[0];
     if (!f) return;
     if (f.size > 10 * 1024 * 1024) {
@@ -12979,7 +13053,12 @@
       return;
     }
     const r = new FileReader();
+    const sequence = backupImportReadSequence;
+    backupImportReader = r;
+    const currentRead = () => sequence === backupImportReadSequence && backupImportReader === r;
     r.onload = () => {
+      if (!currentRead()) return;
+      backupImportReader = null;
       let o;
       try { o = JSON.parse(r.result); }
       catch (err) {
@@ -12988,8 +13067,13 @@
       }
       openImportConfirm(o);
     };
-    r.onerror = () => showAlert("文件读取失败", "请重新选择备份文件。现有进度未改变。", {kind: "import"});
-    r.readAsText(f);
+    r.onerror = () => {
+      if (!currentRead()) return;
+      backupImportReader = null;
+      showAlert("文件读取失败", "请重新选择备份文件。现有进度未改变。", {kind: "import"});
+    };
+    try { r.readAsText(f); }
+    catch (err) { r.onerror(); }
     e.target.value = "";
   };
   $$("#importSheet [data-import-close]").forEach(el => { el.onclick = () => { pendingImport = null; closeSheet(); }; });

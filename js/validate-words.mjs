@@ -10,7 +10,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
-import { contentEncodingFields, isConfirmedBadExample, mechanicalExampleRisks, confirmedCorrectionIssues, isRemovedHeadword } from "./content-validation.mjs";
+import { contentEncodingFields, isConfirmedBadExample, mechanicalExampleRisks, confirmedCorrectionIssues, isRemovedHeadword, meaningContentIssues } from "./content-validation.mjs";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -54,8 +54,15 @@ const POS_PREFIX_RE = /^(n|v|vt|vi|a|adj|adv|prep|conj|pron|num|aux|int|interj|a
 const EXAM_LEFTOVER_RE = /___|\[A\]|\[B\]|\[C\]|\[D\]|\(\d{1,3}\)/;
 // 音标允许集：IPA 常用符号 + 拉丁字母 + 次重音点/分隔符（ECDICT 老式字符集已规范化）
 const IPA_OK = /^[ ()\-.;a-zæðŋɑɒɔəɛɜɝɡɪʃʊʌʒθˈˌː]*$/i;
-const IPA_NONSTD = /[\u02b9\u03b5\u02ca\u02cb]/; // ˊ 希腊 ε 等疑似误植（应为 ˈ ɛ）
+const IPA_NONSTD = /[\u02b9\u03b5\u02ca\u02cb\u025a\u0279]/; // ˊ 希腊 ε ɚ ɹ 等疑似误植/旧式写法
 const VOWELISH = /[aeiouyæɑɒɔəɛɜɪʊʌ]/i;
+// 2026-10-25 批次 A：存量音标只保留一个主读音，禁止分隔点/多值/空白/悬空连字符。
+const PH_LEAD_DOT = /^\s*\./;
+const PH_MULTI_SEP = /[;；]|\.\s/;
+const PH_SPACE = /\s/;
+const PH_TRAIL_HYPHEN = /-\s*$/;
+// 词形说明必须是「标签 + 全小写词形（可 / 分隔）」；lie 的分义长说明单独豁免。
+const FM_PART_RE = /^(?:复数|过去式|过去分词|现在分词|第三人称单数|比较级|最高级)\s+[a-z]+(?:\/[a-z]+)*$/;
 // 例句中合理的英文非 ASCII：拉丁补充（é、°、£）、通用标点、货币、分数、数字形式（Ⅱ）
 function oddAscii(ch) {
   const c = ch.codePointAt(0);
@@ -221,15 +228,19 @@ for (let i = 0; i < entries.length; i++) {
 
   // 3) 音标
   if (!ph || !ph.trim()) {
-    warn("phonetic", "音标缺失", i, w, "空字符串（构建时确认无可靠读音，可接受）");
+    err("phonetic", "音标缺失", i, w, "2026-10-25 已全量补齐；新缺失须由 content-fixes-phonetic-20261025 记录");
   } else {
     if (CJK.test(ph)) err("phonetic", "音标混入中日韩文字", i, w, short(ph));
     if (/[\u0400-\u04FF]/.test(ph)) err("phonetic", "音标混入西里尔字母", i, w, short(ph));
     if (GARBLED.test(ph)) err("phonetic", "音标含乱码/替换字符", i, w, short(ph));
     if (CONTROL.test(ph)) err("phonetic", "音标含控制字符", i, w, JSON.stringify(ph));
     if (!CJK.test(ph) && !/[\u0400-\u04FF]/.test(ph) && !GARBLED.test(ph) && !CONTROL.test(ph)) {
+      if (PH_LEAD_DOT.test(ph)) err("phonetic", "音标以分隔点开头（应为次重音 ˌ 或删除）", i, w, short(ph));
+      if (PH_MULTI_SEP.test(ph)) err("phonetic", "音标含多读音/分隔符", i, w, short(ph));
+      if (PH_SPACE.test(ph)) err("phonetic", "音标含空白字符", i, w, JSON.stringify(ph));
+      if (PH_TRAIL_HYPHEN.test(ph)) err("phonetic", "音标以连字符结尾（变体缩写残留）", i, w, short(ph));
       if (IPA_NONSTD.test(ph)) {
-        warn("phonetic", "音标含非标准符号（疑似误植）", i, w, short(ph));
+        err("phonetic", "音标含非标准符号（疑似误植）", i, w, short(ph));
       } else if (!IPA_OK.test(ph)) {
         warn("phonetic", "音标含 IPA 不常见字符", i, w, short(ph));
       }
@@ -275,6 +286,7 @@ for (let i = 0; i < entries.length; i++) {
   if (isConfirmedBadExample(ex)) err("content", "已确认污染例句回流", i, w, short(ex));
   for (const issue of confirmedCorrectionIssues("kaoyan", a)) err("content", "已确认内容修订回流", i, w, issue);
   if (isRemovedHeadword("kaoyan", w)) err("content", "已删除词头回流", i, w, "OCR 假词条已随 dataVersion 迁移删除，不得重新加入");
+  for (const issue of meaningContentIssues(m)) err("meaning", "释义内容异常", i, w, issue);
 
   // 6) 例句 / 来源
   if (ex) {
@@ -307,7 +319,19 @@ for (let i = 0; i < entries.length; i++) {
     if (ky === 1 && p === 12) warn("ky", "大纲词词性为 PROPN（专名），可疑", i, w, short(m, 40));
   }
 
-  // fm 仅类型已查；含中文标签为设计如此（界面「词形：…」）
+  // fm 仅允许「标签 + 词形」；lie 的分义长说明为设计豁免。
+  if (fm) {
+    if (w !== "lie") {
+      for (const part of fm.split(/[；;]/).map((x) => x.trim()).filter(Boolean)) {
+        if (!FM_PART_RE.test(part)) err("content", "词形说明不可解析", i, w, short(part));
+      }
+    }
+    for (const match of fm.matchAll(/复数\s+([a-z]+)/g)) {
+      if (/(ss|zz|xx)$/.test(match[1]) && !/(ss|zz|xx)$/.test(w)) {
+        err("content", "复数词形疑似机械加 s", i, w, short(fm));
+      }
+    }
+  }
 }
 
 // ---------- 内容修订回归（2026-10-22 首批，证据见 docs/内容修订记录-2026-10-22.md） ----------

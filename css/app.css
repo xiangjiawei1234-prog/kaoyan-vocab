@@ -2108,11 +2108,15 @@ html[data-font-size="large"] .word-sheet-panel .sheet-head h2 { font-size: 38px;
 .book-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .book-name { font-size: 15px; font-weight: 600; line-height: 1.35; }
 .book-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--ink-3);
   line-height: 1.4;
 }
+.book-metric { white-space: nowrap; }
 .book-item.on .book-meta { color: var(--accent); }
 .book-check { margin-left: auto; color: var(--accent); font-weight: 700; font-size: 15px; }
 
@@ -4574,6 +4578,23 @@ html[data-font-size="large"] .sense-quote { font-size: 18px; }
   .stats-drill-row .btn { flex: 1 1 100%; }
 }
 
+/* P07 短横屏词表：收紧辅助留白，让结果先出现；保留完整筛选、44px操作和虚拟行。 */
+@media (min-width: 721px) and (max-width: 1000px) and (max-height: 500px) {
+  #main.wide:has(#v-list.on) { padding-top: 10px; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+  #v-list > .view-heading { align-items: baseline; margin-bottom: 10px; }
+  #v-list > .view-heading .eyebrow,
+  #v-list > .view-heading > p { display: none; }
+  #v-list > .view-heading h2 { font-size: 22px; letter-spacing: -.2px; }
+  #v-list > .list-toolbar { flex-wrap: nowrap; gap: 6px; margin-bottom: 6px; }
+  #v-list > .list-toolbar .tools { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; gap: 6px; }
+  #v-list > .list-toolbar .tools input { flex: 1 1 160px; min-width: 100px; padding-inline: 10px; }
+  #v-list > .list-toolbar .tools select { min-width: 0; padding-inline: 10px; }
+  #v-list > .list-toolbar > .btn { flex: 0 0 auto; min-width: 0; padding-inline: 12px; }
+  #v-list > .list-toolbar > .list-export-menu { flex: 0 0 auto; }
+  #v-list > .list-scope-summary { margin-bottom: 6px; padding-block: 2px; }
+  #v-list > .list-note { margin-bottom: 6px; }
+}
+
 /* ================= F1 阅读与布局定制（2026-10-24） =================
    只改呈现：卡片密度、判定后主体顺序、卡片次要标签、固定次级动作与「更多操作」。
    动作区高度常量不动：#acts 151/156/146px、窄屏 #v-study > #hint 40px 保持原样。 */
@@ -4655,6 +4676,14 @@ html[data-font-size="large"] .sense-quote { font-size: 18px; }
   box-shadow: 0 10px 30px rgba(0, 0, 0, .18);
 }
 .acts-more-menu > .btn { min-width: 0; min-height: 36px; padding: 6px 10px; font-size: 12px; }
+
+/* 瞬时菜单轻量出现，不改变位置或延迟点击；系统减少动态时由统一规则关闭。 */
+.list-export-menu[open] > .list-export-pop,
+.acts-more[open] > .acts-more-menu { animation: menuIn .12s var(--ease); }
+@keyframes menuIn {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
 
 @media (max-width: 720px) {
   #acts.revealed > .acts-secondary { gap: 8px; }

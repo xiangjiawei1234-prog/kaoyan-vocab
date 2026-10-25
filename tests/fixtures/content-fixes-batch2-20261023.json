@@ -6,7 +6,7 @@
       "dv": 3,
       "missingPh": 389,
       "indexHash": "501577d74614f2c993d47d037d05b56d914df7e9257684742ded62d9844bb13a",
-      "posIndexHash": "3692b4bb6165850d17f483e4de0ea18c1a3507b588610ade02f27d3ec3744966"
+      "posIndexHash": "c9070152c65cfcfb32cd568153d28adbe3fb0371ec40b3198d565ec6663c2d40"
     },
     "cet4": {
       "words": 7167,
@@ -20,14 +20,14 @@
       "dv": 4,
       "missingPh": 454,
       "indexHash": "39ece5556c836563a79046f574dff2edf13c2c3a6c04378b8fc924cfa1a90ac9",
-      "posIndexHash": "86ebc238119341c1eee017d319e7bef8ed22a7ca3bc367eb3220b60f35cab7d7"
+      "posIndexHash": "2ef3b66c7b4ecd3cbe510c770e6b6c1f22c06292b54ffd836f36ee8f0e3a2fde"
     },
     "combined": {
       "words": 12082,
       "dv": 3,
       "missingPh": 785,
       "indexHash": "dba86ee8652bf5dd97689db27b37b1809a1843e6f15ea3eca3364182c42da223",
-      "posIndexHash": "fd3cbbbd5595a16ac05aa622eeb1e63609ed9050d699f4c3bb3e8e7c27c1868e"
+      "posIndexHash": "27e0b0e24e1a91311d1551b9f0b4f2347b145a755e086af7095d9b3ecfbd1db0"
     }
   },
   "phonetics": {

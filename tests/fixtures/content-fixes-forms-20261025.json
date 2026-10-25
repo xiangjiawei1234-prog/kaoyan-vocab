@@ -1,0 +1,2604 @@
+{
+ "schemaVersion": 1,
+ "date": "2026-10-25",
+ "scope": "批次 B 词形说明修复：82 个词头、135 行。清除 ECDICT 自动加 s 的复数畸形；补齐 campus/surplus/consensus/alumnus/calculus/coronavirus/lotus/cosmos 等真实复数；去掉不可数/形容词/副词/已复数词头与 politics 的伪复数；统一 can/will/may/own/sensor/groundbreaker 的跨书 fm；补 bite 过去分词、strike 现在分词、medium 的 media；修 daydream 尾撇号；为 43 个规则动词补全过去式/过去分词/现在分词/第三人称单数。只改字段 10，不改顺序/r/f/c/ky/p/dataVersion。",
+ "fieldNames": {
+  "10": "forms"
+ },
+ "sourceStats": {
+  "youdao.ec": 135
+ },
+ "baseline": {
+  "kaoyan": {
+   "count": 7997,
+   "dataVersion": 3,
+   "indexHash": "501577d74614f2c993d47d037d05b56d914df7e9257684742ded62d9844bb13a",
+   "posIndexHash": "c9070152c65cfcfb32cd568153d28adbe3fb0371ec40b3198d565ec6663c2d40"
+  },
+  "cet4": {
+   "count": 7167,
+   "dataVersion": 5,
+   "indexHash": "0402319acabbd640cf925a397721d30418a96baf86faafe5d5814209dd016df4",
+   "posIndexHash": "879c502289b405d51fb7246939b1046726d8556a4035deceb4ae24b0e5c8ae7c"
+  },
+  "cet6": {
+   "count": 8821,
+   "dataVersion": 4,
+   "indexHash": "39ece5556c836563a79046f574dff2edf13c2c3a6c04378b8fc924cfa1a90ac9",
+   "posIndexHash": "2ef3b66c7b4ecd3cbe510c770e6b6c1f22c06292b54ffd836f36ee8f0e3a2fde"
+  },
+  "combined": {
+   "count": 12082,
+   "dataVersion": 3,
+   "indexHash": "dba86ee8652bf5dd97689db27b37b1809a1843e6f15ea3eca3364182c42da223",
+   "posIndexHash": "27e0b0e24e1a91311d1551b9f0b4f2347b145a755e086af7095d9b3ecfbd1db0"
+  }
+ },
+ "corrections": [
+  {
+   "id": "B-0001",
+   "word": "aeronautics",
+   "before": {
+    "10": "复数 aeronauticss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0002",
+   "word": "alumnus",
+   "before": {
+    "10": "复数 alumnuss"
+   },
+   "after": {
+    "10": "复数 alumni"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0003",
+   "word": "anonymize",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 anonymized；过去分词 anonymized；现在分词 anonymizing；第三人称单数 anonymizes"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0004",
+   "word": "anonymize",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 anonymized；过去分词 anonymized；现在分词 anonymizing；第三人称单数 anonymizes"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0005",
+   "word": "backload",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 backloaded；过去分词 backloaded；现在分词 backloading；第三人称单数 backloads"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0006",
+   "word": "bite",
+   "before": {
+    "10": "过去式 bit；现在分词 biting；复数 bites；第三人称单数 bites"
+   },
+   "after": {
+    "10": "过去式 bit；过去分词 bitten；现在分词 biting；复数 bites；第三人称单数 bites"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0007",
+   "word": "bite",
+   "before": {
+    "10": "过去式 bit；现在分词 biting；复数 bites；第三人称单数 bites"
+   },
+   "after": {
+    "10": "过去式 bit；过去分词 bitten；现在分词 biting；复数 bites；第三人称单数 bites"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0008",
+   "word": "bite",
+   "before": {
+    "10": "过去式 bit；现在分词 biting；复数 bites；第三人称单数 bites"
+   },
+   "after": {
+    "10": "过去式 bit；过去分词 bitten；现在分词 biting；复数 bites；第三人称单数 bites"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0009",
+   "word": "calculus",
+   "before": {
+    "10": "复数 calculuss"
+   },
+   "after": {
+    "10": "复数 calculi"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0010",
+   "word": "campus",
+   "before": {
+    "10": "复数 campuss"
+   },
+   "after": {
+    "10": "复数 campuses"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0011",
+   "word": "campus",
+   "before": {
+    "10": "复数 campuss"
+   },
+   "after": {
+    "10": "复数 campuses"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0012",
+   "word": "campus",
+   "before": {
+    "10": "复数 campuss"
+   },
+   "after": {
+    "10": "复数 campuses"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0013",
+   "word": "can",
+   "before": {
+    "10": "复数 cans；过去式 could；第三人称单数 can"
+   },
+   "after": {
+    "10": "复数 cans；过去式 could/canned；过去分词 canned；现在分词 canning；第三人称单数 cans"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0014",
+   "word": "can",
+   "before": {
+    "10": "复数 cans；过去式 could；第三人称单数 can"
+   },
+   "after": {
+    "10": "复数 cans；过去式 could/canned；过去分词 canned；现在分词 canning；第三人称单数 cans"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0015",
+   "word": "can",
+   "before": {
+    "10": "复数 cans；过去式 canned；现在分词 canning"
+   },
+   "after": {
+    "10": "复数 cans；过去式 could/canned；过去分词 canned；现在分词 canning；第三人称单数 cans"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0016",
+   "word": "caravanserais",
+   "before": {
+    "10": "复数 caravanseraiss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0017",
+   "word": "cautious",
+   "before": {
+    "10": "复数 cautiouss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0018",
+   "word": "cautious",
+   "before": {
+    "10": "复数 cautiouss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0019",
+   "word": "cautious",
+   "before": {
+    "10": "复数 cautiouss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0020",
+   "word": "cofound",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 cofounded；过去分词 cofounded；现在分词 cofounding；第三人称单数 cofounds"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0021",
+   "word": "consensus",
+   "before": {
+    "10": "复数 consensuss"
+   },
+   "after": {
+    "10": "复数 consensuses"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0022",
+   "word": "consensus",
+   "before": {
+    "10": "复数 consensuss"
+   },
+   "after": {
+    "10": "复数 consensuses"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0023",
+   "word": "consensus",
+   "before": {
+    "10": "复数 consensuss"
+   },
+   "after": {
+    "10": "复数 consensuses"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0024",
+   "word": "coronavirus",
+   "before": {
+    "10": "复数 coronaviruss"
+   },
+   "after": {
+    "10": "复数 coronaviruses"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0025",
+   "word": "cosmos",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "复数 cosmoses"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0026",
+   "word": "cosmos",
+   "before": {
+    "10": "复数 cosmoes"
+   },
+   "after": {
+    "10": "复数 cosmoses"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0027",
+   "word": "daydream",
+   "before": {
+    "10": "复数 daydreams；现在分词 daydreaming；过去式 daydreamed；第三人称单数 daydreams'"
+   },
+   "after": {
+    "10": "复数 daydreams；现在分词 daydreaming；过去式 daydreamed；第三人称单数 daydreams"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0028",
+   "word": "daydream",
+   "before": {
+    "10": "复数 daydreams；现在分词 daydreaming；过去式 daydreamed；第三人称单数 daydreams'"
+   },
+   "after": {
+    "10": "复数 daydreams；现在分词 daydreaming；过去式 daydreamed；第三人称单数 daydreams"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0029",
+   "word": "delicious",
+   "before": {
+    "10": "复数 deliciouss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0030",
+   "word": "delicious",
+   "before": {
+    "10": "复数 deliciouss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0031",
+   "word": "deprioritize",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 deprioritized；过去分词 deprioritized；现在分词 deprioritizing；第三人称单数 deprioritizes"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0032",
+   "word": "desalinate",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 desalinated；过去分词 desalinated；现在分词 desalinating；第三人称单数 desalinates"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0033",
+   "word": "dos",
+   "before": {
+    "10": "复数 doss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0034",
+   "word": "downscale",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 downscaled；过去分词 downscaled；现在分词 downscaling；第三人称单数 downscales"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0035",
+   "word": "economics",
+   "before": {
+    "10": "复数 economicss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0036",
+   "word": "genomics",
+   "before": {
+    "10": "复数 genomicss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0037",
+   "word": "globalise",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 globalised；过去分词 globalised；现在分词 globalising；第三人称单数 globalises"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0038",
+   "word": "groundbreaker",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "复数 groundbreakers"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0039",
+   "word": "hardwire",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 hardwired；过去分词 hardwired；现在分词 hardwiring；第三人称单数 hardwires"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0040",
+   "word": "hubris",
+   "before": {
+    "10": "复数 hubriss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0041",
+   "word": "incentivize",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 incentivized；过去分词 incentivized；现在分词 incentivizing；第三人称单数 incentivizes"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0042",
+   "word": "instal",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 installed；过去分词 installed；现在分词 installing；第三人称单数 instals"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0043",
+   "word": "instal",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 installed；过去分词 installed；现在分词 installing；第三人称单数 instals"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0044",
+   "word": "instal",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 installed；过去分词 installed；现在分词 installing；第三人称单数 instals"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0045",
+   "word": "intellectualize",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 intellectualized；过去分词 intellectualized；现在分词 intellectualizing；第三人称单数 intellectualizes"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0046",
+   "word": "lotus",
+   "before": {
+    "10": "复数 lotuss"
+   },
+   "after": {
+    "10": "复数 lotuses"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0047",
+   "word": "marks",
+   "before": {
+    "10": "复数 markss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0048",
+   "word": "may",
+   "before": {
+    "10": "复数 mays"
+   },
+   "after": {
+    "10": "过去式 might"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0049",
+   "word": "may",
+   "before": {
+    "10": "复数 mays"
+   },
+   "after": {
+    "10": "过去式 might"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0050",
+   "word": "medicalize",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 medicalized；过去分词 medicalized；现在分词 medicalizing；第三人称单数 medicalizes"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0051",
+   "word": "medium",
+   "before": {
+    "10": "复数 mediums"
+   },
+   "after": {
+    "10": "复数 mediums/media"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0052",
+   "word": "medium",
+   "before": {
+    "10": "复数 mediums"
+   },
+   "after": {
+    "10": "复数 mediums/media"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0053",
+   "word": "medium",
+   "before": {
+    "10": "复数 mediums"
+   },
+   "after": {
+    "10": "复数 mediums/media"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0054",
+   "word": "misadjust",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 misadjusted；过去分词 misadjusted；现在分词 misadjusting；第三人称单数 misadjusts"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0055",
+   "word": "miscategorize",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 miscategorized；过去分词 miscategorized；现在分词 miscategorizing；第三人称单数 miscategorizes"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0056",
+   "word": "mischaracterize",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 mischaracterized；过去分词 mischaracterized；现在分词 mischaracterizing；第三人称单数 mischaracterizes"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0057",
+   "word": "misdiagnose",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 misdiagnosed；过去分词 misdiagnosed；现在分词 misdiagnosing；第三人称单数 misdiagnoses"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0058",
+   "word": "misperceive",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 misperceived；过去分词 misperceived；现在分词 misperceiving；第三人称单数 misperceives"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0059",
+   "word": "mispredict",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 mispredicted；过去分词 mispredicted；现在分词 mispredicting；第三人称单数 mispredicts"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0060",
+   "word": "multitask",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 multitasked；过去分词 multitasked；现在分词 multitasking；第三人称单数 multitasks"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0061",
+   "word": "multitask",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 multitasked；过去分词 multitasked；现在分词 multitasking；第三人称单数 multitasks"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0062",
+   "word": "nowadays",
+   "before": {
+    "10": "复数 nowadayss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0063",
+   "word": "nowadays",
+   "before": {
+    "10": "复数 nowadayss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0064",
+   "word": "nowadays",
+   "before": {
+    "10": "复数 nowadayss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0065",
+   "word": "outdate",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 outdated；过去分词 outdated；现在分词 outdating；第三人称单数 outdates"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0066",
+   "word": "outdate",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 outdated；过去分词 outdated；现在分词 outdating；第三人称单数 outdates"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0067",
+   "word": "outdate",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 outdated；过去分词 outdated；现在分词 outdating；第三人称单数 outdates"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0068",
+   "word": "outdoors",
+   "before": {
+    "10": "复数 outdoorss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0069",
+   "word": "outdoors",
+   "before": {
+    "10": "复数 outdoorss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0070",
+   "word": "overexpand",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 overexpanded；过去分词 overexpanded；现在分词 overexpanding；第三人称单数 overexpands"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0071",
+   "word": "overfish",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 overfished；过去分词 overfished；现在分词 overfishing；第三人称单数 overfishes"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0072",
+   "word": "overfish",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 overfished；过去分词 overfished；现在分词 overfishing；第三人称单数 overfishes"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0073",
+   "word": "overfish",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 overfished；过去分词 overfished；现在分词 overfishing；第三人称单数 overfishes"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0074",
+   "word": "overpack",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 overpacked；过去分词 overpacked；现在分词 overpacking；第三人称单数 overpacks"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0075",
+   "word": "overshare",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 overshared；过去分词 overshared；现在分词 oversharing；第三人称单数 overshares"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0076",
+   "word": "overthink",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 overthought；过去分词 overthought；现在分词 overthinking；第三人称单数 overthinks"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0077",
+   "word": "overthink",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 overthought；过去分词 overthought；现在分词 overthinking；第三人称单数 overthinks"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0078",
+   "word": "own",
+   "before": {
+    "10": "过去分词 owned；第三人称单数 owns；过去式 owned；现在分词 owning"
+   },
+   "after": {
+    "10": "过去式 owned；过去分词 owned；现在分词 owning；第三人称单数 owns"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0079",
+   "word": "own",
+   "before": {
+    "10": "过去分词 owned；第三人称单数 owns；过去式 owned；现在分词 owning"
+   },
+   "after": {
+    "10": "过去式 owned；过去分词 owned；现在分词 owning；第三人称单数 owns"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0080",
+   "word": "own",
+   "before": {
+    "10": "过去式 owned；现在分词 owning；第三人称单数 owns"
+   },
+   "after": {
+    "10": "过去式 owned；过去分词 owned；现在分词 owning；第三人称单数 owns"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0081",
+   "word": "physics",
+   "before": {
+    "10": "复数 physicss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0082",
+   "word": "physics",
+   "before": {
+    "10": "复数 physicss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0083",
+   "word": "physics",
+   "before": {
+    "10": "复数 physicss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0084",
+   "word": "politics",
+   "before": {
+    "10": "复数 politics"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0085",
+   "word": "politics",
+   "before": {
+    "10": "复数 politicss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0086",
+   "word": "politics",
+   "before": {
+    "10": "复数 politics"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0087",
+   "word": "professionalise",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 professionalised；过去分词 professionalised；现在分词 professionalising；第三人称单数 professionalises"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0088",
+   "word": "reacquaint",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 reacquainted；过去分词 reacquainted；现在分词 reacquainting；第三人称单数 reacquaints"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0089",
+   "word": "readdress",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 readdressed；过去分词 readdressed；现在分词 readdressing；第三人称单数 readdresses"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0090",
+   "word": "readmit",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 readmitted；过去分词 readmitted；现在分词 readmitting；第三人称单数 readmits"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0091",
+   "word": "recategorize",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 recategorized；过去分词 recategorized；现在分词 recategorizing；第三人称单数 recategorizes"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0092",
+   "word": "reevaluate",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 reevaluated；过去分词 reevaluated；现在分词 reevaluating；第三人称单数 reevaluates"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0093",
+   "word": "reevaluate",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 reevaluated；过去分词 reevaluated；现在分词 reevaluating；第三人称单数 reevaluates"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0094",
+   "word": "reevaluate",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 reevaluated；过去分词 reevaluated；现在分词 reevaluating；第三人称单数 reevaluates"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0095",
+   "word": "refocus",
+   "before": {
+    "10": "复数 refocuss"
+   },
+   "after": {
+    "10": "过去式 refocused；过去分词 refocused；现在分词 refocusing；第三人称单数 refocuses"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0096",
+   "word": "refocus",
+   "before": {
+    "10": "复数 refocuss"
+   },
+   "after": {
+    "10": "过去式 refocused；过去分词 refocused；现在分词 refocusing；第三人称单数 refocuses"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0097",
+   "word": "reimagine",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 reimagined；过去分词 reimagined；现在分词 reimagining；第三人称单数 reimagines"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0098",
+   "word": "reimagine",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 reimagined；过去分词 reimagined；现在分词 reimagining；第三人称单数 reimagines"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0099",
+   "word": "religious",
+   "before": {
+    "10": "复数 religiouss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0100",
+   "word": "religious",
+   "before": {
+    "10": "复数 religiouss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0101",
+   "word": "religious",
+   "before": {
+    "10": "复数 religiouss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0102",
+   "word": "remold",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 remolded；过去分词 remolded；现在分词 remolding；第三人称单数 remolds"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0103",
+   "word": "reprioritise",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 reprioritised；过去分词 reprioritised；现在分词 reprioritising；第三人称单数 reprioritises"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0104",
+   "word": "repurpose",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 repurposed；过去分词 repurposed；现在分词 repurposing；第三人称单数 repurposes"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0105",
+   "word": "reskill",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 reskilled；过去分词 reskilled；现在分词 reskilling；第三人称单数 reskills"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0106",
+   "word": "revalidate",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 revalidated；过去分词 revalidated；现在分词 revalidating；第三人称单数 revalidates"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0107",
+   "word": "savings",
+   "before": {
+    "10": "复数 savingss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0108",
+   "word": "sensor",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "复数 sensors"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0109",
+   "word": "strike",
+   "before": {
+    "10": "过去式 struck；过去分词 struck；复数 strikes；第三人称单数 strikes"
+   },
+   "after": {
+    "10": "过去式 struck；过去分词 struck；现在分词 striking；复数 strikes；第三人称单数 strikes"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0110",
+   "word": "strike",
+   "before": {
+    "10": "过去式 struck；过去分词 struck；复数 strikes；第三人称单数 strikes"
+   },
+   "after": {
+    "10": "过去式 struck；过去分词 struck；现在分词 striking；复数 strikes；第三人称单数 strikes"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0111",
+   "word": "strike",
+   "before": {
+    "10": "过去式 struck；过去分词 struck；复数 strikes；第三人称单数 strikes"
+   },
+   "after": {
+    "10": "过去式 struck；过去分词 struck；现在分词 striking；复数 strikes；第三人称单数 strikes"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0112",
+   "word": "subconscious",
+   "before": {
+    "10": "复数 subconsciouss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0113",
+   "word": "subconscious",
+   "before": {
+    "10": "复数 subconsciouss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0114",
+   "word": "surplus",
+   "before": {
+    "10": "复数 surpluss"
+   },
+   "after": {
+    "10": "复数 surpluses"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0115",
+   "word": "surplus",
+   "before": {
+    "10": "复数 surpluss"
+   },
+   "after": {
+    "10": "复数 surpluses"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0116",
+   "word": "surplus",
+   "before": {
+    "10": "复数 surpluss"
+   },
+   "after": {
+    "10": "复数 surpluses"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0117",
+   "word": "telecommunications",
+   "before": {
+    "10": "复数 telecommunicationss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0118",
+   "word": "tennis",
+   "before": {
+    "10": "复数 tenniss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0119",
+   "word": "tennis",
+   "before": {
+    "10": "复数 tenniss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0120",
+   "word": "tennis",
+   "before": {
+    "10": "复数 tenniss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0121",
+   "word": "thus",
+   "before": {
+    "10": "复数 thuss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0122",
+   "word": "thus",
+   "before": {
+    "10": "复数 thuss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0123",
+   "word": "thus",
+   "before": {
+    "10": "复数 thuss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0124",
+   "word": "traumatise",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 traumatised；过去分词 traumatised；现在分词 traumatising；第三人称单数 traumatises"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0125",
+   "word": "unconscious",
+   "before": {
+    "10": "复数 unconsciouss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0126",
+   "word": "unconscious",
+   "before": {
+    "10": "复数 unconsciouss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0127",
+   "word": "unconscious",
+   "before": {
+    "10": "复数 unconsciouss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0128",
+   "word": "underdiagnose",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 underdiagnosed；过去分词 underdiagnosed；现在分词 underdiagnosing；第三人称单数 underdiagnoses"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0129",
+   "word": "uninvite",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 uninvited；过去分词 uninvited；现在分词 uninviting；第三人称单数 uninvites"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0130",
+   "word": "unschedule",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 unscheduled；过去分词 unscheduled；现在分词 unscheduling；第三人称单数 unschedules"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0131",
+   "word": "upskill",
+   "before": {
+    "10": ""
+   },
+   "after": {
+    "10": "过去式 upskilled；过去分词 upskilled；现在分词 upskilling；第三人称单数 upskills"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0132",
+   "word": "upstairs",
+   "before": {
+    "10": "复数 upstairss"
+   },
+   "after": {
+    "10": ""
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  },
+  {
+   "id": "B-0133",
+   "word": "will",
+   "before": {
+    "10": "现在分词 willing；过去式 willed；第三人称单数 wills；过去分词 willed"
+   },
+   "after": {
+    "10": "复数 wills；过去式 willed；过去分词 willed；现在分词 willing；第三人称单数 wills"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet4"
+    }
+   ]
+  },
+  {
+   "id": "B-0134",
+   "word": "will",
+   "before": {
+    "10": "现在分词 willing；过去式 willed；第三人称单数 wills；过去分词 willed"
+   },
+   "after": {
+    "10": "复数 wills；过去式 willed；过去分词 willed；现在分词 willing；第三人称单数 wills"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "cet6"
+    }
+   ]
+  },
+  {
+   "id": "B-0135",
+   "word": "will",
+   "before": {
+    "10": "复数 wills；过去式 willed；现在分词 willing"
+   },
+   "after": {
+    "10": "复数 wills；过去式 willed；过去分词 willed；现在分词 willing；第三人称单数 wills"
+   },
+   "sources": [
+    "youdao.ec",
+    "manual"
+   ],
+   "references": [
+    {
+     "book": "kaoyan"
+    }
+   ]
+  }
+ ]
+}

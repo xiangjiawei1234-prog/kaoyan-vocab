@@ -8,12 +8,32 @@ const thirdFixes = fs.existsSync(thirdFixesPath) ? JSON.parse(fs.readFileSync(th
 const maintenanceFixes = JSON.parse(fs.readFileSync(new URL('../tests/fixtures/content-fixes-maintenance-20261023.json', import.meta.url), 'utf8'));
 const meaningFixesPath = new URL('../tests/fixtures/content-fixes-meaning-20261024.json', import.meta.url);
 const meaningFixes = fs.existsSync(meaningFixesPath) ? JSON.parse(fs.readFileSync(meaningFixesPath, 'utf8')) : { corrections: [] };
+const meaningFixes20261025Path = new URL('../tests/fixtures/content-fixes-meaning-20261025.json', import.meta.url);
+const meaningFixes20261025 = fs.existsSync(meaningFixes20261025Path) ? JSON.parse(fs.readFileSync(meaningFixes20261025Path, 'utf8')) : { corrections: [] };
+const phoneticFixesPath = new URL('../tests/fixtures/content-fixes-phonetic-20261025.json', import.meta.url);
+const phoneticFixes = fs.existsSync(phoneticFixesPath) ? JSON.parse(fs.readFileSync(phoneticFixesPath, 'utf8')) : { corrections: [] };
+const phoneticNormalizePath = new URL('../tests/fixtures/content-fixes-phonetic-normalize-20261025.json', import.meta.url);
+const phoneticNormalize = fs.existsSync(phoneticNormalizePath) ? JSON.parse(fs.readFileSync(phoneticNormalizePath, 'utf8')) : { corrections: [] };
+const formsFixesPath = new URL('../tests/fixtures/content-fixes-forms-20261025.json', import.meta.url);
+const formsFixes = fs.existsSync(formsFixesPath) ? JSON.parse(fs.readFileSync(formsFixesPath, 'utf8')) : { corrections: [] };
 const FIELD_NAMES = { 1: 'phonetic', 2: 'meaning', 3: 'posIdx', 7: 'example', 8: 'source', 10: 'forms' };
 const normalized = text => String(text || '').replace(/\s+/g, ' ').trim();
 const confirmedBadExamples = new Set(fixes.confirmedBadExamples.concat(nextFixes.confirmedBadExamples, thirdFixes.confirmedBadExamples || []).map(normalized));
 const correctionByBookWord = new Map();
-for (const correction of [...maintenanceFixes.corrections, ...meaningFixes.corrections]) {
-  for (const reference of correction.references) correctionByBookWord.set(reference.book + ':' + correction.word, correction);
+// 同一书+词多批次修不同字段时合并 before/after；同字段以更晚批次为准（A 的旧畸形值由格式门控兜底）。
+for (const correction of [...maintenanceFixes.corrections, ...meaningFixes.corrections, ...meaningFixes20261025.corrections, ...phoneticNormalize.corrections, ...phoneticFixes.corrections, ...formsFixes.corrections]) {
+  for (const reference of correction.references) {
+    const key = reference.book + ':' + correction.word;
+    const prev = correctionByBookWord.get(key);
+    if (prev) {
+      // 同书同词可能被多个批次修过不同字段（如释义 + 音标），合并 before/after 后一起门控。
+      correctionByBookWord.set(key, {
+        id: [...new Set([prev.id, correction.id])].join('/'),
+        before: { ...prev.before, ...correction.before },
+        after: { ...prev.after, ...correction.after },
+      });
+    } else correctionByBookWord.set(key, correction);
+  }
 }
 // 已删除的 OCR 假词条（如 relection）：删除走 dataVersion 迁移，不允许以任何释义重新回流。
 const removedByBook = new Map();
@@ -26,6 +46,22 @@ export const BAD_CONTENT_CHAR_RE = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007
 
 export function contentEncodingFields(row) {
   return Array.isArray(row) ? row.flatMap((value, index) => typeof value === 'string' && BAD_CONTENT_CHAR_RE.test(value) ? [index] : []) : [];
+}
+
+const CJK_RE = /[\u4e00-\u9fff]/g;
+// 释义必须是中文词义：拼写变体交叉引用（v. <主英>=rationalize）、派生词「X的变形」说明、
+// 只有词形说明（a. prove的过去分词）或纯英文都不是可背的释义。命中即由校验器报错。
+export function meaningContentIssues(meaning) {
+  if (typeof meaning !== 'string' || !meaning.trim()) return ['释义为空'];
+  const text = meaning.trim();
+  const cjk = (text.match(CJK_RE) || []).length;
+  const issues = [];
+  if (cjk === 0) issues.push('释义不含中文');
+  if (/\b[a-z]{1,2}\.\s*(?:<[^>]{1,8}>)?\s*=\s*[a-z]/i.test(text)) issues.push('释义为拼写变体交叉引用（=原形），缺少中文词义');
+  if (/的变形/.test(text)) issues.push('释义为派生词「X的变形」说明，缺少中文词义');
+  const stripped = text.replace(/的?(变体|变形|过去分词|过去式|现在分词|复数|比较级|最高级|缩写|简称)/g, '').replace(/[和与及或等的]/g, '');
+  if (cjk > 0 && (stripped.match(CJK_RE) || []).length === 0 && /[a-zA-Z]{3,}/.test(text)) issues.push('释义中文仅为词形/变体说明，缺少实际词义');
+  return [...new Set(issues)];
 }
 
 export function isRemovedHeadword(book, word) {

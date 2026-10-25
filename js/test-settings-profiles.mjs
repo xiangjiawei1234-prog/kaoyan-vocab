@@ -455,5 +455,30 @@ test('工作台两个入口的关闭按钮与遮罩真正关闭，并释放背�
   }
 });
 
+test('设置搜索确认候选与AltGraph/长按不提前转移焦点，普通Enter和方向键仍可用', () => {
+  const b=browser();b.T.show('set');
+  const input=b.query('#settingsSearch');input.value='字号';input.dispatch('input');
+  const result=b.query('#settingsSearchResults button');assert.ok(result,'应有可选择的搜索结果');
+  const before=scene(b);
+  for(const opts of [{isComposing:true},{keyCode:229},{getModifierState:k=>k==='AltGraph'},{repeat:true},{ctrlKey:true},{metaKey:true},{altKey:true}]) {
+    input.focus();const event=b.key('Enter',opts);
+    assert.equal(b.doc.activeElement,input,'确认输入候选不能跳到搜索结果');
+    assert.equal(event.defaultPrevented,false,'保留输入法/设备自己的确认行为');
+    same(scene(b),before);
+  }
+  input.focus();assert.equal(b.key('Enter').defaultPrevented,true);assert.equal(b.doc.activeElement,result);
+  input.focus();assert.equal(b.key('ArrowDown').defaultPrevented,true);assert.equal(b.doc.activeElement,result);
+});
+
+test('工作台标签不截获浏览器修饰组合或输入法，裸方向键与长按仍切页', () => {
+  const b=browser();b.query('#btnQuickSettings').click();const quick=b.query('#workspaceQuickTab');quick.focus();
+  for(const opts of [{altKey:true},{ctrlKey:true},{metaKey:true},{isComposing:true},{keyCode:229},{getModifierState:k=>k==='AltGraph'}]) {
+    const event=b.key('ArrowRight',opts);assert.equal(event.defaultPrevented,false);assert.equal(b.doc.activeElement,quick);
+    assert.equal(b.query('#workspaceQuick').hidden,false);assert.equal(b.query('#workspaceProfiles').hidden,true);
+  }
+  assert.equal(b.key('ArrowRight',{repeat:true}).defaultPrevented,true);
+  assert.equal(b.doc.activeElement,b.query('#workspaceProfilesTab'));assert.equal(b.query('#workspaceProfiles').hidden,false);
+});
+
 console.log(`\n设置方案核心回归：${passed} 通过，${failed} 失败`);
 process.exitCode=failed?1:0;

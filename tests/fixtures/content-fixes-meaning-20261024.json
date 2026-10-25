@@ -24,13 +24,13 @@
    "count": 8821,
    "dataVersion": 4,
    "indexHash": "39ece5556c836563a79046f574dff2edf13c2c3a6c04378b8fc924cfa1a90ac9",
-   "posIndexHash": "7b4da024d37cf94450ecb9d0852acd74f43d685711a8115089b6cd57b5bb0841"
+   "posIndexHash": "2ef3b66c7b4ecd3cbe510c770e6b6c1f22c06292b54ffd836f36ee8f0e3a2fde"
   },
   "combined": {
    "count": 12082,
    "dataVersion": 3,
    "indexHash": "dba86ee8652bf5dd97689db27b37b1809a1843e6f15ea3eca3364182c42da223",
-   "posIndexHash": "fd3cbbbd5595a16ac05aa622eeb1e63609ed9050d699f4c3bb3e8e7c27c1868e"
+   "posIndexHash": "27e0b0e24e1a91311d1551b9f0b4f2347b145a755e086af7095d9b3ecfbd1db0"
   }
  },
  "corrections": [
@@ -54,7 +54,7 @@
      "index": 3994,
      "originalRow": [
       "troubling",
-      "",
+      "ˈtrʌblɪŋ",
       "n. 浊度；浑浊度",
       2,
       3997,
@@ -71,7 +71,7 @@
      "index": 4861,
      "originalRow": [
       "troubling",
-      "",
+      "ˈtrʌblɪŋ",
       "n. 浊度；浑浊度",
       2,
       4861,
@@ -88,7 +88,7 @@
      "index": 5095,
      "originalRow": [
       "troubling",
-      "",
+      "ˈtrʌblɪŋ",
       "n. 浊度；浑浊度",
       2,
       5079,
@@ -171,7 +171,7 @@
      "index": 5353,
      "originalRow": [
       "birdwatch",
-      "",
+      "ˈbɜːdwɒtʃ",
       "v. 鸟瞰",
       1,
       5358,
@@ -188,7 +188,7 @@
      "index": 9103,
      "originalRow": [
       "birdwatch",
-      "",
+      "ˈbɜːdwɒtʃ",
       "v. 鸟瞰",
       1,
       9099,
@@ -221,7 +221,7 @@
      "index": 5488,
      "originalRow": [
       "clicking",
-      "",
+      "ˈklɪkɪŋ",
       "n. 微小静电干扰声",
       0,
       5493,
@@ -238,7 +238,7 @@
      "index": 9291,
      "originalRow": [
       "clicking",
-      "",
+      "ˈklɪkɪŋ",
       "n. 微小静电干扰声",
       0,
       9287,
@@ -338,7 +338,7 @@
      "index": 5705,
      "originalRow": [
       "dockless",
-      "",
+      "ˈdɒkləs",
       "a. 无码",
       2,
       5711,
@@ -355,7 +355,7 @@
      "index": 9626,
      "originalRow": [
       "dockless",
-      "",
+      "ˈdɒkləs",
       "a. 无码",
       2,
       9623,
@@ -539,7 +539,7 @@
      "index": 6381,
      "originalRow": [
       "overconsumption",
-      "",
+      "ˌəʊvəkənˈsʌmpʃən",
       "n. un. 总消费量",
       0,
       6388,
@@ -556,7 +556,7 @@
      "index": 10769,
      "originalRow": [
       "overconsumption",
-      "",
+      "ˌəʊvəkənˈsʌmpʃən",
       "n. un. 总消费量",
       0,
       10773,
@@ -589,7 +589,7 @@
      "index": 6512,
      "originalRow": [
       "prioritization",
-      "",
+      "praɪˌɒrətaɪˈzeɪʃn",
       "n. 优化",
       0,
       6519,
@@ -606,7 +606,7 @@
      "index": 10996,
      "originalRow": [
       "prioritization",
-      "",
+      "praɪˌɒrətaɪˈzeɪʃn",
       "n. 优化",
       0,
       10999,
@@ -809,7 +809,7 @@
      "index": 7022,
      "originalRow": [
       "unifying",
-      "",
+      "ˈjuːnɪfaɪɪŋ",
       "n. 一致",
       0,
       7030,
@@ -826,7 +826,7 @@
      "index": 11830,
      "originalRow": [
       "unifying",
-      "",
+      "ˈjuːnɪfaɪɪŋ",
       "n. 一致",
       0,
       11834,
@@ -859,7 +859,7 @@
      "index": 7121,
      "originalRow": [
       "weaving",
-      "",
+      "ˈwiːvɪŋ",
       "n. 织动",
       0,
       7129,
@@ -876,7 +876,7 @@
      "index": 12018,
      "originalRow": [
       "weaving",
-      "",
+      "ˈwiːvɪŋ",
       "n. 织动",
       0,
       12022,
@@ -1059,7 +1059,7 @@
      "index": 6001,
      "originalRow": [
       "unanticipated",
-      "",
+      "ˌʌnænˈtɪsɪpeɪtɪd",
       "a. 非先行的",
       2,
       6005,
@@ -1076,7 +1076,7 @@
      "index": 8334,
      "originalRow": [
       "unanticipated",
-      "",
+      "ˌʌnænˈtɪsɪpeɪtɪd",
       "a. 非先行的",
       2,
       8328,
@@ -1109,7 +1109,7 @@
      "index": 6453,
      "originalRow": [
       "achievability",
-      "",
+      "əˈtʃiːvəˌbɪlɪti",
       "n. 成就感",
       0,
       6457,
@@ -1126,7 +1126,7 @@
      "index": 8885,
      "originalRow": [
       "achievability",
-      "",
+      "əˈtʃiːvəˌbɪlɪti",
       "n. 成就感",
       0,
       8881,
@@ -1209,7 +1209,7 @@
      "index": 7277,
      "originalRow": [
       "geographically",
-      "",
+      "ˌdʒiːəˈɡræfɪkli",
       "adv. 自通地",
       3,
       7284,
@@ -1226,7 +1226,7 @@
      "index": 9976,
      "originalRow": [
       "geographically",
-      "",
+      "ˌdʒiːəˈɡræfɪkli",
       "adv. 自通地",
       3,
       9976,
@@ -1310,7 +1310,7 @@
      "index": 7914,
      "originalRow": [
       "overmining",
-      "",
+      "ˌəʊvəˈmaɪnɪŋ",
       "n. 爆发",
       0,
       7922,
@@ -1327,7 +1327,7 @@
      "index": 10782,
      "originalRow": [
       "overmining",
-      "",
+      "ˌəʊvəˈmaɪnɪŋ",
       "n. 爆发",
       0,
       10786,
@@ -1512,7 +1512,7 @@
      "index": 8387,
      "originalRow": [
       "socialiser",
-      "",
+      "ˈsəʊʃəlaɪzə",
       "n. 三姑六婆",
       0,
       8394,
@@ -1529,7 +1529,7 @@
      "index": 11421,
      "originalRow": [
       "socialiser",
-      "",
+      "ˈsəʊʃəlaɪzə",
       "n. 三姑六婆",
       0,
       11425,
@@ -1562,7 +1562,7 @@
      "index": 8399,
      "originalRow": [
       "soundtrack",
-      "",
+      "ˈsaʊndtræk",
       "n. 声迹, 声槽, 声带",
       0,
       8406,
@@ -1579,7 +1579,7 @@
      "index": 11443,
      "originalRow": [
       "soundtrack",
-      "",
+      "ˈsaʊndtræk",
       "n. 声迹, 声槽, 声带",
       0,
       11447,
@@ -1662,7 +1662,7 @@
      "index": 8608,
      "originalRow": [
       "unassessed",
-      "",
+      "ˌʌnəˈsest",
       "a. 不可估价的, 不可征税的",
       2,
       8615,
@@ -1679,7 +1679,7 @@
      "index": 11749,
      "originalRow": [
       "unassessed",
-      "",
+      "ˌʌnəˈsest",
       "a. 不可估价的, 不可征税的",
       2,
       11753,
@@ -1714,7 +1714,7 @@
      "index": 8618,
      "originalRow": [
       "uncleaned",
-      "",
+      "ˌʌnˈkliːnd",
       "a. 未办清海关手续的",
       2,
       8625,
@@ -1731,7 +1731,7 @@
      "index": 11764,
      "originalRow": [
       "uncleaned",
-      "",
+      "ˌʌnˈkliːnd",
       "a. 未办清海关手续的",
       2,
       11768,
@@ -1764,7 +1764,7 @@
      "index": 8626,
      "originalRow": [
       "uncontained",
-      "",
+      "ˌʌnkənˈteɪnd",
       "a. 非内含性",
       2,
       8633,
@@ -1781,7 +1781,7 @@
      "index": 11772,
      "originalRow": [
       "uncontained",
-      "",
+      "ˌʌnkənˈteɪnd",
       "a. 非内含性",
       2,
       11776,
@@ -1864,7 +1864,7 @@
      "index": 8679,
      "originalRow": [
       "unschedule",
-      "",
+      "ˌʌnˈʃedjuːl",
       "v. 无日程表",
       1,
       8685,
@@ -1873,7 +1873,7 @@
       "Even if you feel tempted to sacrifice your own vacation days for fake busyness, though,at least consider leaving your weekends unscheduled.",
       "六级 2017.12",
       0,
-      ""
+      "过去式 unscheduled；过去分词 unscheduled；现在分词 unscheduling；第三人称单数 unschedules"
      ]
     },
     {
@@ -1881,7 +1881,7 @@
      "index": 11884,
      "originalRow": [
       "unschedule",
-      "",
+      "ˌʌnˈʃedjuːl",
       "v. 无日程表",
       1,
       11888,
@@ -1890,7 +1890,7 @@
       "Even if you feel tempted to sacrifice your own vacation days for fake busyness, though,at least consider leaving your weekends unscheduled.",
       "六级 2017.12",
       0,
-      ""
+      "过去式 unscheduled；过去分词 unscheduled；现在分词 unscheduling；第三人称单数 unschedules"
      ]
     }
    ]
