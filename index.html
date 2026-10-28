@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="description" content="基于真题词频的背单词工具（考研 / 英语四级 / 英语六级 / 综合词书）">
-<meta name="theme-color" content="#F6F3ED">
+<meta name="theme-color" content="#F4F0E7">
 <title>考研英语单词背诵</title>
-<link rel="stylesheet" href="css/app.css?v=20261025-r57">
+<link rel="stylesheet" href="css/app.css?v=20261028-r68">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
 </head>
@@ -14,7 +14,6 @@
 <a class="skip-link" href="#main">跳到学习内容</a>
 <header class="top">
   <div class="brand">
-    <span class="brand-mark" id="brandMark" aria-hidden="true">研</span>
     <div class="brand-text">
       <h1 id="brandTitle">考研英语单词</h1>
       <button type="button" class="brand-sub" id="scopeLabel" title="查看并调整当前背诵范围">词库载入中…</button>
@@ -61,6 +60,31 @@
 <main id="main" tabindex="-1">
   <!-- ============ 背诵 ============ -->
   <section class="view on" id="v-study" aria-label="背诵">
+    <div class="study-mode-bar" id="studyModeBar" aria-label="背诵显示模式">
+      <span class="study-mode-progress" id="studyModeProgress"></span>
+      <div class="study-mode-seg" role="group" aria-label="选择背诵显示模式">
+        <button type="button" data-study-mode="immersive" aria-pressed="false">沉浸</button>
+        <button type="button" data-study-mode="simple" aria-pressed="false">简洁</button>
+        <button type="button" data-study-mode="standard" aria-pressed="true">标准</button>
+      </div>
+      <details class="study-tools" id="studyTools">
+        <summary aria-label="学习工具与导航">工具<span aria-hidden="true"> ⋯</span></summary>
+        <div class="study-tools-menu" role="group" aria-label="学习工具与导航">
+          <button type="button" data-study-proxy="btnSaveRest">保存并休息</button>
+          <button type="button" data-study-proxy="btnStopTarget">学 5 词就停</button>
+          <button type="button" data-study-proxy="btnDrill">错词特训</button>
+          <button type="button" data-study-proxy="btnQuickSettings">快速调整</button>
+          <button type="button" data-study-proxy="btnStudyProfiles">学习方案</button>
+          <div class="study-tools-nav" role="group" aria-label="前往其他页面">
+            <button type="button" data-study-view="list">词表</button>
+            <button type="button" data-study-view="stats">统计</button>
+            <button type="button" data-study-view="set">设置</button>
+          </div>
+          <button type="button" data-study-proxy="btnTheme">切换深浅色</button>
+          <button type="button" data-study-proxy="btnHelp">使用帮助</button>
+        </div>
+      </details>
+    </div>
     <div class="stat-line" id="statLine">
       <div class="chip chip-new" id="newGoalChip" title="今日已学新词 / 今日目标（每日计划 + 今日临时加量）；圆环表示今日目标完成度">
         <span class="chip-label" id="s-newlabel">今日新词</span>
@@ -100,6 +124,8 @@
       <button type="button" class="study-scope" id="studyScope" title="查看并调整当前背诵范围">范围载入中…</button>
       <button type="button" class="btn ghost sm" id="btnQuickSettings" aria-haspopup="dialog">快速调整</button>
       <button type="button" class="btn ghost sm" id="btnStudyProfiles" aria-haspopup="dialog">学习方案</button>
+      <button type="button" class="btn ghost sm" id="btnStopTarget" title="临时停靠目标：本组再学 5 个不同词就提醒休息；不改变每日计划" hidden>学 5 词就停</button>
+      <button type="button" class="btn ghost sm" id="btnSaveRest" title="先保存学习记录与当前组现场，再休息；刷新后可以继续这一组" hidden>保存并休息</button>
       <button type="button" class="btn ghost sm" id="btnDrill" aria-label="进入错词特训">错词特训</button>
       <p class="drill-hint" id="drillHint" role="status" aria-live="polite"></p>
     </div>
@@ -154,6 +180,14 @@
           <button type="button" class="btn ghost sm" id="startEmptyWait" hidden>开始等待到期</button>
           <button type="button" class="btn ghost sm" id="stopEmptyWait" hidden>退出本页等待</button>
           <button type="button" class="btn ghost sm" id="autoResumePause">今天暂停自动续背</button>
+        </div>
+      </div>
+      <div class="stop-target" id="stopTarget" role="status" hidden>
+        <p class="stop-target-text" id="stopTargetText"></p>
+        <div class="stop-target-acts">
+          <button type="button" class="btn ghost sm" id="stopTargetRest" hidden>先休息，保存现场</button>
+          <button type="button" class="btn ghost sm" id="stopTargetContinue" hidden>继续本组</button>
+          <button type="button" class="btn ghost sm" id="stopTargetCancel" hidden>取消目标</button>
         </div>
       </div>
       <div class="group-footer" id="groupFooter" role="status" hidden>
@@ -377,18 +411,7 @@
       <div class="chart-hint" id="heatmapTip" role="status" aria-live="polite"></div>
       <p class="chart-drill-note" id="heatmapDrillNote">热力图同样只有每日汇总，没有逐词明细，不提供历史当天词表下钻。</p>
     </details>
-    <div class="panel stats-storage-panel" id="statsStoragePanel">
-      <div class="panel-heading"><h3>备份与导出</h3><p class="panel-note">进度备份 · 打印生词本</p></div>
-      <div class="stats-backup-actions">
-        <button type="button" class="btn ghost" id="btnPrintBook">打印生词本</button>
-        <button type="button" class="btn ghost" id="exp">导出进度</button>
-        <button type="button" class="btn ghost" id="imp">导入进度</button>
-      </div>
-      <p class="backup-status" id="backupStatus" role="status" aria-live="polite"></p>
-      <p class="storage-note">导入前会展示备份时间、各书记录量与替换范围；导入替换学习记录，保留已有熟练标记。熟练词可在词表中取消，恢复背诵与复习。</p>
-      <details class="stats-danger-area"><summary>重置当前词书<span>谨慎操作</span></summary><div class="stats-danger-body"><p>只影响当前词书。建议先导出进度备份；操作前会再次确认影响范围。</p><div class="stats-backup-actions"><button type="button" class="btn ghost danger" id="resetProficient">清空熟练标记</button><button type="button" class="btn ghost danger" id="rst">重置当前词书记录</button></div></div></details>
-      <input type="file" id="file" accept=".json" hidden>
-    </div>
+
   </section>
 
   <!-- ============ 设置 ============ -->
@@ -406,7 +429,8 @@
       <a href="#settings-appearance"><span aria-hidden="true">03</span>外观与显示</a>
       <a href="#settings-keys"><span aria-hidden="true">04</span>按键与手势</a>
       <a href="#settings-rhythm"><span aria-hidden="true">05</span>复习节奏</a>
-      <a href="#settings-offline"><span aria-hidden="true">06</span>离线与帮助</a>
+      <a href="#settings-backup"><span aria-hidden="true">06</span>备份与存档</a>
+      <a href="#settings-offline"><span aria-hidden="true">07</span>离线与帮助</a>
     </nav>
     <div class="settings-content">
       <section class="panel settings-section" id="settings-plan" aria-labelledby="planTitle">
@@ -543,6 +567,15 @@
           <p class="control-help"><button type="button" class="text-action" id="preferenceOwnershipRetry" hidden>重试保存偏好归属</button></p>
         </div>
         <div class="settings-section-head"><span class="section-index" aria-hidden="true">03</span><div><h3 id="appearanceTitle">外观与显示</h3><p>让页面和单词卡片适合你的阅读习惯。</p></div></div>
+        <div class="field seg-field" id="studyModeSettings">
+          <div class="field-title"><h4>背诵显示模式</h4><span class="field-hint">随时切换，即时生效</span></div>
+          <div class="seg" role="group" aria-label="背诵显示模式">
+            <button type="button" data-study-mode="immersive" aria-pressed="false">沉浸</button>
+            <button type="button" data-study-mode="simple" aria-pressed="false">简洁</button>
+            <button type="button" data-study-mode="standard" aria-pressed="true">标准</button>
+          </div>
+          <p class="fdesc">沉浸只留词卡与必要操作；简洁增加导航和本组进度；标准展示完整学习信息。首页也可直接切换，学习现场会保留。</p>
+        </div>
         <div class="field theme-field"><div class="field-title"><h4>页面主题</h4></div><div class="seg theme-picker" id="themeSeg" role="group" aria-label="页面主题"><button type="button" data-theme="auto" aria-label="主题跟随系统"><span class="theme-preview theme-auto" aria-hidden="true"><i></i><i></i><i></i></span><span>跟随系统</span></button><button type="button" data-theme="light" aria-label="浅色主题"><span class="theme-preview theme-light" aria-hidden="true"><i></i><i></i><i></i></span><span>浅色</span></button><button type="button" data-theme="dark" aria-label="深色主题"><span class="theme-preview theme-dark" aria-hidden="true"><i></i><i></i><i></i></span><span>深色</span></button></div></div>
         <div class="set"><label for="showPh">显示音标<span class="desc" id="showPhDesc">在单词下方显示音标。</span></label><span class="sw"><input type="checkbox" role="switch" id="showPh" aria-describedby="showPhDesc"><i aria-hidden="true"></i></span></div>
         <div class="set"><label for="showEx">显示例句<span class="desc" id="showExDesc">判定后展示例句，可点词查看释义。</span></label><span class="sw"><input type="checkbox" role="switch" id="showEx" aria-describedby="showExDesc"><i aria-hidden="true"></i></span></div>
@@ -619,7 +652,7 @@
           <div class="seg" role="group" aria-label="回忆时滑动预设"><button type="button" data-gesture-preset="standard">左不会 · 右会</button><button type="button" data-gesture-preset="reverse">左会 · 右不会</button></div>
           <p id="gestureSummary" class="control-help" role="status" aria-live="polite"></p>
           <div class="input-mapping-grid"><label for="gestureRecallLeft">回忆时向左<select id="gestureRecallLeft"></select></label><label for="gestureRecallRight">回忆时向右<select id="gestureRecallRight"></select></label></div>
-          <details class="settings-advanced"><summary>判定后的滑动操作</summary><p class="control-help">默认不执行动作。可设为下一词、改判或其他操作，仍受当前场景限制。</p><div class="input-mapping-grid"><label for="gestureRevealedLeft">判定后向左<select id="gestureRevealedLeft"></select></label><label for="gestureRevealedRight">判定后向右<select id="gestureRevealedRight"></select></label></div></details>
+          <details class="settings-advanced"><summary>判定后的滑动操作</summary><p class="control-help">默认不执行动作。可设为下一词、改判或其他操作；判定键与滑动共用一次改判机会，再次修改请点击改判按钮。</p><div class="input-mapping-grid"><label for="gestureRevealedLeft">判定后向左<select id="gestureRevealedLeft"></select></label><label for="gestureRevealedRight">判定后向右<select id="gestureRevealedRight"></select></label></div></details>
         </div>
         <div class="field" id="actionLayoutSettings">
           <div class="field-title"><h4>动作按钮位置</h4><span class="field-hint">立即生效，不改变按键或手势</span></div>
@@ -665,8 +698,33 @@
         </div>
       </section>
 
+      <section class="panel settings-section" id="settings-backup" aria-labelledby="backupTitle">
+        <div class="settings-section-head"><span class="section-index" aria-hidden="true">06</span><div><h3 id="backupTitle">备份、恢复与导出</h3><p>保存多个学习存档，或用文件在浏览器与设备之间恢复进度。</p></div></div>
+        <div class="backup-local">
+          <h4>网页内存档</h4>
+          <p class="storage-note" id="archiveHelp">每份存档包含四本词书的学习记录、设置、收藏与熟练标记。保存在当前浏览器，可单独恢复、下载或删除；清除网站数据会同时删除这些存档，建议另存文件。</p>
+          <div class="archive-create"><label for="archiveName">存档名称<input id="archiveName" type="text" maxlength="40" placeholder="例如：第一轮复习结束" autocomplete="off" aria-describedby="archiveHelp"></label><button type="button" class="btn primary" id="saveArchive">保存新存档</button></div>
+          <p id="archiveStatus" class="storage-note" role="status" aria-live="polite"></p>
+          <div id="archiveList" class="archive-list" aria-label="已保存的学习存档"></div>
+          <button type="button" class="btn ghost sm" id="archiveRescue" hidden>下载存档原文以便救援</button>
+        </div>
+        <div class="backup-files"><h4>文件备份与词表导出</h4>
+          <div class="stats-backup-actions">
+            <button type="button" class="btn ghost" id="exp">导出进度文件</button>
+            <button type="button" class="btn ghost" id="imp">从文件恢复</button>
+            <button type="button" class="btn ghost" id="btnPrintBook">打印生词本</button>
+            <button type="button" class="btn ghost sm" id="backupExportTxt">导出范围 TXT</button>
+            <button type="button" class="btn ghost sm" id="backupSplitTxt">分批导出 TXT</button>
+          </div>
+          <p class="backup-status" id="backupStatus" role="status" aria-live="polite"></p>
+          <p class="storage-note">恢复前会展示备份时间、各书记录量与替换范围，确认后才恢复。恢复会替换学习记录，保留本机已有熟练标记；熟练词可在词表中取消。未完成组现场与网页内存档不随进度文件导出。</p>
+          <input type="file" id="file" accept=".json" hidden>
+        </div>
+        <details class="stats-danger-area"><summary>重置当前词书<span>谨慎操作</span></summary><div class="stats-danger-body"><p>只影响当前词书。建议先导出进度备份；操作前会再次确认影响范围。</p><div class="stats-backup-actions"><button type="button" class="btn ghost danger" id="resetProficient">清空熟练标记</button><button type="button" class="btn ghost danger" id="rst">重置当前词书记录</button></div></div></details>
+      </section>
+
       <section class="panel settings-section" id="settings-offline" aria-labelledby="offlineTitle">
-        <div class="settings-section-head"><span class="section-index" aria-hidden="true">06</span><div><h3 id="offlineTitle">离线与帮助</h3><p>查看离线缓存是否就绪，需要时重看使用说明。</p></div></div>
+        <div class="settings-section-head"><span class="section-index" aria-hidden="true">07</span><div><h3 id="offlineTitle">离线与帮助</h3><p>查看离线缓存是否就绪，需要时重看使用说明。</p></div></div>
         <div class="field offline-field">
           <div class="field-title"><h4 id="offlineStatusTitle">离线与更新</h4><span class="field-hint" id="offlineBadge"></span></div>
           <p class="offline-status" id="offlineStatus" role="status" aria-live="polite">正在检查离线缓存…</p>
@@ -750,7 +808,7 @@
       <button type="button" class="icon-btn" data-close aria-label="关闭">×</button>
     </header>
     <ul class="key-list" id="keyList"></ul>
-    <p class="sheet-note">输入或选择文字时快捷键不会触发。未判定时需先判「会 / 不会」。继续、等待、返回与词表搜索可在设置中自选按键，滑动和动作位置也可调整。<button type="button" class="text-action guide-reopen" id="btnGuideFromHelp">再看一次使用说明</button></p>
+    <p class="sheet-note">输入或选择文字时快捷键不会触发。未判定时需先判「会 / 不会」。每词用判定键或滑动只可改判一次，再次修改请点击「记错了」按钮。继续、等待、返回与词表搜索可在设置中自选按键，滑动和动作位置也可调整。<button type="button" class="text-action guide-reopen" id="btnGuideFromHelp">再看一次使用说明</button></p>
   </div>
 </div>
 
@@ -765,9 +823,9 @@
     <ol class="guide-list">
       <li><b>选词书与每日量</b><span>顶部「词书」切换考研 / 四级 / 六级 / 综合，四本书的进度互相独立。设置页「学习计划」决定每日新词与每组张数；新用户默认每日 20 个新词、每组 30 张。</span></li>
       <li><b>当前范围不是全书</b><span>默认只背出现 ≥1 次、跨 ≥2 套卷的词，所以可背范围通常少于词库总数。范围摘要会显示在设置页与词表；改范围默认只在下一组生效，当前组进度分母不变。</span></li>
-      <li><b>先回忆，再判「会 / 不会」</b><span>看到单词先想中文意思，判定后才显示释义；可改判、可撤销上一步。未判定时「下一个」会被拦截，快速连击也只判定一次。</span></li>
+      <li><b>先回忆，再判「会 / 不会」</b><span>看到单词先想中文意思，判定后才显示释义；快捷键或滑动只改判一次，再改请点击按钮，也可撤销上一步。未判定时「下一个」会被拦截，快速连击也只判定一次。</span></li>
       <li><b>熟练会长期移出</b><span>「熟练」是主动长期移出背诵、复习与乱序队列，可在词表「熟练」筛选里取消；「会」只记录这一次自评，「已掌握」是走完 10 档复习。</span></li>
-      <li><b>额度、复习与备份</b><span>到期词优先复习，单日复习上限与十档曲线在设置页调整；今日额度用完时本组暂停，未答位置与进度不会丢。学习记录只保存在当前浏览器，建议在统计页定期导出备份。</span></li>
+      <li><b>额度、复习与备份</b><span>到期词优先复习，单日复习上限与十档曲线在设置页调整；今日额度用完时本组暂停，未答位置与进度不会丢。学习记录只保存在当前浏览器，可在设置页保存多个存档，并定期导出文件备份。</span></li>
     </ol>
     <p class="sheet-note">这份说明可随时从「?」帮助浮层、设置页「离线与帮助」或首次提示条再次打开。</p>
     <div class="acts start"><button type="button" class="btn primary" data-close id="guideStartBtn">开始学习</button></div>
@@ -918,7 +976,7 @@
   </div>
 </div>
 
-<div id="toast" role="status" aria-live="polite"></div>
+<div id="toast" role="status" aria-live="polite" aria-atomic="true" hidden><button type="button" id="toastDismiss" aria-label="收起提示" hidden></button></div>
 <div id="exPop" class="ex-pop" hidden role="dialog" aria-label="例句查词" tabindex="-1"></div>
 
 <script src="js/words-data.js"></script>
@@ -926,6 +984,6 @@
 <script src="js/combined-words-data.js"></script>
 <script src="js/senses-data.js"></script>
 <script src="js/txt-zip.js"></script>
-<script src="js/app.js?v=20261025-r57"></script>
+<script src="js/app.js?v=20261028-r68"></script>
 </body>
 </html>

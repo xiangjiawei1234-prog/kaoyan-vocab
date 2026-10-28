@@ -40,7 +40,7 @@ const BOOK_KEYS = { kaoyan: "kaoyan_vocab_v1", cet4: "cet4_vocab_v1", cet6: "cet
 const BOOK_NAMES = { kaoyan: "考研英语", cet4: "英语四级", cet6: "英语六级", combined: "综合词书" };
 const PREFERENCE_FIELDS = ["theme", "keys", "showPh", "showEx", "showFm", "autoSpk", "singleCharKeys",
   "fontSize", "voiceURI", "speechRate", "actionKeys", "gestures", "actionLayout",
-  "cardDensity", "readingOrder", "showCardMeta", "showCardStage", "showCardPos", "secondaryActions"];
+  "cardDensity", "readingOrder", "showCardMeta", "showCardStage", "showCardPos", "secondaryActions", "studyMode"];
 
 const clone = value => JSON.parse(JSON.stringify(value));
 
@@ -271,7 +271,7 @@ test("迁移：四书旧偏好全部保留为本书覆盖，shared=DEF，不改�
   assert.equal(dev.shared.theme, "light", "shared 使用 DEF 默认，不选任何书作基准");
   assert.equal(dev.shared.fontSize, "standard");
   for (const id of ["kaoyan", "cet4", "cet6", "combined"]) {
-    assert.deepEqual(dev.overrides[id], PREFERENCE_FIELDS, `${id} 已有旧主记录 → 19 项全部本书覆盖`);
+    assert.deepEqual(dev.overrides[id], PREFERENCE_FIELDS, `${id} 已有旧主记录 → 20 项全部本书覆盖`);
     const seeded = initial[BOOK_KEYS[id]];
     const expected = typeof seeded === "string" ? seeded : JSON.stringify(seeded);
     assert.equal(b.stateRaw(id), expected, `${id} 主记录原文不得被迁移改写`);
@@ -319,8 +319,8 @@ test("迁移写失败：保留本页旧值、明确提示归属未保存、安�
   assert.deepEqual(b.device().overrides.kaoyan, PREFERENCE_FIELDS);
 });
 
-test("设备键缺原有必填偏好必须拒绝，只允许明确F1新增字段补缺", () => {
-  const valid=browser().device(),f1=['cardDensity','readingOrder','showCardMeta','showCardStage','showCardPos','secondaryActions'];
+test("设备键缺原有必填偏好必须拒绝，只允许明确新增显示字段补缺", () => {
+  const valid=browser().device(),f1=['cardDensity','readingOrder','showCardMeta','showCardStage','showCardPos','secondaryActions','studyMode'];
   for(const field of PREFERENCE_FIELDS.filter(x=>!f1.includes(x))){
     const damaged=clone(valid);delete damaged.shared[field];const raw=JSON.stringify(damaged);
     const b=browser({initial:{[DEVICE_KEY]:raw,[BOOK_KEYS.kaoyan]:oldState({theme:'dark'})}});
@@ -370,6 +370,7 @@ test("旧 version:1 键缺 F1 新增字段：兼容补 DEF，原 shared/覆盖�
   assert.equal(b.deviceRaw(), raw, "读取旧键本身不写回原文");
   assert.equal(b.T.getS().settings.theme, "light", "本书覆盖 theme 仍用主记录值");
   assert.equal(b.T.getS().settings.cardDensity, "comfortable", "缺失的 F1 字段按 DEF 补，不判损坏");
+  assert.equal(b.T.getS().settings.studyMode, "standard", "旧设备键缺显示模式按标准显示补齐，不判损坏");
   b.T.switchBook("cet4");
   assert.equal(b.T.getS().settings.showEx, false, "shared 原有字段继续生效");
 });
@@ -790,7 +791,7 @@ test("设置页动态注入归属控件：状态文案与切换按钮真实可�
   assert.ok(line, "应为 theme 注入归属控件");
   const state = b.query("#prefOwnState_theme");
   assert.match(state.textContent, /此设备通用/, state.textContent);
-  assert.match(b.query("#preferenceOwnershipStatus").textContent, /19 项此设备通用/, b.text(" #preferenceOwnershipStatus"));
+  assert.match(b.query("#preferenceOwnershipStatus").textContent, /20 项此设备通用/, b.text(" #preferenceOwnershipStatus"));
   b.query("#prefOwnBtn_theme").click();
   assert.deepEqual(b.device().overrides.kaoyan, ["theme"], "点「改为本书单独」冻结并标记");
   assert.match(b.query("#prefOwnState_theme").textContent, /本书单独/);

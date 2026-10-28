@@ -10,7 +10,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
-import { contentEncodingFields, isConfirmedBadExample, mechanicalExampleRisks, confirmedCorrectionIssues, isRemovedHeadword, meaningContentIssues } from "./content-validation.mjs";
+import { contentEncodingFields, isConfirmedBadExample, exampleHasInflectedForm, mechanicalExampleRisks, confirmedCorrectionIssues, isRemovedHeadword, meaningContentIssues } from "./content-validation.mjs";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -291,6 +291,7 @@ for (let i = 0; i < entries.length; i++) {
   // 6) 例句 / 来源
   if (ex) {
     if (CJK.test(ex)) warn("example", "例句含中文", i, w, short(ex));
+    if (!exampleHasInflectedForm(w, ex, fm, p)) warn("example", "例句疑似不含对应词头/合理屈折", i, w, short(ex));
     const words = ex.trim().split(/\s+/).filter(Boolean).length;
     if (words < 4) warn("example", "例句过短", i, w, `${words} 词: ${short(ex)}`);
     if (EXAM_LEFTOVER_RE.test(ex)) warn("example", "例句残留题号/选项标记", i, w, short(ex));

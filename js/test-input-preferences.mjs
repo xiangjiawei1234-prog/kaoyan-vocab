@@ -449,5 +449,75 @@ test('D1 revealed改判不重新布防连击保护，改判后立即撤销正常
   b.advance(10);assert.equal(T.runStudyAction('undo',{event:{...point,clientX:120},source:'button'}).ok,true);
   assert.equal(T.verdict,false);
 });
+test('改判保护 F→J→F与J→F→J只改一次，拒绝不写学习/额度/快照',()=>{
+  for(const [first,second,expected] of [['f','j',false],['j','f',true]]){
+    const b=browser(),T=setup(b,{due:1,cap:10});
+    b.key({key:first});assert.equal(T.answerChanges,0);
+    b.key({key:first});assert.equal(T.answerChanges,0,'重复相同判定不消耗改判机会');
+    b.key({key:second});assert.equal(T.verdict,expected);assert.equal(T.answerChanges,1);
+    const before=scene(T),disk=JSON.stringify([...b.storage]),writes=b.writeLog.length;
+    assert.equal(b.key({key:first}).defaultPrevented,true);
+    assert.equal(scene(T),before);assert.equal(JSON.stringify([...b.storage]),disk);assert.equal(b.writeLog.length,writes);
+    assert.equal(T.verdict,expected);assert.equal(T.answerChanges,1);
+    assert.ok(b.query('#hint').textContent.includes('已改判 1 次'));
+    assert.ok(!b.query('#acts').innerHTML.includes('其实'+(expected?'不会':'会')+'<kbd>'));
+  }
+});
+test('改判保护 自定义Shift键、方向键与滑动共用一次机会，显式按钮继续可用',()=>{
+  const b=browser(),T=setup(b),P=prefs(b);
+  assert.equal(T.setInputBinding('dont','shift+f').ok,true);
+  const g=clone(T.getS().settings.gestures);g.revealed={left:'dont',right:'know'};
+  assert.equal(P.applySettingsPatch({gestures:g}).ok,true);
+  b.key({key:'f'});assert.ok(b.query('#hint').textContent.includes('Shift + F'));
+  b.key({key:'F',shiftKey:true});assert.equal(T.verdict,false);assert.equal(T.answerChanges,1);
+  b.key({key:'ArrowRight'});assert.equal(T.verdict,false);
+  swipe(b,100);assert.equal(T.verdict,false);assert.equal(T.answerChanges,1);
+  b.query('#fix').click();assert.equal(T.verdict,true);assert.equal(T.answerChanges,2);
+  b.query('#fix').click();assert.equal(T.verdict,false);assert.equal(T.answerChanges,3);
+  b.key({key:'f'});assert.equal(T.verdict,false,'点击改判不能重新开放判定快捷键');
+  assert.equal(T.answered,1);assert.equal(T.getS().days[today(b.now)].r,1);
+});
+test('改判保护 鼠标首次改判也消耗机会，翻页撤销及改判撤销保留锁定',()=>{
+  const b=browser(),T=setup(b);b.key({key:'f'});b.query('#fix').click();
+  assert.equal(T.verdict,false);assert.equal(T.answerChanges,1);
+  b.key({key:'f'});assert.equal(T.verdict,false);
+  b.key({key:' '});assert.equal(T.answerChanges,0);const next=T.cur;
+  b.key({key:'z',ctrlKey:true});assert.notEqual(T.cur,next);assert.equal(T.verdict,false);assert.equal(T.answerChanges,1);
+  b.key({key:'f'});assert.equal(T.verdict,false);
+  b.key({key:'z',ctrlKey:true});assert.equal(T.verdict,true);assert.equal(T.answerChanges,1);
+  b.key({key:'j'});assert.equal(T.verdict,true);
+  b.key({key:'z',ctrlKey:true});assert.equal(T.verdict,null);assert.equal(T.answerChanges,0);
+  b.key({key:'j'});b.key({key:'f'});assert.equal(T.verdict,true);assert.equal(T.answerChanges,1);
+});
+test('改判保护 刷新及切页保留次数，临时字段不进四书备份',()=>{
+  const b=browser(),T=setup(b);b.key({key:'f'});b.key({key:'j'});
+  const word=T.getW()[T.cur].w;
+  assert.equal(JSON.parse(b.storage.get(T.getSessionSnapshotKey())).answerChanges,1);
+  T.show('set');T.show('study');b.key({key:'f'});assert.equal(T.verdict,false);assert.equal(T.answerChanges,1);
+  T.simulateReload();assert.equal(T.getW()[T.cur].w,word);assert.equal(T.verdict,false);assert.equal(T.answerChanges,1);
+  b.key({key:'f'});assert.equal(T.verdict,false);assert.equal(T.answerChanges,1);
+  b.query('#fix').click();assert.equal(T.verdict,true);assert.equal(T.answerChanges,2);
+  const backup=T.buildExport();assert.equal(backup.version,3);
+  assert.ok(!JSON.stringify(backup).includes('answerChanges'));assert.equal(T.getS().answerChanges,undefined);
+});
+test('改判保护 错词特训独立计数且返回主组不重开快捷改判',()=>{
+  const b=browser(),T=setup(b);b.key({key:'f'});b.key({key:'j'});
+  const parent=group(T),parentChanges=T.answerChanges;
+  assert.equal(T.startDrill(),true);assert.equal(T.answerChanges,0);
+  b.key({key:'f'});b.key({key:'j'});b.key({key:'f'});assert.equal(T.verdict,false);assert.equal(T.answerChanges,1);
+  T.exitDrill();assert.equal(group(T),parent);assert.equal(T.answerChanges,parentChanges);
+  b.key({key:'f'});assert.equal(T.verdict,false);assert.equal(T.answerChanges,1);
+});
+test('改判保护 损坏次数拒绝恢复，旧快照缺字段兼容',()=>{
+  for(const bad of [-1,0.5,'1',null,Number.MAX_SAFE_INTEGER+1]){
+    const b=browser(),T=setup(b);b.key({key:'f'});b.key({key:'j'});
+    const key=T.getSessionSnapshotKey(),data=JSON.parse(b.storage.get(key));data.answerChanges=bad;
+    b.storage.set(key,JSON.stringify(data));T.simulateReload();assert.equal(T.verdict,null);assert.equal(T.answerChanges,0);
+  }
+  const b=browser(),T=setup(b);b.key({key:'f'});
+  const key=T.getSessionSnapshotKey(),data=JSON.parse(b.storage.get(key));delete data.answerChanges;
+  b.storage.set(key,JSON.stringify(data));T.simulateReload();assert.equal(T.verdict,true);assert.equal(T.answerChanges,0);
+  b.key({key:'j'});assert.equal(T.verdict,false);assert.equal(T.answerChanges,1);
+});
 console.log(`\n输入定制回归：${passed} 组通过 / ${failed} 失败`);
 process.exit(failed?1:0);

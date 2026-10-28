@@ -26,6 +26,15 @@ node --max-old-space-size=512 tests/browser/check-profile-scope.mjs
 node --max-old-space-size=512 tests/browser/check-first-use.mjs
 node --max-old-space-size=512 tests/browser/check-transient-menus.mjs
 node --max-old-space-size=512 tests/browser/check-local-keyboard.mjs
+node --max-old-space-size=512 tests/browser/check-short-list.mjs
+node --max-old-space-size=512 tests/browser/check-toast.mjs
+node --max-old-space-size=512 tests/browser/check-completion-hierarchy.mjs
+node --max-old-space-size=512 tests/browser/check-answer-guard.mjs
+node --max-old-space-size=512 tests/browser/check-backup-archives.mjs
+node --max-old-space-size=512 tests/browser/check-batch-a.mjs
+node --max-old-space-size=512 tests/browser/check-rest-review.mjs
+node --max-old-space-size=512 tests/browser/check-audio-review.mjs
+node --max-old-space-size=512 tests/browser/check-study-modes.mjs
 ```
 
 最终收尾新增：`check-profile-scope`验证真实UI个人方案只应用本书、同值冻结、未选类别不变、其他书保留设备值以及中性/错误提示区分；`check-first-use`验证320×568等短屏首次首词完整可见、非模态引导和键盘可用；`check-preference-concurrency`用真实双页验证延迟通知下的合并/冲突拒绝及跨书有效按键预检；`check-completion-keyboard`验证字符快捷键关闭时固定Enter仍可续组且不穿透其他控件。所有报告按脚本名写入`results/`，仿真不等于真机。
@@ -42,9 +51,9 @@ node --max-old-space-size=512 tests/browser/check-local-keyboard.mjs
 
 `check-new-optimizations.mjs` 是 2026-10-24 O1/F1/E/G/H 新能力旅程（96 项，可用 `--only=H|F1|EG|O1|D1` 分段）：H 详情问题记录/真实剪贴板与下载、F1 阅读布局与 320 首屏/统计展开刷新、E 保存视图与全筛选批量、G 统计下钻返回现场、O1 三同源页面的设备通用/本书覆盖/本页-默认-follow 词书，以及 D1 触摸兜底抽测。报告 `results/new-optimizations.json`，截图前缀 `new-opt-`。
 
-检查使用独立临时profile和本地随机端口，结束清理，不修改日常浏览器记录。覆盖双标签冻结组、范围摘要、焦点、统计布局/主题/大字/缩放、真实make拼写题、完成页唯一入口、真实30秒+3秒自动续背、今日暂停后手动继续。统计页在 320/375/424/720/721/768/1000/1001/1280/1440 宽 × 深浅主题下显式断言：`#v-stats` 直接 `.panel` 子节点 class 顺序必须是「今日计划 → 学习总览 → 6 个原生 `details.panel.stats-details` → 备份与导出」、各 panel `top` 单调不减、首尾 panel 左右边线一致；补 720/721 断点用于防 `:has` 行补偿/断点样式回归（720 等价平台原生 200% 布局宽，721 为下一边界）。
+检查使用独立临时profile和本地随机端口，结束清理，不修改日常浏览器记录。覆盖双标签冻结组、范围摘要、焦点、统计布局/主题/大字/缩放、真实make拼写题、完成页唯一入口、真实30秒+3秒自动续背、今日暂停后手动继续。统计页在 320/375/424/720/721/768/1000/1001/1280/1440 宽 × 深浅主题下显式断言：`#v-stats` 直接 `.panel` 子节点 class 顺序必须是「今日计划 → 学习总览 → 6 个原生 `details.panel.stats-details` （备份移至设置）」、各 panel `top` 单调不减、首尾 panel 左右边线一致；补 720/721 断点用于防 `:has` 行补偿/断点样式回归（720 等价平台原生 200% 布局宽，721 为下一边界）。
 
-`check-optimization.mjs` 另含 M01/M02 维护路径，分别在 375×812 与 1440×1000 执行：M01 自定义自动续背 1 张／90 秒／7 秒，真实点击今日暂停后用 `#autoResumeRestore` 恢复原方案，只清当前书暂停、保留另一书暂停，不判定、不消费额度、不立即跳过等待；M02 仅把均衡曲线改成轻负荷，当前已揭示组和已写到期时间保持冻结，设置页与学习页均显示下一组生效，并分别从两处实际点击显式重开，确认采用新曲线并清除待生效。报告仍为 `results/optimization.json`，新增截图以 `optimization-m01-`／`optimization-m02-` 开头；这些步骤使用真实指针和页面控件，夹具初始化与只读状态采样使用现有调试钩子。
+`check-optimization.mjs` 另含 M01/M02 维护路径，分别在 375×812 与 1440×1000 执行：M01 自定义自动续背 1 张／90 秒／7 秒，真实点击今日暂停后用 `#autoResumeRestore` 恢复原方案，只清当前书暂停、保留另一书暂停，不判定、不消费额度、不立即跳过等待；M02 仅把均衡曲线改成轻负荷，当前已揭示组和已写到期时间保持冻结，设置页与学习页均显示下一组生效，并分别从两处实际点击显式重开，确认采用新曲线并清除待生效。424×900 完成页的续背／返回按钮先自然滚动到视口内再真实点击，不向屏外坐标发送指针；等待超时另记录真实状态与截图。报告仍为 `results/optimization.json`，新增截图以 `optimization-m01-`／`optimization-m02-` 开头；这些步骤使用真实指针和页面控件，夹具初始化与只读状态采样使用现有调试钩子。
 
 `check-surfaces.mjs` 另测四页和主要浮层：深浅主题375/768/1440宽、学习四种状态、真实连击/指针命中、151/156/146px动作区与窄屏40px提示、完成卡保底自然高度；另含大字、词表搜索/详情、设置/帮助/词书/例句浮层、统计展开和空样本。浮层关闭后断言真实 `document.activeElement`（对齐 `closeSheet()` 实现）：例句浮层 Esc 回触发词、从例句浮层进入的词条详情关闭回 `#card`、词表打开的详情关闭回触发行、帮助/词书浮层先聚焦触发按钮再 Enter 打开、关闭后焦点回 `#btnHelp`/`#btnBooks`。注意：macOS 上鼠标点击原生 `<button>` 不转移焦点，若浮层是纯鼠标点开且触发前焦点在 `body`，`closeSheet()` 本就没有可归还的触发元素（平台输入语义，非回归），这类路径不计入通过项，键盘路径才是可断言的焦点归还契约。报告为 `results/surfaces.json`，截图以 `surfaces-` 开头。
 
@@ -61,4 +70,28 @@ node --max-old-space-size=512 tests/browser/check-local-keyboard.mjs
 `check-platform.mjs` 使用临时应用副本模拟A/B整组发布和单资源缺失，验证真实Service Worker离线刷新、更新等待、关闭旧页后的整组启用；另测file://、Chrome原生200%页面缩放与已安装浏览器能力。报告为 `results/platform.json`。它通过临时Chrome设置页原生Page zoom控件设置200%，并核对CSS zoom=1、visualViewport.scale=1、DPR翻倍和布局宽度减半，不使用CSS zoom或捏合替代。Safari自动化未开启时只记录限制；不修改系统设置，不安装新浏览器，也不使用日常profile。2026-10-24 修订：D1 统一动作守卫会拒绝 `document.visibilityState==="hidden"` 的后台页；打开 chrome://settings 后学习页变为后台标签，平台脚本在像素/指针断言前先 `Page.bringToFront()` 并在采样记录 visibility，不修改产品守卫。
 
 
-体验打磨新增：`check-transient-menus`检查词表视图/导出与学习更多菜单互斥、外点/Esc/离焦收起、模态返回、草稿保留和减少动态；`check-local-keyboard`检查局部输入候选守卫、普通Enter与导航、组合键放行和整理选择框唯一Tab0。`check-book-entry`新增320指标Range真实行数和7997/12082长累计，当前扩展81项；不把合成输入或屏幕仿真当真机已验。全部18个check源独立运行，报告仍写ignored目录。
+体验打磨新增：`check-transient-menus`检查词表视图/导出与学习更多菜单互斥、外点/Esc/离焦收起、模态返回、草稿保留和减少动态；`check-local-keyboard`检查局部输入候选守卫、普通Enter与导航、组合键放行和整理选择框唯一Tab0。`check-book-entry`新增320指标Range真实行数和7997/12082长累计，当前扩展81项；不把合成输入或屏幕仿真当真机已验。该批18个check源独立运行（截至2026-10-28当前目录共26个 check 源），报告仍写ignored目录。
+
+
+P07–P09 新增三套独立旅程（该批整合后21个check源；截至2026-10-28当前目录共26个）：
+
+- `check-short-list.mjs`：短横屏首次完整词行、44px命中、相邻断点、横竖切换、虚拟列表活动行/整理选择、四书切换和统计下钻。
+- `check-toast.mjs`：普通提示在短屏/大字、鼠标/Tab/Enter/触摸、组合暂停、模态单节点状态区和关闭焦点；精确计时另由默认Node `js/test-toast.mjs` 用受控时钟执行真实app验证。
+- `check-completion-hierarchy.mjs`：自然完成组，检查本组与当前范围数字层级、唯一主动作、键盘续组、空页/等待候选刷新、今日暂停、特训/子组及额度暂停返回。
+
+新检查仍使用隔离Chrome与无依赖CDP，报告和截图写ignored目录。合成IME事件、手机视口/触摸与媒体仿真不代表真机、真实输入法、读屏或Safari/Firefox通过；实际结果以本轮实施工作记录为准。
+
+2026-10-27追加两套旅程：`check-answer-guard`验证同卡F/J一次改判、第三次按键拒绝、真实刷新保持与显式按钮继续；`check-backup-archives`验证设置内多存档、真实刷新/预览取消/确认恢复、逐份文件下载/文件恢复/删除确认、TXT与375/1440布局和焦点。统计现为八卡，旧九卡排序仅移除备份卡。两套均用隔离Chrome与真实UI，仍不代表真机或读屏验收。
+
+2026-10-27批次A追加：`check-batch-a`（58项）验证R05单词正常/慢速/停止与判定后例句朗读、换词不串卡；R03真实点「保存并休息」→休息页→继续同词、真实刷新恢复、揭示态不丢、休息页不泄漏待应用提示、休息→继续→完成组自动续背资格恢复；R04「学5词就停」真实达标→先休息/继续、完成页抑制自动续背与恢复、持续错误下「继续学习」不开组、纯复习入口/kind=reviewOnly/不学新词/「纯复习完成」/无候选时 `#again` 禁用；375/1440动作区151/156px、375朗读键44px命中区、320×568朗读组不遮挡词面。运行 `node --max-old-space-size=512 tests/browser/check-batch-a.mjs`，报告 `results/batch-a.json`、截图前缀 `batch-a-`；R03存储失败分支、146px短高桌面档、真机/读屏/系统语音未测。
+
+2026-10-28独立复查补充（当前共26套）：
+
+- `check-rest-review.mjs`（24项）：375/1440真实保存休息→词表标熟练→恢复提示更新→明确继续→特训返回；最后一词移出后的安全收尾与手动继续；实际注入快照键写失败后仍可继续。报告 `results/rest-review.json`，截图前缀 `rest-review-`。
+- `check-audio-review.mjs`（22项）：新请求失败终止旧声音、试听终态不串场景、判定前无语境原句泄题、已核原句正常/慢速/停止与详情控制、44px及无横向溢出。用可观察语音替身验证应用调用，不证明真实设备发声。报告 `results/audio-review.json`，截图前缀 `audio-review-`。
+- `check-new-optimizations` 的F1断言将例句控制组视为例句附属块，独立核对数量、相邻位置、来源和文本，原顺序与现场断言保留；`check-batch-a` 区分普通例句控制组与折叠语境证据中的控制组，判定前仍检查所有后代不得泄题。
+- `check-user-feedback` 的换词检查以实际词头首屏可见为准，另加深滚动后回卷前置与新词可见断言（73→75项）。不以合法非零 `scrollTop` 误判，不改产品滚动逻辑。
+
+本次结果与边界见 `docs/批次A独立复查与修复-2026-10-28.md`。学习计时由Node受控时钟专项验证，不以浏览器跑测总耗时推断学习时长。
+
+2026-10-28三档视图追加（当前共27套）：`check-study-modes.mjs`验证320/375/1440 × 深浅色 × 沉浸/简洁/标准，比较回忆与揭示时信息层级、首词与44px命中、动作区高度、实际切换保留学习现场、工具入口/导航/模态、菜单快捷键守卫、刷新与完成/额度/保存错误；输出 `results/study-modes.json` 与逐场景 `study-modes-*.png`。桌面另断言词卡居中，不能仅用无横向溢出代替视觉布局检查；第二轮增加两主题真实计算样式对比度、桌面揭示双栏对齐、阅读字号和主区单滚动断言；标准按阅读顶部对齐，简洁与沉浸按两栏视觉中心对齐，并含四级 `bygone` 与考研 `assistance` 同场景回归。`check-surfaces.mjs` 对每次夹具断言实际主题/字号，避免旧设备偏好污染截图场景；另以真实最长词检查详情标题最小字号换行与关闭按钮边界。详情见 `docs/背诵三档视图与纸感配色-2026-10-28.md`；视口仿真仍不等于真机。

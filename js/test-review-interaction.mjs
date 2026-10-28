@@ -160,7 +160,9 @@ for (const data of [{key: "Enter", target: element("button")}, {key: " ", target
 }
 key({key: "Escape"}); assert.equal(pop.hidden, true);
 key({key: "f"}); assert.equal(T.verdict, true, "关闭查词后 F 恢复改判");
-key({key: "j"}); assert.equal(T.verdict, false, "关闭查词后 J 恢复改判");
+key({key: "j"}); assert.equal(T.verdict, true, "关闭查词后普通判定键仍受同卡一次改判保护");
+assert.equal(T.runStudyAction("dont", {source: "button"}).ok, true, "关闭查词后明确改判按钮仍可继续修改");
+assert.equal(T.verdict, false);
 key({key: "s"}); assert.equal(spoken.at(-1), originalWord, "关闭查词后 S 恢复发音");
 key({key: "z", ctrlKey: true}); assert.equal(T.verdict, true, "关闭查词后 Ctrl+Z 恢复撤销");
 key({key: "m"}); assert.equal(Boolean(T.getS().proficient[originalWord]), true, "关闭查词后 M 恢复标记熟练");

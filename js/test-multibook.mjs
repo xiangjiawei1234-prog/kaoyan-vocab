@@ -619,22 +619,22 @@ await test("C2 pmin 上限按书：考研 46 / 四级、六级取各自 paperCou
   assert.equal(String(b.query("#pmin").max), String(cetMeta.cet6.paperCount), "#pmin.max 应随六级更新");
 });
 
-await test("C3 切换后品牌/标题/词频说明等文案动态更新", () => {
+await test("C3 纯文字品牌随四书切换，标题/词频说明等文案动态更新", () => {
   requireCET();
+  assert.doesNotMatch(indexSource, /\bid=["']brandMark["']/, "页头不再保留独立词书字标节点");
+  assert.doesNotMatch(indexSource, /\bclass=["'][^"']*\bbrand-mark\b[^"']*["']/, "页头不再渲染字标图块");
   const b = browser();
   const expect = {
-    kaoyan: ["考研英语", "研"],
-    cet4: ["英语四级", "四"],
-    cet6: ["英语六级", "六"],
-    combined: ["综合词书", "综"],
+    kaoyan: "考研英语",
+    cet4: "英语四级",
+    cet6: "英语六级",
+    combined: "综合词书",
   };
   for (const id of BOOK_IDS) {
     b.T.switchBook(id);
-    const [name, mark] = expect[id];
+    const name = expect[id];
     const brand = elText(b, "#brandTitle");
-    const markText = elText(b, "#brandMark");
-    assert.ok(brand.includes(name), `#brandTitle 应含「${name}」，实际 ${JSON.stringify(brand)}`);
-    assert.ok(markText.includes(mark), `#brandMark 应含「${mark}」，实际 ${JSON.stringify(markText)}`);
+    assert.equal(brand, name + "单词", `#brandTitle 应只显示当前词书文字标题，实际 ${JSON.stringify(brand)}`);
     assert.ok(String(b.window.document.title).includes(name), `document.title 应含「${name}」，实际 ${JSON.stringify(b.window.document.title)}`);
   }
   b.T.switchBook("cet4");

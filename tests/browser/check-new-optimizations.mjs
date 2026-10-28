@@ -450,8 +450,12 @@ async function sectionF1() {
   const p = await openPage();
   const readOrder = () => p.eval("window.__vocab.getS().settings.readingOrder.slice()");
   const domOrder = () => p.eval(`[...document.querySelectorAll('#card .answer > *')]
-    .filter(x=>!x.classList.contains('answer-label'))
+    .filter(x=>!x.classList.contains('answer-label')&&!x.classList.contains('audio-controls'))
     .map(x=>x.classList.contains('mean')?'meaning':x.classList.contains('ex')?'example':x.classList.contains('answer-extra')?'forms':'other')`);
+  // R05的普通例句控制组随例句一起移动；只排除这个已知附件，并核对其位置/文本，不能吞掉任意未知块。
+  const audioOrder = () => p.eval(`(() => {const groups=[...document.querySelectorAll('#card .answer > .audio-controls')];
+    return {count:groups.length,attached:groups.every(g=>g.previousElementSibling?.classList.contains('ex')
+      &&g.dataset.audioSource===''&&g.dataset.audioText===window.__vocab.getW()[window.__vocab.cur].ex)};})()`);
   const moveOrder = async (key, dir) => {
     await click(p, '#readingOrderList [data-order-key="' + key + '"][data-order-dir="' + dir + '"]');
     await sleep(120);
@@ -480,8 +484,10 @@ async function sectionF1() {
       const order0 = await readOrder();
       const blocks0 = await p.eval(`({mean:!!document.querySelector('#card .answer .mean'),ex:!!document.querySelector('#card .answer .ex'),forms:!!document.querySelector('#card .answer .answer-extra')})`);
       const dom0 = await domOrder();
+      const audio0 = await audioOrder();
       sectionCheck(S, same(order0, ["meaning", "example", "forms"]) && blocks0.mean && blocks0.ex && blocks0.forms
-        && same(dom0, order0), label + "：揭示态三块齐全且默认 DOM 顺序＝设置顺序", { order0, blocks0, dom0 });
+        && same(dom0, order0) && audio0.count === 1 && audio0.attached,
+        label + "：揭示态三块齐全且默认 DOM 顺序＝设置顺序，朗读控件跟随例句", { order0, blocks0, dom0, audio0 });
 
       // 改阅读呈现：展开词形 + 卡内滚动参照；密度/顺序改变不重建当前组、不丢展开与滚动
       await click(p, "#card .answer-extra > summary");
@@ -508,10 +514,12 @@ async function sectionF1() {
       await click(p, '[data-v="study"]');
       await sleep(160);
       const domMoved = await domOrder();
+      const audioMoved = await audioOrder();
       const viewAfter = await p.eval(`(() => {const c=document.querySelector('#card');return {detailsOpen:!!c.querySelector('.answer-extra')&&c.querySelector('.answer-extra').open,scrollTop:c.scrollTop,phase:window.__vocab.phase,verdict:window.__vocab.verdict};})()`);
       const groupMoved = await p.eval(GROUP);
-      sectionCheck(S, same(domMoved, ["forms", "meaning", "example"]) && viewAfter.phase === "revealed" && same(group0, groupMoved),
-        label + "：改阅读顺序后卡片主体 DOM 顺序实际变化且当前组/已揭示态不变", { domMoved, viewAfter });
+      sectionCheck(S, same(domMoved, ["forms", "meaning", "example"]) && audioMoved.count === 1 && audioMoved.attached
+        && viewAfter.phase === "revealed" && same(group0, groupMoved),
+        label + "：改阅读顺序后卡片主体与例句控件顺序变化且当前组/已揭示态不变", { domMoved, viewAfter, audioMoved });
       sectionCheck(S, viewAfter.detailsOpen === viewBefore.detailsOpen && viewAfter.scrollTop === viewBefore.scrollTop,
         label + "：切页改呈现不丢已展开词形与卡内滚动", { before: viewBefore, after: viewAfter });
 

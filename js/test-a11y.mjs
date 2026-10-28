@@ -303,10 +303,10 @@ test('恢复默认外观会把字号/语音恢复默认，但不清学习计划�
 
 test('CSS：大字只放大阅读文本，长词有最小字号与换行规则', () => {
   assert.match(css, /html\[data-font-size="large"\]/, 'CSS 应含大字档选择器');
-  assert.match(css, /--fs-read:\s*16px/, '标准阅读字号变量');
-  assert.match(css, /--fs-example:\s*16px/, '标准例句字号变量');
-  assert.match(css, /html\[data-font-size="large"\][\s\S]{0,200}--fs-read:\s*18\.5px/, '大字放大释义');
-  assert.match(css, /html\[data-font-size="large"\][\s\S]{0,240}--fs-example:\s*18px/, '大字放大例句');
+  assert.match(css, /--fs-read:\s*17px/, '标准阅读字号变量');
+  assert.match(css, /--fs-example:\s*17px/, '标准例句字号变量');
+  assert.match(css, /html\[data-font-size="large"\][\s\S]{0,200}--fs-read:\s*19px/, '大字放大释义');
+  assert.match(css, /html\[data-font-size="large"\][\s\S]{0,240}--fs-example:\s*18\.5px/, '大字放大例句');
   assert.match(css, /\.mean\s*\{[^}]*var\(--fs-read/, '.mean 使用阅读字号变量');
   assert.match(css, /\.ex\s*\{[^}]*var\(--fs-example/, '.ex 使用例句字号变量');
   assert.match(css, /\.word\.word-wrap\s*\{[^}]*white-space:\s*normal/, '长词允许换行的 class');

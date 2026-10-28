@@ -615,5 +615,37 @@ console.log("== 7. 全库例句可高亮 ==");
     failures.slice(0, 5).map(f => f.join(" · ")).join(" | "));
 }
 
+console.log("== 8. 词性异读清单与逐书主音标（批次 C1） ==");
+{
+  const fixture = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'tests/fixtures/content-fixes-pronunciation-20261027.json'), 'utf8'));
+  const all = T.getWordPronVariants();
+  ck(Object.keys(all).length === 34, "原5词 + C1新增29词共34个异读词头");
+  const clean = /^[()a-zæðŋɑɒɔəɛɜɝɡɪʃʊʌʒθˈˌː]+$/i;
+  const before = JSON.stringify(T.getS());
+  for (const entry of fixture.variants) {
+    ck(JSON.stringify(all[entry.word]) === JSON.stringify(entry.items), entry.word + " 词性与有证据读音逐项一致");
+    ck(entry.items.every(item => /^[名动形副]$/.test(item.pos) && clean.test(item.ipa)
+      && /[aeiouæɑɒɔəɛɜɪʊʌ]/i.test(item.ipa) && item.ipa.length <= 45), entry.word + " 清单音标格式有效");
+    const expected = entry.items.map(item => item.pos + ' /' + item.ipa + '/').join(' · ');
+    ck(T.pronHtml({w:entry.word, ph:'fallback'}) === expected, entry.word + " 按词性分别加斜线，覆盖单主音标");
+    const copy = T.wordPronVariants(entry.word); copy[0].ipa = 'MUTATED';
+    ck(T.wordPronVariants(entry.word)[0].ipa === entry.items[0].ipa, entry.word + " 读取副本不能污染内置清单");
+  }
+  ck(T.wordPronVariants('read') === null, "read时态异读不混入词性层");
+  ck(T.wordPronVariants('nonexistent') === null, "未收词回退");
+  ck(T.pronHtml({w:'fallback', ph:'ˈtest<value>'}) === '/ˈtest&lt;value&gt;/', "无清单词逐字节沿用转义后的单主音标");
+  ck(T.pronHtml({w:'fallback', ph:''}) === '', "无音标仍为空");
+  ck(JSON.stringify(T.getS()) === before, "读音查询与渲染不改学习记录");
+  const recordIndex = T.getW().findIndex(x => x.w === 'record');
+  T.getS().settings.showPh = true;
+  T.setVerdict(null); T.setCur(recordIndex); T.judge(true);
+  ck(ensureEl('#card').innerHTML.includes('名 /ˈrekɔːd/ · 动 /rɪˈkɔːd/'), "真实学习卡接入record双读音");
+  T.openWord(recordIndex);
+  ck(ensureEl('#wordDetail').innerHTML.includes('名 /ˈrekɔːd/ · 动 /rɪˈkɔːd/'), "真实词表详情接入record双读音");
+  T.showExPop('record', null);
+  ck(ensureEl('#exPop').innerHTML.includes('名 /ˈrekɔːd/ · 动 /rɪˈkɔːd/'), "真实例句浮层接入record双读音");
+  T.hideExPop();
+}
+
 console.log(`\n结果：${pass} 通过，${fail} 失败`);
 process.exit(fail ? 1 : 0);

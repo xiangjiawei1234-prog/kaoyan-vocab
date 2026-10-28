@@ -39,7 +39,7 @@ async function seed(p,{settings={},target=null,statsRaw=null}={}){
       Object.assign(s.settings,{theme:'dark',fontSize:'standard',dailyNew:4,groupSize:1,dailyReviewCap:100,order:'freq',fmin:1,fmax:0,pmin:0,pos:[],posMode:'primary',kyOnly:false,autoSpk:false,singleCharKeys:true,
         keys:{know:'f',dont:'j',next:' ',speak:'s',star:'b',proficient:'m'},actionKeys:{continue:null,wait:null,return:null,listSearch:null},
         autoResume:{enabled:false,threshold:5,idleMs:120000,countdownMs:15000},cardDensity:'comfortable',readingOrder:['meaning','example','forms'],showCardMeta:true,showCardStage:true,showCardPos:true,secondaryActions:['undo','proficient']},${JSON.stringify(settings)});
-      ${target?`if(!v.getW().some(w=>w.w===${JSON.stringify(target)}))throw Error('夹具词缺失');for(const x of v.getW())if(x.w!==${JSON.stringify(target)})s.proficient[x.w]=Date.now();`:""}
+      ${target?`const targets=${JSON.stringify(Array.isArray(target)?target:[target])};if(!targets.every(word=>v.getW().some(w=>w.w===word)))throw Error('夹具词缺失');for(const x of v.getW())if(!targets.includes(x.w))s.proficient[x.w]=Date.now();`:""}
       localStorage.clear();sessionStorage.clear();localStorage.setItem('kaoyan_vocab_v1',JSON.stringify(s));localStorage.setItem('kaoyan_vocab_proficient_v1',JSON.stringify(s.proficient));localStorage.setItem('vocab_active_book_v1','kaoyan');localStorage.setItem('vocab_guide_v1',JSON.stringify({version:1,dismissedAt:new Date().toISOString()}));
       ${statsRaw!==null?`localStorage.setItem('vocab_stats_panels_v1',${JSON.stringify(statsRaw)});`:""}
     })()`);
@@ -105,8 +105,21 @@ async function card(){
     }
     await p.setViewport(375,812,{mobile:true});await seed(p,{settings:{groupSize:2}});await press(p,'keyF');await p.waitFor("window.__vocab.phase==='revealed'");
     await p.scrollIntoView('#nx');const oldWord=await p.eval('window.__vocab.cur');await click(p,'#nx');
-    const advanced=await p.eval("({cur:window.__vocab.cur,scroll:document.querySelector('#main').scrollTop,phase:window.__vocab.phase})");
-    check(advanced.cur!==oldWord&&advanced.phase==='recall'&&advanced.scroll<=2,'自然页面滚动到动作后，换词自动返回新词顶部',advanced);
+    const readPosition="(()=>{const c=document.querySelector('#card').getBoundingClientRect(),m=document.querySelector('#main').getBoundingClientRect(),w=document.querySelector('#card .word')?.getBoundingClientRect();return {cur:window.__vocab.cur,scroll:document.querySelector('#main').scrollTop,phase:window.__vocab.phase,cardTop:c.top,mainTop:m.top,wordTop:w?.top,wordBottom:w?.bottom,viewportHeight:innerHeight};})()";
+    const atWordTop=x=>x.wordTop>=x.mainTop-2&&x.wordBottom<=x.viewportHeight;
+    const advanced=await p.eval(readPosition);
+    // 契约是换词后从词头继续；短卡内容收缩可留下少量合法主区余高，scrollTop 不必为 0。
+    check(advanced.cur!==oldWord&&advanced.phase==='recall'&&atWordTop(advanced),'自然页面滚动到动作后，换词自动返回新词顶部',advanced);
+    const other=await p.eval("(()=>{const all=window.__vocab.getW(),c=all.find(x=>x.w==='church');return all.find(x=>x.f>=1&&x.f<c.f&&x.w!=='church').w;})()");
+    await p.setViewport(375,568,{mobile:true});await seed(p,{target:['church',other],settings:{groupSize:2,fontSize:'large'}});
+    await press(p,'keyF');await p.waitFor("window.__vocab.phase==='revealed'");
+    if(await p.eval("!!document.querySelector('#card .answer-extra')"))await click(p,'#card .answer-extra > summary');
+    await p.scrollIntoView('#nx');await sleep(120);
+    const deeplyScrolled=await p.eval(readPosition),deepWord=await p.eval('window.__vocab.cur');
+    check(await p.eval("window.__vocab.getW()[window.__vocab.cur].w==='church'")&&deeplyScrolled.wordBottom<deeplyScrolled.mainTop,'长卡展开词形后自然滚动到动作，旧词头完全卷出主区',deeplyScrolled);
+    await click(p,'#nx');const deepAdvanced=await p.eval(readPosition);
+    check(deepAdvanced.cur!==deepWord&&deepAdvanced.phase==='recall'&&atWordTop(deepAdvanced),'旧词头卷出主区后，换词确实回卷并完整显示新词头',deepAdvanced);
+    await shot(p,'card-next-word-after-deep-scroll-375');
     check(p.errors().length===0,"卡片自然布局无未捕获错误",p.errors());
   }finally{await p.close();}
 }
@@ -126,7 +139,7 @@ async function settings(){
     check(p.errors().length===0,"设置默认展开和紧凑控件无未捕获错误",p.errors());
   }finally{await p.close();}
 }
-const CARDS=['statsPlanPanel','statsOverviewPanel','statsForecastPanel','surveyPanel','statsFreqPanel','statsStagesPanel','statsDaysPanel','statsHeatmapPanel','statsStoragePanel'];
+const CARDS=['statsPlanPanel','statsOverviewPanel','statsForecastPanel','surveyPanel','statsFreqPanel','statsStagesPanel','statsDaysPanel','statsHeatmapPanel'];
 const statsState="(()=>({order:[...document.querySelectorAll('#v-stats > .panel')].map(x=>x.id),open:[...document.querySelectorAll('#v-stats details.stats-details')].filter(x=>x.open).map(x=>x.id),raw:localStorage.getItem('vocab_stats_panels_v1')}))()";
 const recordState="(()=>({main:localStorage.getItem('kaoyan_vocab_v1'),prof:localStorage.getItem('kaoyan_vocab_proficient_v1'),snapshot:localStorage.getItem('vocab_session_snapshot_kaoyan_v1'),group:"+GROUP+"}))()";
 async function drag(p,id,targetId,{touch=false,hold=520}={}){
@@ -164,7 +177,7 @@ async function stats(){
   const p=await open();try{
     await p.setViewport(1440,1000);await seed(p);await click(p,'[data-v="stats"]');
     const initial=await p.eval(statsState),record=await p.eval(recordState);
-    check(initial.open.length===6&&same(initial.order,CARDS),'统计9卡默认顺序完整，6张可折叠图表默认全部展开',initial);
+    check(initial.open.length===6&&same(initial.order,CARDS),'统计8卡默认顺序完整，6张可折叠图表默认全部展开',initial);
     for(const id of ['statsForecastPanel','surveyPanel'])await click(p,'#'+id+' > summary');
     const collapsed=await p.eval(statsState);check(collapsed.open.length===4&&!collapsed.open.includes('statsForecastPanel')&&!collapsed.open.includes('surveyPanel'),'用户可自行折叠两卡，并立即记住选择',collapsed);
     const d=await drag(p,'statsPlanPanel','statsOverviewPanel');const dragged=await p.eval(statsState);

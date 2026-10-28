@@ -441,6 +441,51 @@ test('无入组候选时模型continue不可用且原因准确；无新词时也
   assert.equal(model.reason, 'no-candidates'); assert.equal(model.actions.find(action => action.id === 'continue').enabled, false);
   assert.equal(model.actions.find(action => action.id === 'addExtraAndStudy').enabled, false); assert.notEqual(model.primaryAction, 'continue');
 });
+test('P09零范围优先于已满新词额度；只读模型与拒绝继续不空开组', () => {
+  const b = browser(), T = setup(b, {dayN: 2});
+  for (const word of T.getW()) T.getS().proficient[word.w] = b.now;
+  const before = JSON.stringify(T.getS()), disk = JSON.stringify([...b.storage]), scene = group(T), writes = b.writeLog.length;
+  const model = T.deriveStudyPresentation();
+  assert.equal(model.candidates.available, 0); assert.equal(model.candidates.quota, 0);
+  assert.equal(model.reason, 'no-candidates'); assert.equal(model.actions.find(a => a.id === 'continue').reason, 'no-candidates');
+  assert.equal(model.actions.find(a => a.id === 'continue').enabled, false); assert.notEqual(model.primaryAction, 'continue');
+  assert.equal(T.runStudyAction('continue').ok, false);
+  assert.equal(JSON.stringify(T.getS()), before); assert.equal(JSON.stringify([...b.storage]), disk);
+  assert.equal(group(T), scene); assert.equal(b.writeLog.length, writes); assert.equal(T.getAutoResumeState().waitingForDue, false);
+});
+test('P09完成页保存失败说明持续可见，继续禁用且不再呈现主按钮', () => {
+  const b = browser(), T = setup(b, {dailyNew: 4, groupSize: 1}); finish(T);
+  b.setFailWrites(true); T.setReviewCap(20);
+  const before = JSON.stringify(T.getS()), scene = group(T), disk = JSON.stringify([...b.storage]);
+  assert.equal(b.query('#appAlert').hidden, false);
+  assert.equal(T.deriveStudyPresentation().actions.find(a => a.id === 'continue').reason, 'alert');
+  assert.match(b.query('#doneNext').textContent, /尚未保存/);
+  assert.equal(b.query('#again').disabled, true); assert.equal(b.query('#again').classList.contains('primary'), false);
+  b.elapse(9000);
+  assert.equal(b.query('#appAlert').hidden, false); assert.match(b.query('#doneNext').textContent, /尚未保存/);
+  assert.equal(T.runStudyAction('continue').ok, false);
+  assert.equal(JSON.stringify(T.getS()), before); assert.equal(group(T), scene); assert.equal(JSON.stringify([...b.storage]), disk);
+});
+test('P09主动结束额度暂停后提高上限，仍是暂停结果且可安全重新开组', () => {
+  const b = browser(), T = setup(b, {due: 2, cap: 1, groupSize: 2});
+  T.judge(true); T.tryNext(); assert.equal(T.isCapPaused(), true);
+  b.query('#capPauseEnd').onclick(); assert.equal(T.cur, null);
+  const scene = group(T), progress = JSON.stringify(T.getS().progress), days = JSON.stringify(T.getS().days), used = T.getReviewLedger().used;
+  T.setReviewCap(2);
+  assert.equal(T.deriveStudyPresentation().reason, 'cap-ended');
+  assert.match(b.query('#card').innerHTML, /<h2>本组已暂停<\/h2>/); assert.doesNotMatch(b.query('#card').innerHTML, /<h2>本组完成<\/h2>/);
+  assert.match(b.query('#doneNext').textContent, /额度已恢复/);
+  assert.equal(b.query('#again').disabled, false); assert.equal(b.query('#again').classList.contains('primary'), true);
+  assert.equal(group(T), scene); assert.equal(JSON.stringify(T.getS().progress), progress);
+  assert.equal(JSON.stringify(T.getS().days), days); assert.equal(T.getReviewLedger().used, used);
+  assert.equal(T.runStudyAction('continue').started, true); assert.notEqual(T.cur, null); assert.equal(T.answered, 0);
+  assert.equal(JSON.stringify(T.getS().progress), progress); assert.equal(T.getReviewLedger().used, used);
+  const untouched = browser(), U = setup(untouched, {due: 2, cap: 1, used: 1, groupSize: 2});
+  untouched.query('#capPauseEnd').onclick();
+  assert.equal(U.answered, 0); assert.equal(U.getGroupTotal(), 2); assert.equal(U.deriveStudyPresentation().reason, 'cap-ended');
+  assert.match(untouched.query('#card').innerHTML, /本组进度 <b>0<\/b>\/<b>2<\/b>/);
+  assert.doesNotMatch(untouched.query('#card').innerHTML, /当前没有进行中的组/);
+});
 test('组尾沿用空格续组：最后翻页不连带开组，重复/未松键拦截，松开后一次续组', () => {
   const b = browser(), T = setup(b, {dailyNew: 3, groupSize: 1});
   b.key({key: 'f', code: 'KeyF'});

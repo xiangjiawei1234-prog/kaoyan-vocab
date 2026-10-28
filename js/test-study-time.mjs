@@ -2,6 +2,7 @@
  * 04 累计学习时长口径（回归）
  * 受控时钟 + vm 沙箱执行真实 js/app.js：按实际经过时间计量，活动后闲置暂停，
  * 隐藏/休眠/恢复不补记，跨天只累计总量，多标签重叠不重复累计，保存失败不清零。
+ * 休息收尾结算短时累计，继续不补休息段；延迟回调的新活动/判定指纹不回填闲置。
  * 运行：node --max-old-space-size=512 js/test-study-time.mjs
  */
 import assert from "node:assert/strict";
@@ -351,7 +352,9 @@ await test("无意义鼠标移动不能延长活动宽限；阅读滚动算活�
   b.advance(1000);
   b.fireDocument("scroll", {});
   b.tick();
-  runTicks(b, 9);
+  b.flush();
+  assert.equal(b.timeSec(), 60, "首次滚动前已闲置的 1 秒不得回填");
+  runTicks(b, 10);
   b.flush();
   assert.equal(b.timeSec(), 70, "滚动阅读活动应续时");
 });
@@ -544,6 +547,80 @@ await test("60 秒学习只落盘 2 次（满 30 秒阈值），不逐秒写存�
   const writes = b.writeLog.filter(k => k === KEY).length;
   assert.ok(writes >= 2 && writes <= 3,
     `60 秒内应只在累计满 30 秒时落盘（2 次左右），实际 ${writes} 次`);
+});
+
+await test("保存并休息立即保存尚未满 30 秒的已学时长", () => {
+  const b = bootWithActivity();
+  runTicks(b, 10);
+  assert.equal(b.debug().pendingMs, 10000);
+  assert.equal(b.T.saveAndRest().ok, true);
+  assert.equal(b.rawState().timeSec, 10, "休息动作承诺已保存，已累计的整秒也应立即落盘");
+});
+
+await test("休息与继续之间未执行采样回调：不得补记休息间隔", () => {
+  const b = bootWithActivity();
+  runTicks(b, 10);
+  b.flush();
+  assert.equal(b.T.saveAndRest().ok, true);
+  b.advance(30000); // 计时回调被节流；仍短于休眠丢段阈值。
+  assert.equal(b.T.resumeFromRest(), true);
+  b.advance(1000); b.tick(); b.flush();
+  assert.equal(b.timeSec(), 11, "恢复后只计新的 1 秒，休息的 30 秒不得计入学习");
+});
+
+await test("停靠目标完成页先休息也保存尚未满 30 秒的已学时长", () => {
+  const b = bootWithActivity();
+  b.T.getS().settings.groupSize = 5;
+  b.T.startSession("main");
+  assert.equal(b.T.setStopTarget().ok, true);
+  for (let i = 0; i < 5; i++) {
+    runTicks(b, 2);
+    b.T.judge(true);
+    b.T.tryNext(true);
+  }
+  assert.equal(b.T.cur, null);
+  assert.equal(b.T.getStopTarget().reached, true);
+  assert.equal(b.debug().pendingMs, 10000);
+  assert.equal(b.T.restFromStopTarget().ok, true);
+  assert.equal(b.rawState().timeSec, 10, "完成页明确保存收尾，已累计的整秒也应立即落盘");
+});
+
+await test("延迟回调前的新点击不能补记此前已闲置部分", () => {
+  const b = bootWithActivity();
+  runTicks(b, 10);
+  b.advance(90000);
+  b.documentClick();
+  b.tick(); b.flush();
+  assert.equal(b.timeSec(), 60, "旧活动只覆盖前 60 秒，新点击不能回填此前 40 秒闲置");
+  b.advance(1000); b.tick(); b.flush();
+  assert.equal(b.timeSec(), 61, "点击后恢复计时且同刻采样不重复累计");
+});
+
+await test("延迟回调的程序判定指纹先结算旧活动，再开启新宽限", () => {
+  const b = bootWithActivity();
+  runTicks(b, 10);
+  b.advance(90000);
+  b.T.judge(true);
+  b.tick(); b.flush();
+  assert.equal(b.timeSec(), 60, "程序判定也不能把之前闲置部分补记");
+  b.tick();
+  assert.equal(b.debug().pendingMs, 0, "同刻重复采样没有递归或重复记账");
+  b.advance(1000); b.tick(); b.flush();
+  assert.equal(b.timeSec(), 61, "指纹兜底仍能开启后续活动宽限");
+});
+
+await test("休息保存失败后重试保留已累计时长且不重复结算", () => {
+  const b = bootWithActivity();
+  b.T.judge(true); // 正常判定落盘基线，随后累计的 10 秒尚在内存中。
+  runTicks(b, 10);
+  b.setFailWrites(true);
+  assert.equal(b.T.saveAndRest().ok, false);
+  assert.equal(b.T.isResting(), false);
+  assert.equal(b.timeSec(), 10, "写入失败保留内存中的已累计时长");
+  assert.equal(b.rawState().timeSec, 0, "失败不伪装成已落盘");
+  b.setFailWrites(false);
+  assert.equal(b.T.saveAndRest().ok, true);
+  assert.equal(b.rawState().timeSec, 10, "同刻重试只保存原有 10 秒，不重复加时");
 });
 
 console.log(`\n结果：${passed} 通过，${failed} 失败`);

@@ -15,7 +15,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
-import { contentEncodingFields, isConfirmedBadExample, exampleHasWordForm, mechanicalExampleRisks, confirmedCorrectionIssues, isRemovedHeadword, meaningContentIssues } from "./content-validation.mjs";
+import { contentEncodingFields, isConfirmedBadExample, exampleHasInflectedForm, mechanicalExampleRisks, confirmedCorrectionIssues, isRemovedHeadword, meaningContentIssues } from "./content-validation.mjs";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -153,9 +153,9 @@ function checkCommon(index, bookKey, entries) {
       if (DANGER_RE.test(ex) || BAD_CHAR_RE.test(ex)) htmlDanger++;
       const srcOk = typeof src === "string" && SRC_RE.test(src);
       if (!srcOk) { exBadSrc++; if (badSrcList.length < 8) badSrcList.push([i, w, src, ex]); }
-      // 只接受词头或该条 fm 已明确给出的词形，如 lead→led / catch→caught。
-      if (!exampleHasWordForm(w, ex, fm)) {
-        exNoWord++; if (exNoWord <= 6) warn("例句", "例句疑似不含对应词头/明确词形", bookKey, i, w, short(ex));
+      // 与页面共用词头/fm/不规则表及保守规则屈折，仅作覆盖 warning。
+      if (!exampleHasInflectedForm(w, ex, fm, p)) {
+        exNoWord++; if (exNoWord <= 6) warn("例句", "例句疑似不含对应词头/合理屈折", bookKey, i, w, short(ex));
       }
     }
     if (typeof src === "string" && src && row[7] && src.trim()) { /* src 合法性在例句分支判定 */ }
@@ -188,7 +188,7 @@ function checkCommon(index, bookKey, entries) {
   if (nonCjkMeaning) warn("释义", `释义不含中文（${nonCjkMeaning}/${N}）`, bookKey, null, null, null);
   if (htmlDanger) err("安全", `字段疑似含 HTML/脚本（${htmlDanger} 处）`, bookKey, null, null, null);
   if (exBadSrc) err("例句", `例句出处格式非法或与本级不符（${exBadSrc}/${exampleCount}）`, bookKey, badSrcList[0]?.[0], badSrcList[0]?.[1], `如 ${badSrcList.slice(0, 5).map(x => JSON.stringify(x[2])).join(",")}`);
-  if (exNoWord) warn("例句", `疑似例句不含对应词头/明确词形（${exNoWord}/${exampleCount}，只采纳本条 fm）`, bookKey, null, null, null);
+  if (exNoWord) warn("例句", `疑似例句不含对应词头/合理屈折（${exNoWord}/${exampleCount}，复用页面词形规则）`, bookKey, null, null, null);
   if (phishing) warn("编码", `字段含控制字符/替换符（${phishing} 条）`, bookKey, null, null, null);
 
   // r 排序结构：补回实义虚词（若存在）必须连续追加在数组末尾，之前部分 r 严格递增

@@ -417,7 +417,7 @@ await test("有学习记录但从未导出：低打扰提醒建议导出，不�
   const text = b.text("#backupStatus");
   assert.ok(text.includes("尚未导出"), text);
   assert.ok(text.includes("建议") && text.includes("备份"), "提示建议导出：" + text);
-  assert.equal(b.query("#appAlert").hidden, true, "统计页提醒不是持续错误提示");
+  assert.equal(b.query("#appAlert").hidden, true, "设置页提醒不是持续错误提示");
   assert.equal(b.query("#toast").textContent.includes("备份"), false, "不额外弹 toast 打扰");
 });
 
@@ -481,7 +481,7 @@ await test("设置页新增「离线与帮助」分区：状态文本、重试�
   assert.match(html, /id="offlineStatus"[^>]*role="status"/, "离线状态是 role=status（可播报）");
   assert.match(html, /id="offlineRetry"[^>]*hidden/, "重试默认隐藏");
   assert.match(html, /id="btnReplayGuide"/, "设置页可再次打开使用说明");
-  assert.match(html, /id="backupStatus"/, "统计页备份状态节点");
+  assert.match(html, /id="backupStatus"/, "设置页备份状态节点");
   assert.doesNotMatch(appSource, /current = "settings-rhythm"/, "设置导航不再写死最后一个分区");
 });
 

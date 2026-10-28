@@ -1,0 +1,3564 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "scope": "C1 已取证的29个新增词性异读清单 + 逐书主词性主音标；bow/tear仅分离单一主音标，完整同词性义项异读另待核。只改字段1，顺序、p/r/f/c/ky/dataVersion不变。",
+  "baseline": {
+    "kaoyan": {
+      "count": 7997,
+      "dataVersion": 3,
+      "indexHash": "501577d74614f2c993d47d037d05b56d914df7e9257684742ded62d9844bb13a",
+      "posIndexHash": "c9070152c65cfcfb32cd568153d28adbe3fb0371ec40b3198d565ec6663c2d40"
+    },
+    "cet4": {
+      "count": 7167,
+      "dataVersion": 5,
+      "indexHash": "0402319acabbd640cf925a397721d30418a96baf86faafe5d5814209dd016df4",
+      "posIndexHash": "879c502289b405d51fb7246939b1046726d8556a4035deceb4ae24b0e5c8ae7c"
+    },
+    "cet6": {
+      "count": 8821,
+      "dataVersion": 4,
+      "indexHash": "39ece5556c836563a79046f574dff2edf13c2c3a6c04378b8fc924cfa1a90ac9",
+      "posIndexHash": "2ef3b66c7b4ecd3cbe510c770e6b6c1f22c06292b54ffd836f36ee8f0e3a2fde"
+    },
+    "combined": {
+      "count": 12082,
+      "dataVersion": 3,
+      "indexHash": "dba86ee8652bf5dd97689db27b37b1809a1843e6f15ea3eca3364182c42da223",
+      "posIndexHash": "27e0b0e24e1a91311d1551b9f0b4f2347b145a755e086af7095d9b3ecfbd1db0"
+    }
+  },
+  "variants": [
+    {
+      "word": "record",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈrekɔːd"
+        },
+        {
+          "pos": "动",
+          "ipa": "rɪˈkɔːd"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=record",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "n"
+          ],
+          "ipa": "ˈrekɔːd"
+        },
+        {
+          "pos": [
+            "v"
+          ],
+          "ipa": "rɪˈkɔːd"
+        }
+      ]
+    },
+    {
+      "word": "present",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈprezənt"
+        },
+        {
+          "pos": "形",
+          "ipa": "ˈprezənt"
+        },
+        {
+          "pos": "动",
+          "ipa": "prɪˈzent"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=present",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "n",
+            "adj"
+          ],
+          "ipa": "ˈprez(ə)nt"
+        },
+        {
+          "pos": [
+            "v"
+          ],
+          "ipa": "prɪˈzent"
+        }
+      ]
+    },
+    {
+      "word": "content",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈkɒntent"
+        },
+        {
+          "pos": "形",
+          "ipa": "kənˈtent"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=content",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "n"
+          ],
+          "ipa": "ˈkɒntent"
+        },
+        {
+          "pos": [
+            "n",
+            "v",
+            "adj"
+          ],
+          "ipa": "kənˈtent"
+        }
+      ]
+    },
+    {
+      "word": "close",
+      "items": [
+        {
+          "pos": "形",
+          "ipa": "kləʊs"
+        },
+        {
+          "pos": "副",
+          "ipa": "kləʊs"
+        },
+        {
+          "pos": "动",
+          "ipa": "kləʊz"
+        },
+        {
+          "pos": "名",
+          "ipa": "kləʊz"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=close",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        },
+        {
+          "url": "https://dictionary.cambridge.org/pronunciation/english/close",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "n",
+            "v"
+          ],
+          "ipa": "kləʊz"
+        },
+        {
+          "pos": [
+            "n",
+            "adj",
+            "adv"
+          ],
+          "ipa": "kləʊs"
+        }
+      ]
+    },
+    {
+      "word": "export",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈekspɔːt"
+        },
+        {
+          "pos": "动",
+          "ipa": "ɪkˈspɔːt"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=export",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "n"
+          ],
+          "ipa": "ˈekspɔːt"
+        },
+        {
+          "pos": [
+            "v"
+          ],
+          "ipa": "ɪkˈspɔːt"
+        }
+      ]
+    },
+    {
+      "word": "import",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈɪmpɔːt"
+        },
+        {
+          "pos": "动",
+          "ipa": "ɪmˈpɔːt"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=import",
+          "path": "collins.collins_entries[0].basic_entries.basic_entry[0].box_comms",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "note": "动词读作ɪmˈpɔːt或ˈɪmpɔːt。名词读作ˈɪmpɔːt。"
+        }
+      ]
+    },
+    {
+      "word": "live",
+      "items": [
+        {
+          "pos": "动",
+          "ipa": "lɪv"
+        },
+        {
+          "pos": "形",
+          "ipa": "laɪv"
+        },
+        {
+          "pos": "副",
+          "ipa": "laɪv"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=live",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "v"
+          ],
+          "ipa": "lɪv"
+        },
+        {
+          "pos": [
+            "adj",
+            "adv"
+          ],
+          "ipa": "laɪv"
+        }
+      ]
+    },
+    {
+      "word": "desert",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈdezət"
+        },
+        {
+          "pos": "形",
+          "ipa": "ˈdezət"
+        },
+        {
+          "pos": "动",
+          "ipa": "dɪˈzɜːt"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=desert",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        },
+        {
+          "url": "https://www.merriam-webster.com/dictionary/desert",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "n"
+          ],
+          "ipa": "ˈdezət"
+        },
+        {
+          "pos": [
+            "v"
+          ],
+          "ipa": "dɪˈzɜːt"
+        }
+      ]
+    },
+    {
+      "word": "conduct",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈkɒndʌkt"
+        },
+        {
+          "pos": "动",
+          "ipa": "kənˈdʌkt"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=conduct",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "n"
+          ],
+          "ipa": "ˈkɒndʌkt"
+        },
+        {
+          "pos": [
+            "v"
+          ],
+          "ipa": "kənˈdʌkt"
+        }
+      ]
+    },
+    {
+      "word": "conflict",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈkɒnflɪkt"
+        },
+        {
+          "pos": "动",
+          "ipa": "kənˈflɪkt"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=conflict",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "n"
+          ],
+          "ipa": "ˈkɒnflɪkt"
+        },
+        {
+          "pos": [
+            "v"
+          ],
+          "ipa": "kənˈflɪkt"
+        }
+      ]
+    },
+    {
+      "word": "contest",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈkɒntest"
+        },
+        {
+          "pos": "动",
+          "ipa": "kənˈtest"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=contest",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "n"
+          ],
+          "ipa": "ˈkɒntest"
+        },
+        {
+          "pos": [
+            "v"
+          ],
+          "ipa": "kənˈtest"
+        }
+      ]
+    },
+    {
+      "word": "decrease",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈdiːkriːs"
+        },
+        {
+          "pos": "动",
+          "ipa": "dɪˈkriːs"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=decrease",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "n"
+          ],
+          "ipa": "ˈdiːkriːs"
+        },
+        {
+          "pos": [
+            "v"
+          ],
+          "ipa": "dɪˈkriːs"
+        }
+      ]
+    },
+    {
+      "word": "increase",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈɪŋkriːs"
+        },
+        {
+          "pos": "动",
+          "ipa": "ɪnˈkriːs"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=increase",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "n"
+          ],
+          "ipa": "ˈɪŋkriːs"
+        },
+        {
+          "pos": [
+            "v"
+          ],
+          "ipa": "ɪnˈkriːs"
+        },
+        {
+          "pos": [
+            "n"
+          ],
+          "ipa": "ˈɪnkriːs"
+        }
+      ]
+    },
+    {
+      "word": "insult",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈɪnsʌlt"
+        },
+        {
+          "pos": "动",
+          "ipa": "ɪnˈsʌlt"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=insult",
+          "path": "collins.collins_entries[0].basic_entries.basic_entry[0].box_comms",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "note": "动词读作ɪnˈsʌlt。名词读作ˈɪnsʌlt。"
+        }
+      ]
+    },
+    {
+      "word": "permit",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈpɜːmɪt"
+        },
+        {
+          "pos": "动",
+          "ipa": "pəˈmɪt"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=permit",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "n"
+          ],
+          "ipa": "ˈpɜː(r)mɪt"
+        },
+        {
+          "pos": [
+            "v"
+          ],
+          "ipa": "pəˈmɪt"
+        }
+      ]
+    },
+    {
+      "word": "produce",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈprɒdjuːs"
+        },
+        {
+          "pos": "动",
+          "ipa": "prəˈdjuːs"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=produce",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "n"
+          ],
+          "ipa": "ˈprɒdjuːs"
+        },
+        {
+          "pos": [
+            "v"
+          ],
+          "ipa": "prəˈdjuːs"
+        }
+      ]
+    },
+    {
+      "word": "progress",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈprəʊɡres"
+        },
+        {
+          "pos": "动",
+          "ipa": "prəˈɡres"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=progress",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "n"
+          ],
+          "ipa": "ˈprəʊɡres"
+        },
+        {
+          "pos": [
+            "v"
+          ],
+          "ipa": "prəˈɡres"
+        }
+      ]
+    },
+    {
+      "word": "project",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈprɒdʒekt"
+        },
+        {
+          "pos": "动",
+          "ipa": "prəˈdʒekt"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=project",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "n"
+          ],
+          "ipa": "ˈprɒdʒekt"
+        },
+        {
+          "pos": [
+            "v"
+          ],
+          "ipa": "prəˈdʒekt"
+        }
+      ]
+    },
+    {
+      "word": "protest",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈprəʊtest"
+        },
+        {
+          "pos": "动",
+          "ipa": "prəˈtest"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=protest",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "n"
+          ],
+          "ipa": "ˈprəʊtest"
+        },
+        {
+          "pos": [
+            "v"
+          ],
+          "ipa": "prəˈtest"
+        }
+      ]
+    },
+    {
+      "word": "rebel",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈrebəl"
+        },
+        {
+          "pos": "动",
+          "ipa": "rɪˈbel"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=rebel",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "n"
+          ],
+          "ipa": "ˈreb(ə)l"
+        },
+        {
+          "pos": [
+            "v"
+          ],
+          "ipa": "rɪˈbel"
+        }
+      ]
+    },
+    {
+      "word": "subject",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈsʌbdʒekt"
+        },
+        {
+          "pos": "形",
+          "ipa": "ˈsʌbdʒekt"
+        },
+        {
+          "pos": "动",
+          "ipa": "səbˈdʒekt"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=subject",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "n",
+            "adj"
+          ],
+          "ipa": "ˈsʌbdʒɪkt"
+        },
+        {
+          "pos": [
+            "n",
+            "adj"
+          ],
+          "ipa": "ˈsʌbdʒekt"
+        },
+        {
+          "pos": [
+            "v"
+          ],
+          "ipa": "səbˈdʒekt"
+        }
+      ]
+    },
+    {
+      "word": "suspect",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈsʌspekt"
+        },
+        {
+          "pos": "形",
+          "ipa": "ˈsʌspekt"
+        },
+        {
+          "pos": "动",
+          "ipa": "səˈspekt"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=suspect",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        },
+        {
+          "url": "https://www.oxfordlearnersdictionaries.com/definition/english/suspect_3",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "n"
+          ],
+          "ipa": "ˈsʌspekt"
+        },
+        {
+          "pos": [
+            "v"
+          ],
+          "ipa": "səˈspekt"
+        }
+      ]
+    },
+    {
+      "word": "survey",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈsɜːveɪ"
+        },
+        {
+          "pos": "动",
+          "ipa": "səˈveɪ"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=survey",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "n"
+          ],
+          "ipa": "ˈsɜːveɪ"
+        },
+        {
+          "pos": [
+            "v"
+          ],
+          "ipa": "səˈveɪ"
+        }
+      ]
+    },
+    {
+      "word": "transfer",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈtrænsfɜː"
+        },
+        {
+          "pos": "动",
+          "ipa": "trænsˈfɜː"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=transfer",
+          "path": "collins.collins_entries[0].basic_entries.basic_entry[0].box_comms",
+          "retrievedAt": "2026-10-27"
+        },
+        {
+          "url": "https://dictionary.cambridge.org/pronunciation/english/transfer",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "note": "动词读作trænsˈfɜː。名词读作ˈtrænsfɜː。"
+        }
+      ]
+    },
+    {
+      "word": "transport",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈtrænspɔːt"
+        },
+        {
+          "pos": "动",
+          "ipa": "trænsˈpɔːt"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=transport",
+          "path": "collins.collins_entries[0].basic_entries.basic_entry[0].box_comms",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "note": "动词读作trænsˈpɔːt。名词读作ˈtrænsˌpɔːt。"
+        }
+      ]
+    },
+    {
+      "word": "wind",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "wɪnd"
+        },
+        {
+          "pos": "动",
+          "ipa": "waɪnd"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=wind",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "n",
+            "v"
+          ],
+          "ipa": "wɪnd"
+        },
+        {
+          "pos": [
+            "n",
+            "v"
+          ],
+          "ipa": "waɪnd"
+        }
+      ]
+    },
+    {
+      "word": "entrance",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈentrəns"
+        },
+        {
+          "pos": "动",
+          "ipa": "ɪnˈtrɑːns"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=entrance",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "n"
+          ],
+          "ipa": "ˈentrəns"
+        },
+        {
+          "pos": [
+            "v"
+          ],
+          "ipa": "ɪnˈtrɑːns"
+        }
+      ]
+    },
+    {
+      "word": "invalid",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈɪnvəlɪd"
+        },
+        {
+          "pos": "形",
+          "ipa": "ɪnˈvælɪd"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=invalid",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "n",
+            "v"
+          ],
+          "ipa": "ˈɪnvəlɪd"
+        },
+        {
+          "pos": [
+            "n",
+            "v"
+          ],
+          "ipa": "ˈɪnvəliːd"
+        },
+        {
+          "pos": [
+            "adj"
+          ],
+          "ipa": "ɪnˈvælɪd"
+        },
+        {
+          "pos": [
+            ""
+          ],
+          "ipa": ""
+        }
+      ]
+    },
+    {
+      "word": "digest",
+      "items": [
+        {
+          "pos": "名",
+          "ipa": "ˈdaɪdʒest"
+        },
+        {
+          "pos": "动",
+          "ipa": "dɪˈdʒest"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=digest",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "evidence": [
+        {
+          "pos": [
+            "n"
+          ],
+          "ipa": "ˈdaɪdʒest"
+        },
+        {
+          "pos": [
+            "v"
+          ],
+          "ipa": "daɪˈdʒest"
+        },
+        {
+          "pos": [
+            "v"
+          ],
+          "ipa": "dɪˈdʒest"
+        },
+        {
+          "pos": [
+            "v"
+          ],
+          "ipa": "dəˈdʒest"
+        }
+      ]
+    }
+  ],
+  "corrections": [
+    {
+      "id": "C1-001",
+      "word": "record",
+      "before": {
+        "1": "riˈkɒːd"
+      },
+      "after": {
+        "1": "ˈrekɔːd"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=record",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "kaoyan",
+          "index": 302,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-002",
+      "word": "record",
+      "before": {
+        "1": "riˈkɒːd"
+      },
+      "after": {
+        "1": "ˈrekɔːd"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=record",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 464,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-003",
+      "word": "record",
+      "before": {
+        "1": "riˈkɒːd"
+      },
+      "after": {
+        "1": "ˈrekɔːd"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=record",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet6",
+          "index": 709,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-004",
+      "word": "record",
+      "before": {
+        "1": "riˈkɒːd"
+      },
+      "after": {
+        "1": "ˈrekɔːd"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=record",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "combined",
+          "index": 484,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-005",
+      "word": "present",
+      "before": {
+        "1": "ˈpreznt"
+      },
+      "after": {
+        "1": "prɪˈzent"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=present",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "kaoyan",
+          "index": 387,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-006",
+      "word": "present",
+      "before": {
+        "1": "ˈpreznt"
+      },
+      "after": {
+        "1": "prɪˈzent"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=present",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 426,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-007",
+      "word": "present",
+      "before": {
+        "1": "ˈpreznt"
+      },
+      "after": {
+        "1": "ˈprezənt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=present",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet6",
+          "index": 421,
+          "posIdx": 2
+        }
+      ]
+    },
+    {
+      "id": "C1-008",
+      "word": "present",
+      "before": {
+        "1": "ˈpreznt"
+      },
+      "after": {
+        "1": "prɪˈzent"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=present",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "combined",
+          "index": 412,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-009",
+      "word": "content",
+      "before": {
+        "1": "kənˈtent"
+      },
+      "after": {
+        "1": "ˈkɒntent"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=content",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "kaoyan",
+          "index": 592,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-010",
+      "word": "content",
+      "before": {
+        "1": "kənˈtent"
+      },
+      "after": {
+        "1": "ˈkɒntent"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=content",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 959,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-011",
+      "word": "content",
+      "before": {
+        "1": "kənˈtent"
+      },
+      "after": {
+        "1": "ˈkɒntent"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=content",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet6",
+          "index": 1187,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-012",
+      "word": "content",
+      "before": {
+        "1": "kənˈtent"
+      },
+      "after": {
+        "1": "ˈkɒntent"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=content",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "combined",
+          "index": 896,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-013",
+      "word": "close",
+      "before": {
+        "1": "kləuz"
+      },
+      "after": {
+        "1": "kləʊs"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=close",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        },
+        {
+          "url": "https://dictionary.cambridge.org/pronunciation/english/close",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "kaoyan",
+          "index": 289,
+          "posIdx": 2
+        }
+      ]
+    },
+    {
+      "id": "C1-014",
+      "word": "close",
+      "before": {
+        "1": "kləuz"
+      },
+      "after": {
+        "1": "kləʊs"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=close",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        },
+        {
+          "url": "https://dictionary.cambridge.org/pronunciation/english/close",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 332,
+          "posIdx": 2
+        }
+      ]
+    },
+    {
+      "id": "C1-015",
+      "word": "close",
+      "before": {
+        "1": "kləuz"
+      },
+      "after": {
+        "1": "kləʊs"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=close",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        },
+        {
+          "url": "https://dictionary.cambridge.org/pronunciation/english/close",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet6",
+          "index": 356,
+          "posIdx": 2
+        }
+      ]
+    },
+    {
+      "id": "C1-016",
+      "word": "close",
+      "before": {
+        "1": "kləuz"
+      },
+      "after": {
+        "1": "kləʊs"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=close",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        },
+        {
+          "url": "https://dictionary.cambridge.org/pronunciation/english/close",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "combined",
+          "index": 332,
+          "posIdx": 2
+        }
+      ]
+    },
+    {
+      "id": "C1-017",
+      "word": "export",
+      "before": {
+        "1": "ikˈspɒːt"
+      },
+      "after": {
+        "1": "ˈekspɔːt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=export",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "kaoyan",
+          "index": 3324,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-018",
+      "word": "export",
+      "before": {
+        "1": "ikˈspɒːt"
+      },
+      "after": {
+        "1": "ˈekspɔːt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=export",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 2422,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-019",
+      "word": "export",
+      "before": {
+        "1": "ikˈspɒːt"
+      },
+      "after": {
+        "1": "ˈekspɔːt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=export",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet6",
+          "index": 1767,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-020",
+      "word": "export",
+      "before": {
+        "1": "ikˈspɒːt"
+      },
+      "after": {
+        "1": "ˈekspɔːt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=export",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "combined",
+          "index": 2172,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-021",
+      "word": "import",
+      "before": {
+        "1": "imˈpɒːt"
+      },
+      "after": {
+        "1": "ˈɪmpɔːt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=import",
+          "path": "collins.collins_entries[0].basic_entries.basic_entry[0].box_comms",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "kaoyan",
+          "index": 1522,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-022",
+      "word": "import",
+      "before": {
+        "1": "imˈpɒːt"
+      },
+      "after": {
+        "1": "ɪmˈpɔːt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=import",
+          "path": "collins.collins_entries[0].basic_entries.basic_entry[0].box_comms",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 1246,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-023",
+      "word": "import",
+      "before": {
+        "1": "imˈpɒːt"
+      },
+      "after": {
+        "1": "ɪmˈpɔːt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=import",
+          "path": "collins.collins_entries[0].basic_entries.basic_entry[0].box_comms",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet6",
+          "index": 1130,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-024",
+      "word": "import",
+      "before": {
+        "1": "imˈpɒːt"
+      },
+      "after": {
+        "1": "ˈɪmpɔːt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=import",
+          "path": "collins.collins_entries[0].basic_entries.basic_entry[0].box_comms",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "combined",
+          "index": 1203,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-025",
+      "word": "live",
+      "before": {
+        "1": "liv.laiv"
+      },
+      "after": {
+        "1": "lɪv"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=live",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "kaoyan",
+          "index": 157,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-026",
+      "word": "live",
+      "before": {
+        "1": "liv.laiv"
+      },
+      "after": {
+        "1": "lɪv"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=live",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 82,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-027",
+      "word": "live",
+      "before": {
+        "1": "liv.laiv"
+      },
+      "after": {
+        "1": "lɪv"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=live",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet6",
+          "index": 128,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-028",
+      "word": "live",
+      "before": {
+        "1": "liv.laiv"
+      },
+      "after": {
+        "1": "lɪv"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=live",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "combined",
+          "index": 113,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-029",
+      "word": "desert",
+      "before": {
+        "1": "ˈdezət"
+      },
+      "after": {
+        "1": "dɪˈzɜːt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=desert",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        },
+        {
+          "url": "https://www.merriam-webster.com/dictionary/desert",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 2501,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-030",
+      "word": "conduct",
+      "before": {
+        "1": "ˈkɔndʌkt"
+      },
+      "after": {
+        "1": "kənˈdʌkt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=conduct",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "kaoyan",
+          "index": 644,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-031",
+      "word": "conduct",
+      "before": {
+        "1": "ˈkɔndʌkt"
+      },
+      "after": {
+        "1": "kənˈdʌkt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=conduct",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 664,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-032",
+      "word": "conduct",
+      "before": {
+        "1": "ˈkɔndʌkt"
+      },
+      "after": {
+        "1": "kənˈdʌkt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=conduct",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet6",
+          "index": 665,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-033",
+      "word": "conduct",
+      "before": {
+        "1": "ˈkɔndʌkt"
+      },
+      "after": {
+        "1": "kənˈdʌkt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=conduct",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "combined",
+          "index": 648,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-034",
+      "word": "conflict",
+      "before": {
+        "1": "ˈkɒnflikt"
+      },
+      "after": {
+        "1": "ˈkɒnflɪkt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=conflict",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "kaoyan",
+          "index": 869,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-035",
+      "word": "conflict",
+      "before": {
+        "1": "ˈkɒnflikt"
+      },
+      "after": {
+        "1": "ˈkɒnflɪkt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=conflict",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 901,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-036",
+      "word": "conflict",
+      "before": {
+        "1": "ˈkɒnflikt"
+      },
+      "after": {
+        "1": "ˈkɒnflɪkt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=conflict",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet6",
+          "index": 843,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-037",
+      "word": "conflict",
+      "before": {
+        "1": "ˈkɒnflikt"
+      },
+      "after": {
+        "1": "ˈkɒnflɪkt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=conflict",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "combined",
+          "index": 871,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-038",
+      "word": "decrease",
+      "before": {
+        "1": "ˈdiːkriːs"
+      },
+      "after": {
+        "1": "dɪˈkriːs"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=decrease",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "kaoyan",
+          "index": 1277,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-039",
+      "word": "decrease",
+      "before": {
+        "1": "ˈdiːkriːs"
+      },
+      "after": {
+        "1": "dɪˈkriːs"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=decrease",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 791,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-040",
+      "word": "decrease",
+      "before": {
+        "1": "ˈdiːkriːs"
+      },
+      "after": {
+        "1": "dɪˈkriːs"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=decrease",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet6",
+          "index": 1108,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-041",
+      "word": "decrease",
+      "before": {
+        "1": "ˈdiːkriːs"
+      },
+      "after": {
+        "1": "dɪˈkriːs"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=decrease",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "combined",
+          "index": 996,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-042",
+      "word": "increase",
+      "before": {
+        "1": "inˈkriːs"
+      },
+      "after": {
+        "1": "ɪnˈkriːs"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=increase",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "kaoyan",
+          "index": 55,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-043",
+      "word": "increase",
+      "before": {
+        "1": "inˈkriːs"
+      },
+      "after": {
+        "1": "ɪnˈkriːs"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=increase",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 83,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-044",
+      "word": "increase",
+      "before": {
+        "1": "inˈkriːs"
+      },
+      "after": {
+        "1": "ɪnˈkriːs"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=increase",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet6",
+          "index": 70,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-045",
+      "word": "increase",
+      "before": {
+        "1": "inˈkriːs"
+      },
+      "after": {
+        "1": "ɪnˈkriːs"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=increase",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "combined",
+          "index": 74,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-046",
+      "word": "insult",
+      "before": {
+        "1": "ˈinsʌlt"
+      },
+      "after": {
+        "1": "ɪnˈsʌlt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=insult",
+          "path": "collins.collins_entries[0].basic_entries.basic_entry[0].box_comms",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "kaoyan",
+          "index": 4490,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-047",
+      "word": "insult",
+      "before": {
+        "1": "ˈinsʌlt"
+      },
+      "after": {
+        "1": "ˈɪnsʌlt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=insult",
+          "path": "collins.collins_entries[0].basic_entries.basic_entry[0].box_comms",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 6109,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-048",
+      "word": "insult",
+      "before": {
+        "1": "ˈinsʌlt"
+      },
+      "after": {
+        "1": "ˈɪnsʌlt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=insult",
+          "path": "collins.collins_entries[0].basic_entries.basic_entry[0].box_comms",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet6",
+          "index": 4237,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-049",
+      "word": "insult",
+      "before": {
+        "1": "ˈinsʌlt"
+      },
+      "after": {
+        "1": "ɪnˈsʌlt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=insult",
+          "path": "collins.collins_entries[0].basic_entries.basic_entry[0].box_comms",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "combined",
+          "index": 4780,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-050",
+      "word": "permit",
+      "before": {
+        "1": "pəˈmit"
+      },
+      "after": {
+        "1": "pəˈmɪt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=permit",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "kaoyan",
+          "index": 1972,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-051",
+      "word": "permit",
+      "before": {
+        "1": "pəˈmit"
+      },
+      "after": {
+        "1": "pəˈmɪt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=permit",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 2985,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-052",
+      "word": "permit",
+      "before": {
+        "1": "pəˈmit"
+      },
+      "after": {
+        "1": "ˈpɜːmɪt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=permit",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet6",
+          "index": 5038,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-053",
+      "word": "permit",
+      "before": {
+        "1": "pəˈmit"
+      },
+      "after": {
+        "1": "pəˈmɪt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=permit",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "combined",
+          "index": 3060,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-054",
+      "word": "progress",
+      "before": {
+        "1": "ˈprəuɡres"
+      },
+      "after": {
+        "1": "ˈprəʊɡres"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=progress",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "kaoyan",
+          "index": 581,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-055",
+      "word": "progress",
+      "before": {
+        "1": "ˈprəuɡres"
+      },
+      "after": {
+        "1": "ˈprəʊɡres"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=progress",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 735,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-056",
+      "word": "progress",
+      "before": {
+        "1": "ˈprəuɡres"
+      },
+      "after": {
+        "1": "ˈprəʊɡres"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=progress",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet6",
+          "index": 448,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-057",
+      "word": "progress",
+      "before": {
+        "1": "ˈprəuɡres"
+      },
+      "after": {
+        "1": "ˈprəʊɡres"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=progress",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "combined",
+          "index": 543,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-058",
+      "word": "protest",
+      "before": {
+        "1": "prəˈtest"
+      },
+      "after": {
+        "1": "ˈprəʊtest"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=protest",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "kaoyan",
+          "index": 2685,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-059",
+      "word": "protest",
+      "before": {
+        "1": "prəˈtest"
+      },
+      "after": {
+        "1": "ˈprəʊtest"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=protest",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 2772,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-060",
+      "word": "protest",
+      "before": {
+        "1": "prəˈtest"
+      },
+      "after": {
+        "1": "ˈprəʊtest"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=protest",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet6",
+          "index": 2760,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-061",
+      "word": "protest",
+      "before": {
+        "1": "prəˈtest"
+      },
+      "after": {
+        "1": "ˈprəʊtest"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=protest",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "combined",
+          "index": 2741,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-062",
+      "word": "rebel",
+      "before": {
+        "1": "ˈrebl"
+      },
+      "after": {
+        "1": "rɪˈbel"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=rebel",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "kaoyan",
+          "index": 4711,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-063",
+      "word": "rebel",
+      "before": {
+        "1": "ˈrebl"
+      },
+      "after": {
+        "1": "rɪˈbel"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=rebel",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 6567,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-064",
+      "word": "rebel",
+      "before": {
+        "1": "ˈrebl"
+      },
+      "after": {
+        "1": "rɪˈbel"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=rebel",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet6",
+          "index": 5818,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-065",
+      "word": "rebel",
+      "before": {
+        "1": "ˈrebl"
+      },
+      "after": {
+        "1": "rɪˈbel"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=rebel",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "combined",
+          "index": 5519,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-066",
+      "word": "suspect",
+      "before": {
+        "1": "səˈspekt"
+      },
+      "after": {
+        "1": "ˈsʌspekt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=suspect",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        },
+        {
+          "url": "https://www.oxfordlearnersdictionaries.com/definition/english/suspect_3",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 1241,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-067",
+      "word": "survey",
+      "before": {
+        "1": "səˈvei"
+      },
+      "after": {
+        "1": "ˈsɜːveɪ"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=survey",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "kaoyan",
+          "index": 313,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-068",
+      "word": "survey",
+      "before": {
+        "1": "səˈvei"
+      },
+      "after": {
+        "1": "ˈsɜːveɪ"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=survey",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 266,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-069",
+      "word": "survey",
+      "before": {
+        "1": "səˈvei"
+      },
+      "after": {
+        "1": "ˈsɜːveɪ"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=survey",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet6",
+          "index": 427,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-070",
+      "word": "survey",
+      "before": {
+        "1": "səˈvei"
+      },
+      "after": {
+        "1": "ˈsɜːveɪ"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=survey",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "combined",
+          "index": 336,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-071",
+      "word": "transfer",
+      "before": {
+        "1": "trænsˈfəː"
+      },
+      "after": {
+        "1": "ˈtrænsfɜː"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=transfer",
+          "path": "collins.collins_entries[0].basic_entries.basic_entry[0].box_comms",
+          "retrievedAt": "2026-10-27"
+        },
+        {
+          "url": "https://dictionary.cambridge.org/pronunciation/english/transfer",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "kaoyan",
+          "index": 1463,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-072",
+      "word": "transfer",
+      "before": {
+        "1": "trænsˈfəː"
+      },
+      "after": {
+        "1": "trænsˈfɜː"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=transfer",
+          "path": "collins.collins_entries[0].basic_entries.basic_entry[0].box_comms",
+          "retrievedAt": "2026-10-27"
+        },
+        {
+          "url": "https://dictionary.cambridge.org/pronunciation/english/transfer",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 1316,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-073",
+      "word": "transfer",
+      "before": {
+        "1": "trænsˈfəː"
+      },
+      "after": {
+        "1": "trænsˈfɜː"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=transfer",
+          "path": "collins.collins_entries[0].basic_entries.basic_entry[0].box_comms",
+          "retrievedAt": "2026-10-27"
+        },
+        {
+          "url": "https://dictionary.cambridge.org/pronunciation/english/transfer",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet6",
+          "index": 1760,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-074",
+      "word": "transfer",
+      "before": {
+        "1": "trænsˈfəː"
+      },
+      "after": {
+        "1": "ˈtrænsfɜː"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=transfer",
+          "path": "collins.collins_entries[0].basic_entries.basic_entry[0].box_comms",
+          "retrievedAt": "2026-10-27"
+        },
+        {
+          "url": "https://dictionary.cambridge.org/pronunciation/english/transfer",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "combined",
+          "index": 1503,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-075",
+      "word": "transport",
+      "before": {
+        "1": "trænsˈpɒːt"
+      },
+      "after": {
+        "1": "ˈtrænspɔːt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=transport",
+          "path": "collins.collins_entries[0].basic_entries.basic_entry[0].box_comms",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "kaoyan",
+          "index": 2705,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-076",
+      "word": "transport",
+      "before": {
+        "1": "trænsˈpɒːt"
+      },
+      "after": {
+        "1": "ˈtrænspɔːt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=transport",
+          "path": "collins.collins_entries[0].basic_entries.basic_entry[0].box_comms",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 2134,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-077",
+      "word": "transport",
+      "before": {
+        "1": "trænsˈpɒːt"
+      },
+      "after": {
+        "1": "ˈtrænspɔːt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=transport",
+          "path": "collins.collins_entries[0].basic_entries.basic_entry[0].box_comms",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet6",
+          "index": 1454,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-078",
+      "word": "transport",
+      "before": {
+        "1": "trænsˈpɒːt"
+      },
+      "after": {
+        "1": "ˈtrænspɔːt"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=transport",
+          "path": "collins.collins_entries[0].basic_entries.basic_entry[0].box_comms",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "combined",
+          "index": 1895,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-079",
+      "word": "wind",
+      "before": {
+        "1": "wind"
+      },
+      "after": {
+        "1": "wɪnd"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=wind",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "kaoyan",
+          "index": 1417,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-080",
+      "word": "wind",
+      "before": {
+        "1": "wind"
+      },
+      "after": {
+        "1": "wɪnd"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=wind",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 1456,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-081",
+      "word": "wind",
+      "before": {
+        "1": "wind"
+      },
+      "after": {
+        "1": "wɪnd"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=wind",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet6",
+          "index": 1867,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-082",
+      "word": "wind",
+      "before": {
+        "1": "wind"
+      },
+      "after": {
+        "1": "wɪnd"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=wind",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "combined",
+          "index": 1571,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-083",
+      "word": "invalid",
+      "before": {
+        "1": "inˈvælid"
+      },
+      "after": {
+        "1": "ɪnˈvælɪd"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=invalid",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "kaoyan",
+          "index": 6558,
+          "posIdx": 2
+        }
+      ]
+    },
+    {
+      "id": "C1-084",
+      "word": "invalid",
+      "before": {
+        "1": "inˈvælid"
+      },
+      "after": {
+        "1": "ɪnˈvælɪd"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=invalid",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 4579,
+          "posIdx": 2
+        }
+      ]
+    },
+    {
+      "id": "C1-085",
+      "word": "invalid",
+      "before": {
+        "1": "inˈvælid"
+      },
+      "after": {
+        "1": "ɪnˈvælɪd"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=invalid",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "combined",
+          "index": 6743,
+          "posIdx": 2
+        }
+      ]
+    },
+    {
+      "id": "C1-086",
+      "word": "digest",
+      "before": {
+        "1": "diˈdʒest"
+      },
+      "after": {
+        "1": "dɪˈdʒest"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=digest",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 2735,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-087",
+      "word": "digest",
+      "before": {
+        "1": "diˈdʒest"
+      },
+      "after": {
+        "1": "dɪˈdʒest"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=digest",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet6",
+          "index": 5411,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-088",
+      "word": "digest",
+      "before": {
+        "1": "diˈdʒest"
+      },
+      "after": {
+        "1": "dɪˈdʒest"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=digest",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "combined",
+          "index": 4419,
+          "posIdx": 1
+        }
+      ]
+    },
+    {
+      "id": "C1-089",
+      "word": "bow",
+      "before": {
+        "1": "bəu.bau"
+      },
+      "after": {
+        "1": "bəʊ"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=bow",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet6",
+          "index": 5302,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-090",
+      "word": "bow",
+      "before": {
+        "1": "bəu.bau"
+      },
+      "after": {
+        "1": "bəʊ"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=bow",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "combined",
+          "index": 7457,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-091",
+      "word": "tear",
+      "before": {
+        "1": "teə(r)"
+      },
+      "after": {
+        "1": "tɪə(r)"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=tear",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        },
+        {
+          "url": "https://dictionary.cambridge.org/pronunciation/english/tear",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "kaoyan",
+          "index": 2822,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-092",
+      "word": "tear",
+      "before": {
+        "1": "teə(r)"
+      },
+      "after": {
+        "1": "tɪə(r)"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=tear",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        },
+        {
+          "url": "https://dictionary.cambridge.org/pronunciation/english/tear",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "cet4",
+          "index": 895,
+          "posIdx": 0
+        }
+      ]
+    },
+    {
+      "id": "C1-093",
+      "word": "tear",
+      "before": {
+        "1": "teə(r)"
+      },
+      "after": {
+        "1": "tɪə(r)"
+      },
+      "sources": [
+        {
+          "url": "https://dict.youdao.com/jsonapi?q=tear",
+          "path": "simple.word[0].multiPhone.uk",
+          "retrievedAt": "2026-10-27"
+        },
+        {
+          "url": "https://dictionary.cambridge.org/pronunciation/english/tear",
+          "retrievedAt": "2026-10-27"
+        }
+      ],
+      "references": [
+        {
+          "book": "combined",
+          "index": 1770,
+          "posIdx": 0
+        }
+      ]
+    }
+  ],
+  "crossBookMainDifferences": [
+    {
+      "word": "present",
+      "books": [
+        {
+          "book": "kaoyan",
+          "posIdx": 1,
+          "ipa": "prɪˈzent"
+        },
+        {
+          "book": "cet4",
+          "posIdx": 1,
+          "ipa": "prɪˈzent"
+        },
+        {
+          "book": "cet6",
+          "posIdx": 2,
+          "ipa": "ˈprezənt"
+        },
+        {
+          "book": "combined",
+          "posIdx": 1,
+          "ipa": "prɪˈzent"
+        }
+      ]
+    },
+    {
+      "word": "import",
+      "books": [
+        {
+          "book": "kaoyan",
+          "posIdx": 0,
+          "ipa": "ˈɪmpɔːt"
+        },
+        {
+          "book": "cet4",
+          "posIdx": 1,
+          "ipa": "ɪmˈpɔːt"
+        },
+        {
+          "book": "cet6",
+          "posIdx": 1,
+          "ipa": "ɪmˈpɔːt"
+        },
+        {
+          "book": "combined",
+          "posIdx": 0,
+          "ipa": "ˈɪmpɔːt"
+        }
+      ]
+    },
+    {
+      "word": "desert",
+      "books": [
+        {
+          "book": "kaoyan",
+          "posIdx": 0,
+          "ipa": "ˈdezət"
+        },
+        {
+          "book": "cet4",
+          "posIdx": 1,
+          "ipa": "dɪˈzɜːt"
+        },
+        {
+          "book": "cet6",
+          "posIdx": 0,
+          "ipa": "ˈdezət"
+        },
+        {
+          "book": "combined",
+          "posIdx": 0,
+          "ipa": "ˈdezət"
+        }
+      ]
+    },
+    {
+      "word": "insult",
+      "books": [
+        {
+          "book": "kaoyan",
+          "posIdx": 1,
+          "ipa": "ɪnˈsʌlt"
+        },
+        {
+          "book": "cet4",
+          "posIdx": 0,
+          "ipa": "ˈɪnsʌlt"
+        },
+        {
+          "book": "cet6",
+          "posIdx": 0,
+          "ipa": "ˈɪnsʌlt"
+        },
+        {
+          "book": "combined",
+          "posIdx": 1,
+          "ipa": "ɪnˈsʌlt"
+        }
+      ]
+    },
+    {
+      "word": "permit",
+      "books": [
+        {
+          "book": "kaoyan",
+          "posIdx": 1,
+          "ipa": "pəˈmɪt"
+        },
+        {
+          "book": "cet4",
+          "posIdx": 1,
+          "ipa": "pəˈmɪt"
+        },
+        {
+          "book": "cet6",
+          "posIdx": 0,
+          "ipa": "ˈpɜːmɪt"
+        },
+        {
+          "book": "combined",
+          "posIdx": 1,
+          "ipa": "pəˈmɪt"
+        }
+      ]
+    },
+    {
+      "word": "suspect",
+      "books": [
+        {
+          "book": "kaoyan",
+          "posIdx": 1,
+          "ipa": "səˈspekt"
+        },
+        {
+          "book": "cet4",
+          "posIdx": 0,
+          "ipa": "ˈsʌspekt"
+        },
+        {
+          "book": "cet6",
+          "posIdx": 1,
+          "ipa": "səˈspekt"
+        },
+        {
+          "book": "combined",
+          "posIdx": 1,
+          "ipa": "səˈspekt"
+        }
+      ]
+    },
+    {
+      "word": "transfer",
+      "books": [
+        {
+          "book": "kaoyan",
+          "posIdx": 0,
+          "ipa": "ˈtrænsfɜː"
+        },
+        {
+          "book": "cet4",
+          "posIdx": 1,
+          "ipa": "trænsˈfɜː"
+        },
+        {
+          "book": "cet6",
+          "posIdx": 1,
+          "ipa": "trænsˈfɜː"
+        },
+        {
+          "book": "combined",
+          "posIdx": 0,
+          "ipa": "ˈtrænsfɜː"
+        }
+      ]
+    },
+    {
+      "word": "tear",
+      "books": [
+        {
+          "book": "kaoyan",
+          "posIdx": 0,
+          "ipa": "tɪə(r)"
+        },
+        {
+          "book": "cet4",
+          "posIdx": 0,
+          "ipa": "tɪə(r)"
+        },
+        {
+          "book": "cet6",
+          "posIdx": 1,
+          "ipa": "teə(r)"
+        },
+        {
+          "book": "combined",
+          "posIdx": 0,
+          "ipa": "tɪə(r)"
+        }
+      ]
+    }
+  ]
+}

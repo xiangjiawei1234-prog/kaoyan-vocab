@@ -112,7 +112,7 @@ function browser({ initial = null, sharedStorage = null } = {}) {
   }
   const views = ["study", "list", "stats", "set"].map(v => query(`#v-${v}`));
   const statsRoot = query("#v-stats");
-  const statsCards = ["statsPlanPanel", "statsOverviewPanel", ...statsPanels.map(x => x.id), "statsStoragePanel"].map(id => { const card = query("#" + id); card.id = id; return card; });
+  const statsCards = ["statsPlanPanel", "statsOverviewPanel", ...statsPanels.map(x => x.id)].map(id => { const card = query("#" + id); card.id = id; return card; });
   for (const card of statsCards) { card.classList.add("panel"); statsRoot.appendChild(card); }
   views[0].classList.add("on");
   const nav = ["study", "list", "stats", "set"].map(v => { const b = element("button"); b.dataset.v = v; return b; });
@@ -801,17 +801,28 @@ test('统计旧v1只有open的记录继续可读，不因新增排序字段覆�
   assert.equal(shared.get(STATS_KEY), oldRaw);
 });
 
-test('统计9张卡可独立排序，刷新恢复，边界/未知方向拒绝且不改变当前组', () => {
+test('旧九卡顺序迁移只移除备份卡，保留八卡顺序与展开且不覆写原文', () => {
+  const probe = browser(), ids = clone(probe.T.statsCardIds).reverse();
+  const oldOrder = ids.slice(); oldOrder.splice(3, 0, "statsStoragePanel");
+  const raw = JSON.stringify({version: 1, open: ["statsDaysPanel"], order: oldOrder});
+  const shared = new Map([[STATS_KEY, raw]]), b = browser({sharedStorage: shared}), T = setup(b);
+  assert.equal(T.readStatsPanelPrefs().ok, true);
+  assert.deepEqual(clone(T.readStatsPanelPrefs().order), ids);
+  assert.equal(b.query("#statsDaysPanel").open, true);
+  assert.equal(shared.get(STATS_KEY), raw);
+});
+
+test('统计8张卡可独立排序，刷新恢复，边界/未知方向拒绝且不改变当前组', () => {
   const b = browser(), T = setup(b), before = scene(T), mainRaw = b.storage.get(KEY);
   assert.equal(T.moveStatsPanel("statsPlanPanel", "up"), false);
-  assert.equal(T.moveStatsPanel("statsStoragePanel", "down"), false);
+  assert.equal(T.moveStatsPanel("statsHeatmapPanel", "down"), false);
   assert.equal(T.moveStatsPanel("missing", "up"), false);
   assert.equal(T.moveStatsPanel("statsForecastPanel", "sideways"), false);
-  assert.equal(T.moveStatsPanel("statsStoragePanel", "up"), true);
+  assert.equal(T.moveStatsPanel("statsHeatmapPanel", "up"), true);
   assert.equal(T.moveStatsPanel("statsOverviewPanel", "up"), true);
   const order = b.query("#v-stats").children.map(x => x.id);
   assert.equal(order[0], "statsOverviewPanel");
-  assert.equal(order[7], "statsStoragePanel");
+  assert.equal(order[6], "statsHeatmapPanel");
   assert.deepEqual(JSON.parse(b.storage.get(STATS_KEY)).order, order);
   assert.equal(scene(T), before); assert.equal(b.storage.get(KEY), mainRaw);
   const b2 = browser({sharedStorage: new Map(b.storage)}); setup(b2);

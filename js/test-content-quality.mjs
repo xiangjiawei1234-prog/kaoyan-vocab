@@ -7,7 +7,7 @@ import vm from 'node:vm';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { contentEncodingFields, isConfirmedBadExample, exampleHasWordForm, mechanicalExampleRisks, confirmedCorrectionIssues, isRemovedHeadword, removedHeadwordIssues, meaningContentIssues } from './content-validation.mjs';
+import { contentEncodingFields, isConfirmedBadExample, exampleHasWordForm, exampleHasInflectedForm, mechanicalExampleRisks, confirmedCorrectionIssues, isRemovedHeadword, removedHeadwordIssues, meaningContentIssues } from './content-validation.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
@@ -20,6 +20,8 @@ const variantFixture = JSON.parse(read('tests/fixtures/content-fixes-meaning-202
 const phoneticFixture = JSON.parse(read('tests/fixtures/content-fixes-phonetic-20261025.json'));
 const normalizeFixture = JSON.parse(read('tests/fixtures/content-fixes-phonetic-normalize-20261025.json'));
 const formsFixture = JSON.parse(read('tests/fixtures/content-fixes-forms-20261025.json'));
+const pronunciationFixture = JSON.parse(read('tests/fixtures/content-fixes-pronunciation-20261027.json'));
+const pronunciationMain = new Map(pronunciationFixture.corrections.flatMap(item => item.references.map(ref => [ref.book + ':' + item.word, item.after['1']])));
 const box = vm.createContext({ window: {} });
 const dataFiles = ['js/words-data.js', 'js/cet-words-data.js', 'js/combined-words-data.js'];
 dataFiles.forEach(file => vm.runInContext(read(file), box, { filename: file }));
@@ -341,7 +343,7 @@ check('音标空缺已全量补齐：792 词头/1077 行落地，旧空音标回
       const row = books[reference.book].find(row => row[0] === item.word);
       assert.ok(row, item.id + ' ' + reference.book + ' 行存在');
       if (normalizedLater.has(item.word)) assert.ok(String(row[1] || '').trim(), item.id + ' ' + item.word + ' 规范化后仍须非空');
-      else assert.equal(row[1], item.after['1'], item.id + ' ' + item.word + ' ' + reference.book + ' 音标');
+      else assert.equal(row[1], pronunciationMain.get(reference.book + ':' + item.word) || item.after['1'], item.id + ' ' + item.word + ' ' + reference.book + ' 音标');
       assert.deepEqual(confirmedCorrectionIssues(reference.book, row), [], item.id + ' 修后行应允许');
       const reverted = row.slice(); reverted[1] = '';
       assert.ok(confirmedCorrectionIssues(reference.book, reverted).length > 0, item.id + ' 空音标旧值应拒绝');
@@ -366,7 +368,7 @@ check('批次 A 音标规范化：1,191 词头/2,217 行落地，单主读音且
     for (const reference of item.references) {
       const row = books[reference.book].find(row => row[0] === item.word);
       assert.ok(row, item.id + ' ' + reference.book + ' 行存在');
-      assert.equal(row[1], item.after['1'], item.id + ' ' + item.word + ' ' + reference.book + ' 音标');
+      assert.equal(row[1], pronunciationMain.get(reference.book + ':' + item.word) || item.after['1'], item.id + ' ' + item.word + ' ' + reference.book + ' 音标');
       assert.deepEqual(confirmedCorrectionIssues(reference.book, row), [], item.id + ' 修后行应允许');
       const reverted = row.slice(); reverted[1] = item.before['1'];
       const gated = confirmedCorrectionIssues(reference.book, reverted).length > 0;
@@ -375,7 +377,7 @@ check('批次 A 音标规范化：1,191 词头/2,217 行落地，单主读音且
     }
   }
 });
-check('四书音标无前导点/多读音/空白/悬空连字符/非标准符号，源书同词与综合书逐字节一致', () => {
+check('四书音标格式有效；有证据的异读按各书主词性，其他同词与综合书逐字节一致', () => {
   const legacy = /[\u02b9\u03b5\u02ca\u02cb\u025a\u0279]/;
   for (const [book, rows] of Object.entries(books)) for (const [index, row] of rows.entries()) {
     assert.doesNotMatch(row[1], /^\s*\./, book + '#' + index + ' ' + row[0] + ' 前导点');
@@ -390,7 +392,15 @@ check('四书音标无前导点/多读音/空白/悬空连字符/非标准符号
     byWord.get(row[0]).set(book, row[1]);
   }
   for (const [word, map] of byWord) {
-    if (map.size > 1) assert.equal(new Set(map.values()).size, 1, word + ' 跨书音标不一致：' + [...map.entries()].join(' | '));
+    const exception = pronunciationFixture.crossBookMainDifferences.find(item => item.word === word);
+    if (exception) {
+      for (const [book, ipa] of map) {
+        const expected = exception.books.find(item => item.book === book);
+        assert.ok(expected, book + ' ' + word + ' 白名单必须逐书列明');
+        assert.equal(books[book].find(row => row[0] === word)[3], expected.posIdx, book + ' ' + word + ' 白名单主词性');
+        assert.equal(ipa, expected.ipa, book + ' ' + word + ' 白名单主读音');
+      }
+    } else if (map.size > 1) assert.equal(new Set(map.values()).size, 1, word + ' 跨书音标不一致：' + [...map.entries()].join(' | '));
   }
   for (const row of books.combined) {
     const source = byWord.get(row[0]);
@@ -399,6 +409,30 @@ check('四书音标无前导点/多读音/空白/悬空连字符/非标准符号
   for (const word of ['healthcare', 'parenting', 'childcare', 'cosmos', 'carer', 'hardworking', 'will', 'may', 'own', 'politics']) {
     const values = new Set(['kaoyan', 'cet4', 'cet6'].map(book => books[book].find(row => row[0] === word)?.[1]).filter(Boolean));
     assert.equal(values.size, 1, word + ' 跨书音标矛盾未统一');
+  }
+});
+check('批次 C1 逐书主音标与证据一致，旧错配值回流被门控且进度主键保持', () => {
+  assert.equal(pronunciationFixture.variants.length, 29);
+  assert.equal(pronunciationFixture.corrections.length, 93);
+  assert.equal(pronunciationFixture.crossBookMainDifferences.length, 8);
+  for (const [book, rows] of Object.entries(books)) {
+    const baseline = pronunciationFixture.baseline[book];
+    assert.equal(rows.length, baseline.count, book);
+    assert.equal(box.window.WORD_BOOK_META[book].dataVersion, baseline.dataVersion, book);
+    assert.equal(hash(rows.map(row => [row[0], row[3], row[4], row[5], row[6], row[9]])), baseline.posIndexHash, book + ' 主键和主词性');
+  }
+  for (const correction of pronunciationFixture.corrections) {
+    assert.deepEqual(Object.keys(correction.after), ['1']);
+    assert.ok(correction.sources.every(source => /^https:\/\//.test(source.url)));
+    for (const reference of correction.references) {
+      const row = books[reference.book][reference.index];
+      assert.equal(row[0], correction.word);
+      assert.equal(row[3], reference.posIdx);
+      assert.equal(row[1], correction.after['1'], correction.id + ' ' + reference.book);
+      assert.deepEqual(confirmedCorrectionIssues(reference.book, row), []);
+      const reverted = row.slice(); reverted[1] = correction.before['1'];
+      assert.ok(confirmedCorrectionIssues(reference.book, reverted).length > 0, correction.id + ' 旧错配主读音');
+    }
   }
 });
 check('批次 B 词形说明：82 词头/135 行落地，复数畸形清零、跨书一致、旧值回流被拒绝', () => {
@@ -487,6 +521,22 @@ check('真实 led/caught 由各条 fm 接受；相似前缀和未记录派生形
   assert.equal(exampleHasWordForm('overfish', 'The report discusses overfishing.'), false);
 });
 
+check('例句覆盖复用页面不规则/规则屈折，四书全部命中且不放宽历史精确证据', () => {
+  for (const [book, rows] of Object.entries(books)) for (const [index, row] of rows.entries()) {
+    assert.equal(exampleHasInflectedForm(row[0], row[7], row[10], row[3]), true, book + '#' + index + ' ' + row[0]);
+  }
+  for (const [word, form, pos] of [['medium', 'media', 0], ['swim', 'swam', 1], ['contextualize', 'contextualizing', 1], ['downsize', 'downsizing', 1], ['study', 'studies', 1], ['stop', 'stopping', 1]]) {
+    assert.equal(exampleHasInflectedForm(word, 'They discuss ' + form + ' today.', '', pos), true, word + ' → ' + form);
+    assert.equal(exampleHasWordForm(word, 'They discuss ' + form + ' today.'), false, '已确认修订仍需精确词形证据');
+  }
+});
+check('例句覆盖保留整词、独立派生词与star/stare碰撞边界', () => {
+  for (const [word, example, pos] of [['lead', 'The leadership team met today.', 1], ['catch', 'The cattle stood in the field.', 1], ['cat', 'The scattered papers were on the desk.', 0], ['star', 'She stared into the sky.', 1], ['motif', 'Their motives remain unclear today.', 0], ['paper', 'They read a newspaper today.', 0]]) {
+    assert.equal(exampleHasInflectedForm(word, example, '', pos), false, word + ' 不能宽泛前缀/删e匹配');
+  }
+  assert.equal(exampleHasInflectedForm('star', 'She starred in the film.', '', 1), true);
+});
+
 check('第三批343个机械污染句族全部源书引用修复、旧句四书0残留且来源策略正确', () => {
   const fixed = thirdFixture.families.filter(family => family.decision === 'fix');
   assert.equal(fixed.length, 343);
@@ -537,7 +587,7 @@ check('第三批 keep 句族不作防回归封禁；机械污染 warning 扫描�
 // 在隔离目录执行真实校验器，证明门控会使退出码失败，而不只是多打印一条 warning。
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'vocab-content-gate-'));
 try {
-  for (const file of [...dataFiles, 'js/content-validation.mjs', 'js/validate-words.mjs', 'js/validate-cet-data.mjs', 'tests/fixtures/content-fixes-20261023.json', 'tests/fixtures/content-fixes-batch2-20261023.json', 'tests/fixtures/content-fixes-batch3-20261023.json', 'tests/fixtures/content-fixes-maintenance-20261023.json', 'tests/fixtures/content-fixes-meaning-20261024.json', 'tests/fixtures/content-fixes-meaning-20261025.json', 'tests/fixtures/content-fixes-phonetic-20261025.json', 'tests/fixtures/content-fixes-phonetic-normalize-20261025.json', 'tests/fixtures/content-fixes-forms-20261025.json']) {
+  for (const file of [...dataFiles, 'js/app.js', 'js/content-validation.mjs', 'js/validate-words.mjs', 'js/validate-cet-data.mjs', 'tests/fixtures/content-fixes-20261023.json', 'tests/fixtures/content-fixes-batch2-20261023.json', 'tests/fixtures/content-fixes-batch3-20261023.json', 'tests/fixtures/content-fixes-maintenance-20261023.json', 'tests/fixtures/content-fixes-meaning-20261024.json', 'tests/fixtures/content-fixes-meaning-20261025.json', 'tests/fixtures/content-fixes-phonetic-20261025.json', 'tests/fixtures/content-fixes-phonetic-normalize-20261025.json', 'tests/fixtures/content-fixes-forms-20261025.json', 'tests/fixtures/content-fixes-pronunciation-20261027.json']) {
     const target = path.join(tmp, file); fs.mkdirSync(path.dirname(target), { recursive: true }); fs.writeFileSync(target, read(file));
   }
   for (const [validator, file, key] of [['js/validate-words.mjs', 'js/words-data.js', 'kaoyan'], ['js/validate-cet-data.mjs', 'js/cet-words-data.js', 'cet4']]) {
@@ -553,6 +603,30 @@ try {
         fs.writeFileSync(path.join(tmp, file), source);
       });
     }
+    check(validator + ' 真实错配例句仍报告覆盖warning且不冒充语义error', () => {
+      const row = Array.from(books[key][0]), original = JSON.stringify(row);
+      row[7] = 'A nearby garden was quiet after sunset.';
+      assert.equal(exampleHasInflectedForm(row[0], row[7], row[10], row[3]), false);
+      const source = read(file); assert.equal(source.includes(original), true);
+      fs.writeFileSync(path.join(tmp, file), source.replace(original, JSON.stringify(row)));
+      const result = spawnSync(process.execPath, ['--max-old-space-size=512', path.join(tmp, validator)], { cwd: tmp, encoding: 'utf8', maxBuffer: 2 * 1024 * 1024 });
+      assert.equal(result.status, 0, '一般覆盖疑点仍为warning');
+      const report = fs.readFileSync(path.join(tmp, 'tests/reports', key === 'kaoyan' ? '数据校验报告.md' : '四六级数据校验报告.md'), 'utf8');
+      assert.match(report, /例句疑似不含对应词头\/合理屈折/);
+      fs.writeFileSync(path.join(tmp, file), source);
+    });
+    check(validator + ' 对批次C1 record名词主音标退回动词读音返回失败', () => {
+      const correction = pronunciationFixture.corrections.find(item => item.word === 'record' && item.references[0].book === key);
+      const reference = correction.references[0];
+      const row = Array.from(books[reference.book][reference.index]), original = JSON.stringify(row);
+      row[1] = correction.before['1'];
+      const source = read(file); assert.equal(source.includes(original), true);
+      fs.writeFileSync(path.join(tmp, file), source.replace(original, JSON.stringify(row)));
+      const result = spawnSync(process.execPath, ['--max-old-space-size=512', path.join(tmp, validator)], {cwd: tmp, encoding:'utf8', maxBuffer:2*1024*1024});
+      assert.equal(result.status, 1);
+      assert.match(result.stdout + result.stderr, /已确认内容修订回流/);
+      fs.writeFileSync(path.join(tmp, file), source);
+    });
     const sourceBooks = key === 'kaoyan' ? ['kaoyan'] : ['cet4', 'cet6'];
     for (const item of maintenanceFixture.corrections) {
       const reference = item.references.find(reference => sourceBooks.includes(reference.book));

@@ -1,5 +1,6 @@
 /** 词库校验器共用的内容门控；只供 Node 校验/测试，不进入页面或词库 11 元组。 */
 import fs from 'node:fs';
+import vm from 'node:vm';
 
 const fixes = JSON.parse(fs.readFileSync(new URL('../tests/fixtures/content-fixes-20261023.json', import.meta.url), 'utf8'));
 const nextFixes = JSON.parse(fs.readFileSync(new URL('../tests/fixtures/content-fixes-batch2-20261023.json', import.meta.url), 'utf8'));
@@ -16,12 +17,14 @@ const phoneticNormalizePath = new URL('../tests/fixtures/content-fixes-phonetic-
 const phoneticNormalize = fs.existsSync(phoneticNormalizePath) ? JSON.parse(fs.readFileSync(phoneticNormalizePath, 'utf8')) : { corrections: [] };
 const formsFixesPath = new URL('../tests/fixtures/content-fixes-forms-20261025.json', import.meta.url);
 const formsFixes = fs.existsSync(formsFixesPath) ? JSON.parse(fs.readFileSync(formsFixesPath, 'utf8')) : { corrections: [] };
+const pronunciationFixesPath = new URL('../tests/fixtures/content-fixes-pronunciation-20261027.json', import.meta.url);
+const pronunciationFixes = fs.existsSync(pronunciationFixesPath) ? JSON.parse(fs.readFileSync(pronunciationFixesPath, 'utf8')) : { corrections: [] };
 const FIELD_NAMES = { 1: 'phonetic', 2: 'meaning', 3: 'posIdx', 7: 'example', 8: 'source', 10: 'forms' };
 const normalized = text => String(text || '').replace(/\s+/g, ' ').trim();
 const confirmedBadExamples = new Set(fixes.confirmedBadExamples.concat(nextFixes.confirmedBadExamples, thirdFixes.confirmedBadExamples || []).map(normalized));
 const correctionByBookWord = new Map();
 // 同一书+词多批次修不同字段时合并 before/after；同字段以更晚批次为准（A 的旧畸形值由格式门控兜底）。
-for (const correction of [...maintenanceFixes.corrections, ...meaningFixes.corrections, ...meaningFixes20261025.corrections, ...phoneticNormalize.corrections, ...phoneticFixes.corrections, ...formsFixes.corrections]) {
+for (const correction of [...maintenanceFixes.corrections, ...meaningFixes.corrections, ...meaningFixes20261025.corrections, ...phoneticNormalize.corrections, ...phoneticFixes.corrections, ...formsFixes.corrections, ...pronunciationFixes.corrections]) {
   for (const reference of correction.references) {
     const key = reference.book + ':' + correction.word;
     const prev = correctionByBookWord.get(key);
@@ -102,6 +105,33 @@ export function exampleWordForms(word, fm = '') {
 export function exampleHasWordForm(word, example, fm = '') {
   const tokens = new Set((String(example || '').toLowerCase().match(/[a-z]+(?:['-][a-z]+)*/g) || []));
   return exampleWordForms(word, fm).some(form => tokens.has(form));
+}
+
+// 覆盖检查沿用页面已经交付的保守屈折算法；严格的已确认修订门控仍用上方 fm-only 检查。
+// 只在 Node 中执行本地 app.js 的纯函数区，不启动页面，也不维护第二份不规则表/后缀规则。
+let coverageForms = null;
+function appExampleWordForms() {
+  if (coverageForms) return coverageForms;
+  const source = fs.readFileSync(new URL('./app.js', import.meta.url), 'utf8');
+  const start = source.indexOf('  const IRREGULAR_FORMS = {');
+  const end = source.indexOf('  /* ---- 例句查义：', start);
+  if (start < 0 || end <= start) throw new Error('无法定位 app.js 的例句词形纯函数区；请同步内容校验器');
+  // 综合书是三源书精确词头并集；与页面的四书并集一样保护 star/stare 等删 e 碰撞。
+  const dataContext = vm.createContext({ window: {} });
+  vm.runInContext(fs.readFileSync(new URL('./combined-words-data.js', import.meta.url), 'utf8'), dataContext, { timeout: 10000 });
+  const rows = dataContext.window.WORDS_COMBINED;
+  if (!Array.isArray(rows) || !rows.length) throw new Error('综合词书不可用，不能执行例句覆盖校验');
+  const wordIndex = new Set(rows.map(row => row[0]));
+  const context = vm.createContext({ BOOKS: { combined: { wordIndex } } });
+  coverageForms = vm.runInContext(source.slice(start, end) + '\nexampleWordForms;', context, { timeout: 1000 });
+  return coverageForms;
+}
+
+// 只证明“句内有目标词或合理屈折”，不证明词义匹配、语法自然或真题来源真实性。
+export function exampleHasInflectedForm(word, example, fm = '', pos) {
+  const tokens = new Set(String(example || '').toLowerCase().replace(/’/g, "'").match(/[a-z]+(?:['-][a-z]+)*/g) || []);
+  const forms = appExampleWordForms()({ w: String(word || ''), fm, p: pos });
+  return [...forms].some(form => tokens.has(form));
 }
 
 // ---------- 机械污染 warning 级扫描（只报告，不自动改；不进入硬门控） ----------

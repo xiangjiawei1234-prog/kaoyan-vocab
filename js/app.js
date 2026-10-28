@@ -44,6 +44,9 @@
   const GUIDE_KEY = "vocab_guide_v1";
   /** 13 上次成功发起文件导出的时间：独立全局键，不进学习记录/备份 v3，不改变导出只读契约。 */
   const LAST_EXPORT_KEY = "vocab_last_export_v1";
+  const BACKUP_ARCHIVES_KEY = "vocab_backup_archives_v1";
+  const BACKUP_ARCHIVES_KIND = "vocab-backup-archives";
+  const BACKUP_ARCHIVES_MAX = 20;
 
   /** 11 元组 → 内部结构（与 words-data.js 字段一致） */
   function mapWords(raw){
@@ -344,24 +347,47 @@
     ]);
   }
   /**
-   * kind: "main"=普通组，"extra"=23 临时加量子组，"newOnly"=07 纯新词子组；
+   * kind: "main"=普通组，"extra"=23 临时加量子组，"newOnly"=07 纯新词子组，
+   * "reviewOnly"=R04 纯复习小组（只含到期词，不学新词、不改 dailyNew）。
    * groupSize 在本组开始时冻结，之后设置只影响下一组（08 的“应用到下一组”）。
    * scopeSig/scopeCount/dailyNewTarget 记录「本组开始时的范围与计划」，供设置页标注当前组；
    * 范围内到期集合仍每次重新计算（跨天/改熟练后取最新）。
    */
+  /**
+   * 冻结 plan 用的范围签名：reviewOnly 的组张数固定 REVIEW_ONLY_SIZE，
+   * 因此 scopeSig 的 groupSize 位（index 8）也要冻结为 5，否则与 plan.groupSize 不一致，
+   * 会让刷新恢复/保存休息后的纯复习快照恒判 bad-plan（R04 D1 修复）。
+   */
+  function scopeSignatureForKind(kind){
+    const sig = currentScopeSignature();
+    if (kind !== "reviewOnly") return sig;
+    try {
+      const parts = JSON.parse(sig);
+      if (Array.isArray(parts) && parts.length === 10) { parts[8] = REVIEW_ONLY_SIZE; return JSON.stringify(parts); }
+    } catch (e) { /* 回退未调整签名（不会发生：currentScopeSignature 始终是合法 JSON 数组） */ }
+    return sig;
+  }
   function createSessionPlan(kind){
     const cfg = currentStageConfig();
-    return {
+    const planKind = ["extra", "newOnly", "reviewOnly"].includes(kind) ? kind : "main";
+    const plan = {
       stagesMs: cfg.stages.map(m => m * MINUTE_MS),
       relearnMs: cfg.relearn * MINUTE_MS,
       bookId: currentBookId,
-      kind: kind === "extra" || kind === "newOnly" ? kind : "main",
-      groupSize: Number.isInteger(S.settings.groupSize) ? S.settings.groupSize : GROUP_SIZE_DEFAULT,
+      kind: planKind,
+      groupSize: planKind === "reviewOnly" ? REVIEW_ONLY_SIZE
+        : Number.isInteger(S.settings.groupSize) ? S.settings.groupSize : GROUP_SIZE_DEFAULT,
       startedAt: Date.now(),
-      scopeSig: currentScopeSignature(),
+      scopeSig: scopeSignatureForKind(planKind),
       scopeCount: inScopeCount(),
       dailyNewTarget: S.settings.dailyNew
     };
+    // 纯复习组张数固定 5，但「下一组设置待应用」仍需能感知 settings.groupSize 的真实变化：
+    // 记录开组时的设置值（不进 scopeSig 的固定 5，也不进备份 v3）。
+    if (planKind === "reviewOnly") {
+      plan.baseGroupSize = Number.isInteger(S.settings.groupSize) ? S.settings.groupSize : GROUP_SIZE_DEFAULT;
+    }
+    return plan;
   }
   /** 组内调度/展示用冻结快照；无组或已切书时回退当前设置。 */
   function activePlan(){
@@ -568,6 +594,11 @@
   const GROUP_SIZE_DEFAULT = 30;
   const GROUP_SIZE_MIN = 1;
   const GROUP_SIZE_MAX = 100;
+  /* ---- R04 微学习（2026-10-27 批次A）：两个固定 5 张口径，都是本页临时能力，不写 settings/备份 ----
+   * STOP_TARGET_SIZE：当前主组「再学 5 个不同词就停」的临时停靠目标；
+   * REVIEW_ONLY_SIZE：无未完成组时可显式开始的纯复习小组张数（只取到期词，不动每日新词计划）。 */
+  const STOP_TARGET_SIZE = 5;
+  const REVIEW_ONLY_SIZE = 5;
   /* ---- 22 完成页挂机自动续背（21 统一默认值的组成部分） ----
    * 新用户默认开启；旧记录缺 autoResume 字段 → enabled:false（见 normalizeAutoResume）。
    * 这些设置只控制「下一组何时自动出现」，不改变判定/额度/学习时长。 */
@@ -619,6 +650,9 @@
    * secondaryActions 固定原第三行的 0–2 个动作，不减少“更多操作”里的入口。 */
   const CARD_DENSITY_VALUES = ["comfortable", "compact"];
   const CARD_DENSITY_DEFAULT = "comfortable";
+  // 背诵页的信息量偏好：旧记录缺字段仍保持原标准显示，显式切换后按偏好归属保存。
+  const STUDY_MODE_VALUES = ["immersive", "simple", "standard"];
+  const STUDY_MODE_DEFAULT = "standard";
   const READING_ORDER_KEYS = ["meaning", "example", "forms"];
   const READING_ORDER_DEFAULT = ["meaning", "example", "forms"];
   const SECONDARY_ACTION_IDS = ["undo", "proficient", "speak", "star"];
@@ -627,7 +661,7 @@
   const STATS_PANELS_KEY = "vocab_stats_panels_v1";
   const STATS_PANEL_IDS = ["statsForecastPanel", "surveyPanel", "statsFreqPanel",
     "statsStagesPanel", "statsDaysPanel", "statsHeatmapPanel"];
-  const STATS_CARD_IDS = ["statsPlanPanel", "statsOverviewPanel", ...STATS_PANEL_IDS, "statsStoragePanel"];
+  const STATS_CARD_IDS = ["statsPlanPanel", "statsOverviewPanel", ...STATS_PANEL_IDS];
   /* ---- 16 拼写专项（只做拼写；不占新词额度、不推进主 SRS、不写主学习统计） ----
    * 记录按书写入 state.spelling（随备份 v3 的每书 state 整体导出），只保存累计与最近一组汇总，
    * 不保存逐词明细；判定规则见 spellCompare()：大小写不敏感 → 显式英美变体表 → 分隔符宽松 → 判错。 */
@@ -688,6 +722,7 @@
       showPh: true, showEx: true, showFm: true, autoSpk: false,
       // 12 阅读字号（standard|large，只影响释义/例句等阅读文本）与设备语音偏好。
       fontSize: FONT_SIZE_DEFAULT,
+      studyMode: STUDY_MODE_DEFAULT,
       voiceURI: "",
       speechRate: SPEECH_RATE_DEFAULT,
       singleCharKeys: true,
@@ -722,11 +757,11 @@
 
   /* ================= O1 设备通用 / 本书覆盖偏好归属 =================
    * 依据 docs/输入与偏好下一步规格-2026-10-24.md §6：
-   * - 独立 localStorage 键 vocab_device_preferences_v1：shared=设备通用值（19 项严格合法），
+   * - 独立 localStorage 键 vocab_device_preferences_v1：shared=设备通用值（20 项严格合法），
    *   overrides[book]=本书覆盖的字段名；effective = 有覆盖 ? 该书 settings 值 : shared 值。
    * - S.settings 继续是当前书已解析运行时快照（不为 O1 改几十处读点）；覆盖标记才是取值来源裁决，
    *   shared 变化后未覆盖字段必须重新解析，不信任主记录里的物化缓存。
-   * - 迁移：设备键不存在时 shared=DEF 默认值，每本已有旧主记录的书把 19 项全部标本书覆盖
+   * - 迁移：设备键不存在时 shared=DEF 默认值，每本已有旧主记录的书把全部偏好标本书覆盖
    *   （值取该书旧 settings）；不选基准书、不改已有主记录、只写设备键。写失败保留本页值并
    *   明确提示归属未保存，本次不执行会覆盖目标书偏好的旧 carry，安全降级为每书独立。
    * - 设备键损坏/高版本：保留原文、禁写该键，各书仍读自己的 settings（每书独立），不以空 shared 覆写。
@@ -739,16 +774,17 @@
   const DEVICE_PREFS_KIND = "vocab-device-preferences";
   const DEVICE_PREFS_VERSION = 1;
   const PREF_JOURNAL_KEY = "vocab_preferences_journal_v1";
-  /** 设备通用/本书覆盖的偏好字段 = 原 CARRY_SETTINGS 全部 19 项（O1 后由覆盖标记裁决来源）。 */
+  /** 设备通用/本书覆盖偏好字段（O1 后由覆盖标记裁决来源，显示模式同属即时外观偏好）。 */
   const PREFERENCE_FIELDS = Object.freeze([
     "theme", "keys", "showPh", "showEx", "showFm", "autoSpk", "singleCharKeys",
     "fontSize", "voiceURI", "speechRate", "actionKeys", "gestures", "actionLayout",
-    "cardDensity", "readingOrder", "showCardMeta", "showCardStage", "showCardPos", "secondaryActions"
+    "cardDensity", "readingOrder", "showCardMeta", "showCardStage", "showCardPos", "secondaryActions", "studyMode"
   ]);
   const F1_PREFERENCE_FIELDS = Object.freeze(["cardDensity", "readingOrder", "showCardMeta", "showCardStage", "showCardPos", "secondaryActions"]);
+  const DISPLAY_COMPAT_PREFERENCE_FIELDS = Object.freeze([...F1_PREFERENCE_FIELDS, "studyMode"]);
   const PREFERENCE_LABELS = Object.freeze({
     theme: "颜色主题", keys: "自定义快捷键", showPh: "显示音标", showEx: "显示例句", showFm: "显示词形",
-    autoSpk: "自动发音", singleCharKeys: "单字符快捷键", fontSize: "阅读字号", voiceURI: "英语语音",
+    autoSpk: "自动发音", singleCharKeys: "单字符快捷键", fontSize: "阅读字号", studyMode: "背诵显示模式", voiceURI: "英语语音",
     speechRate: "朗读语速", actionKeys: "继续与返回快捷键", gestures: "卡片滑动手势",
     actionLayout: "左右手操作布局", cardDensity: "卡片密度", readingOrder: "判定后阅读顺序",
     showCardMeta: "卡片词频套卷标签", showCardStage: "卡片复习阶段", showCardPos: "卡片词性",
@@ -838,6 +874,7 @@
       case "showPh": case "showEx": case "showFm": case "autoSpk": case "singleCharKeys":
       case "showCardMeta": case "showCardStage": case "showCardPos": return typeof value === "boolean";
       case "fontSize": return FONT_SIZE_VALUES.includes(value);
+      case "studyMode": return STUDY_MODE_VALUES.includes(value);
       case "voiceURI": return typeof value === "string" && value === value.trim() && value.length <= 200;
       case "speechRate": return typeof value === "number" && Number.isFinite(value)
         && value >= SPEECH_RATE_MIN && value <= SPEECH_RATE_MAX
@@ -892,7 +929,7 @@
     let legacy = false;
     for (const field of PREFERENCE_FIELDS) {
       if (!Object.prototype.hasOwnProperty.call(parsed.shared, field)) {
-        if (!F1_PREFERENCE_FIELDS.includes(field)) {
+        if (!DISPLAY_COMPAT_PREFERENCE_FIELDS.includes(field)) {
           return {ok: false, status: "damaged", error: "偏好归属缺少必填字段：" + (PREFERENCE_LABELS[field] || field)};
         }
         shared[field] = clonePrefValue(DEF.settings[field]);
@@ -1086,7 +1123,7 @@
   }
   /** 偏好相关呈现的轻量刷新：主题/字号即时，卡片相关延后到无浮层时。 */
   function refreshPreferenceDisplaySurfaces(previous){
-    try { applyTheme(); applyFontSize(); } catch (e) { /* ignore */ }
+    try { applyTheme(); applyFontSize(); applyStudyMode(); } catch (e) { /* ignore */ }
     try {
       if (PREFERENCE_CARD_FIELDS.some(field => !prefValuesEqual(previous?.[field], S.settings[field]))) {
         sharedCardRefreshPending = currentBookId;
@@ -1963,7 +2000,7 @@
       if (replaced || contentChanged) {
         clearSessionSnapshot(currentBookId);
         // 旧完成页的撤销和“返回上一组”不能再回滚已经替换的权威记录。
-        Q = []; qi = 0; rounds = {}; cur = null; verdict = null; snap = null; phase = "recall";
+        Q = []; qi = 0; rounds = {}; cur = null; verdict = null; snap = null; phase = "recall"; answerChanges = 0;
         answered = 0; rightN = 0; groupTotal = 0; undoStack = []; autoSpoken = false;
         sessionPlan = null; sessionScopeSet = null; resumeNoticePending = null;
         capPaused = false; capGroupEnded = false;
@@ -1989,7 +2026,7 @@
     const differs = key => JSON.stringify(previous[key]) !== JSON.stringify(S.settings[key]);
     const scopeChanged = ["fmin", "fmax", "pmin", "kyOnly", "pos", "posMode"].some(differs);
     // O1：任一可归属偏好变化都可能影响卡片二次操作/呈现，统一走既有延迟重绘机制。
-    const cardChanged = PREFERENCE_FIELDS.some(differs);
+    const cardChanged = PREFERENCE_FIELDS.some(field => field !== "studyMode" && differs(field));
     noteInputPreferencesCommitted(previous);
     bindSet();
     if (scopeChanged) {
@@ -2339,6 +2376,7 @@
     s.autoResume = normalizeAutoResume(old.autoResume, old.autoResume === undefined);
     // 12 阅读字号与设备语音偏好：旧记录缺字段 → 标准/默认语速；非法值只修该字段（四书独立）。
     s.fontSize = normalizeFontSize(old.fontSize);
+    s.studyMode = STUDY_MODE_VALUES.includes(old.studyMode) ? old.studyMode : STUDY_MODE_DEFAULT;
     s.voiceURI = normalizeVoiceURI(old.voiceURI);
     s.speechRate = normalizeSpeechRate(old.speechRate);
     // F1 阅读与布局：旧记录缺字段 → 舒适/默认顺序/显示元信息/固定撤销与熟练；
@@ -2566,6 +2604,8 @@
     }
     catch (e) {
       storageOK = false;
+      if ($("#appAlert") && $("#appAlert").hidden === false
+        && $("#appAlert").dataset.retryRest === "1") return false;   // 保留「重试保存并休息」入口
       showAlert("进度保存失败", "受影响词书：" + currentBook().name
         + "。浏览器存储不可用或空间不足；当前页面仍可继续学习，但刷新前请导出备份。"
         + (pendingProfCount(currentBookId) ? "另有熟练标记尚未写入。" : ""), {kind: "save", export: true});
@@ -2697,6 +2737,7 @@
     W = book.words;
     wordIndex = book.wordIndex;
     S = target;
+    stopSpeechIfSceneChanged();   // R05：切书后旧书朗读场景失效
     pendingReplacementToken = null;
     loadSurvey();
     lastMainRaw = targetRaw;
@@ -3610,7 +3651,10 @@
     if(["keyboard","gesture"].includes(source) && Boolean(window.getSelection?.()?.toString()))return "selection";
     if (!$("#v-study")?.classList.contains("on")) return "not-study";
     if (document.visibilityState === "hidden") return "hidden";
+    // R03 休息页：当前卡仍在内存，但本页已明确收尾；只允许休息页自己的按钮操作。
+    if (restMode) return "resting";
     if (activeSheet) return "sheet";
+    if (["keyboard", "gesture"].includes(source) && $("#studyTools")?.open) return "menu";
     if ($("#exPop") && !$("#exPop").hidden) return "lookup";
     // 保存失败时仍允许本页手动回忆/改判/撤销；只有开组与授予/等待要求先处理持续错误。
     if (["continue","wait","enableWait","addExtraAndStudy"].includes(action) && $("#appAlert") && !$("#appAlert").hidden) return "alert";
@@ -3684,7 +3728,8 @@
         : target >= EXTRA_NEW_TARGET_MAX ? "target-cap" : "";
     }
     const candidateReason = candidates.available > 0 ? "" : candidates.capPaused ? "review-cap"
-      : candidates.backlogGuarded ? "backlog" : candidates.quota <= 0 ? "new-quota" : "no-candidates";
+      : candidates.backlogGuarded ? "backlog" : inScopeCount() === 0 ? "no-candidates"
+        : candidates.quota <= 0 ? "new-quota" : "no-candidates";
     const allowed = {
       know: cur != null && !capPausedNow, dont: cur != null && !capPausedNow,
       next: cur != null && phase === "revealed", speak:cur!=null, star:cur!=null, proficient:cur!=null,
@@ -3775,6 +3820,11 @@
       if (action === "next") { tryNext(true); return outcome(true); }
       const known = action === "know";
       if (verdict === known) return outcome(false, "no-change");
+      // 判定键/滑动只提供一次纠正机会；再次修改须明确点击改判按钮，避免 F→J→F 的肌肉记忆翻转。
+      if (verdict !== null && answerChanges > 0 && ["keyboard", "gesture"].includes(options.source)) {
+        toast("本词快捷改判已用过一次，请点击「记错了」按钮继续修改");
+        return outcome(false, "answer-change-limit");
+      }
       if(verdict===null)markJudgeGesture(options.source==="gesture"?null:options.event);
       judge(known);return outcome(verdict===known,verdict===known?null:"unavailable");
     }
@@ -4097,7 +4147,37 @@
     contract: [{ pos: "名", ipa: "ˈkɒntrækt" }, { pos: "动", ipa: "kənˈtrækt" }],
     // 释义同时收了名/动两义但读音不同：铅 /led/、反对 /əbˈdʒekt/。
     lead: [{ pos: "动", ipa: "liːd" }, { pos: "名", ipa: "led" }],
-    object: [{ pos: "名", ipa: "ˈɒbdʒekt" }, { pos: "动", ipa: "əbˈdʒekt" }]
+    object: [{ pos: "名", ipa: "ˈɒbdʒekt" }, { pos: "动", ipa: "əbˈdʒekt" }],
+    // 批次 C1：词典文本证据与逐书主音标见 content-fixes-pronunciation-20261027.json。
+    record: [{ pos: "名", ipa: "ˈrekɔːd" }, { pos: "动", ipa: "rɪˈkɔːd" }],
+    present: [{ pos: "名", ipa: "ˈprezənt" }, { pos: "形", ipa: "ˈprezənt" }, { pos: "动", ipa: "prɪˈzent" }],
+    content: [{ pos: "名", ipa: "ˈkɒntent" }, { pos: "形", ipa: "kənˈtent" }],
+    close: [{ pos: "形", ipa: "kləʊs" }, { pos: "副", ipa: "kləʊs" }, { pos: "动", ipa: "kləʊz" }, { pos: "名", ipa: "kləʊz" }],
+    export: [{ pos: "名", ipa: "ˈekspɔːt" }, { pos: "动", ipa: "ɪkˈspɔːt" }],
+    import: [{ pos: "名", ipa: "ˈɪmpɔːt" }, { pos: "动", ipa: "ɪmˈpɔːt" }],
+    live: [{ pos: "动", ipa: "lɪv" }, { pos: "形", ipa: "laɪv" }, { pos: "副", ipa: "laɪv" }],
+    desert: [{ pos: "名", ipa: "ˈdezət" }, { pos: "形", ipa: "ˈdezət" }, { pos: "动", ipa: "dɪˈzɜːt" }],
+    conduct: [{ pos: "名", ipa: "ˈkɒndʌkt" }, { pos: "动", ipa: "kənˈdʌkt" }],
+    conflict: [{ pos: "名", ipa: "ˈkɒnflɪkt" }, { pos: "动", ipa: "kənˈflɪkt" }],
+    contest: [{ pos: "名", ipa: "ˈkɒntest" }, { pos: "动", ipa: "kənˈtest" }],
+    decrease: [{ pos: "名", ipa: "ˈdiːkriːs" }, { pos: "动", ipa: "dɪˈkriːs" }],
+    increase: [{ pos: "名", ipa: "ˈɪŋkriːs" }, { pos: "动", ipa: "ɪnˈkriːs" }],
+    insult: [{ pos: "名", ipa: "ˈɪnsʌlt" }, { pos: "动", ipa: "ɪnˈsʌlt" }],
+    permit: [{ pos: "名", ipa: "ˈpɜːmɪt" }, { pos: "动", ipa: "pəˈmɪt" }],
+    produce: [{ pos: "名", ipa: "ˈprɒdjuːs" }, { pos: "动", ipa: "prəˈdjuːs" }],
+    progress: [{ pos: "名", ipa: "ˈprəʊɡres" }, { pos: "动", ipa: "prəˈɡres" }],
+    project: [{ pos: "名", ipa: "ˈprɒdʒekt" }, { pos: "动", ipa: "prəˈdʒekt" }],
+    protest: [{ pos: "名", ipa: "ˈprəʊtest" }, { pos: "动", ipa: "prəˈtest" }],
+    rebel: [{ pos: "名", ipa: "ˈrebəl" }, { pos: "动", ipa: "rɪˈbel" }],
+    subject: [{ pos: "名", ipa: "ˈsʌbdʒekt" }, { pos: "形", ipa: "ˈsʌbdʒekt" }, { pos: "动", ipa: "səbˈdʒekt" }],
+    suspect: [{ pos: "名", ipa: "ˈsʌspekt" }, { pos: "形", ipa: "ˈsʌspekt" }, { pos: "动", ipa: "səˈspekt" }],
+    survey: [{ pos: "名", ipa: "ˈsɜːveɪ" }, { pos: "动", ipa: "səˈveɪ" }],
+    transfer: [{ pos: "名", ipa: "ˈtrænsfɜː" }, { pos: "动", ipa: "trænsˈfɜː" }],
+    transport: [{ pos: "名", ipa: "ˈtrænspɔːt" }, { pos: "动", ipa: "trænsˈpɔːt" }],
+    wind: [{ pos: "名", ipa: "wɪnd" }, { pos: "动", ipa: "waɪnd" }],
+    entrance: [{ pos: "名", ipa: "ˈentrəns" }, { pos: "动", ipa: "ɪnˈtrɑːns" }],
+    invalid: [{ pos: "名", ipa: "ˈɪnvəlɪd" }, { pos: "形", ipa: "ɪnˈvælɪd" }],
+    digest: [{ pos: "名", ipa: "ˈdaɪdʒest" }, { pos: "动", ipa: "dɪˈdʒest" }]
   };
   /** 词的读音清单（非法/缺失返回 null）；返回副本，调用方不能改内置数据。 */
   function wordPronVariants(word){
@@ -4445,12 +4525,13 @@
       return '<div class="sense-popup">' + entry.preferred.map(s => esc(s.meaning)).join("；") + '</div>'
         + '<p class="sense-note">本书真题已核对义项优先；原句与其他释义见详情。</p>';
     }
-    const preferred = entry.preferred.map(sense =>
+    const preferred = entry.preferred.map((sense, senseIndex) =>
       '<li class="sense-item"><div class="sense-meaning">' + esc(sense.meaning) + '</div>'
       + '<details class="sense-evidence"><summary>查看原句与出处</summary>'
-      + sense.examples.map(example => '<div class="sense-example" data-ex-linked="1">'
+      + sense.examples.map((example, exampleIndex) => '<div class="sense-example" data-ex-linked="1">'
         + '<p class="sense-quote" lang="en" data-ex-linked="1" tabindex="0" role="group" aria-expanded="false" aria-label="例句，左右方向键选词，回车查义">' + exHtml(example.quote, x) + '</p>'
-        + '<p class="sense-source">' + esc(example.label || example.source) + '</p></div>').join("")
+        + '<p class="sense-source">' + esc(example.label || example.source) + '</p>'
+        + audioControlsHtml(example.quote, "sentence", "sense-" + senseIndex + "-" + exampleIndex) + '</div>').join("")
       + '</details></li>'
     ).join("");
     const additional = entry.additional.trim()
@@ -4548,6 +4629,8 @@
     pop.hidden = false;
     pop.classList.add("on");
     pop.setAttribute?.("aria-expanded", "true");
+    // 查词浮层打开即离开学习卡朗读场景：旧朗读失效，避免继续读被浮层遮住的句子。
+    stopSpeechIfSceneChanged();
     // 就近定位（失败则居中偏下）
     try {
       const r = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : null;
@@ -4583,6 +4666,8 @@
     pop.hidden = true;
     pop.classList.remove("on");
     pop.setAttribute?.("aria-expanded", "false");
+    // 关闭查词浮层同样改变场景：在浮层内单独播放的声音不能串回卡片/词表。
+    stopSpeechIfSceneChanged();
     applyActionLayout();
     applyActionBindingHints();
     if (previous && previous.trigger) previous.trigger.setAttribute?.("aria-expanded", "false");
@@ -4659,6 +4744,70 @@
     });
   }
 
+  /* ================= 背诵显示模式 =================
+   * 模式是即时外观偏好，只改变呈现；不重绘卡片、不重建队列，也不停止同词朗读。
+   * HUD位于main内，与模态共用inert；隐藏的常用工具通过原入口执行，保存/配额守卫仍权威。
+   */
+  function currentStudyMode(){
+    return STUDY_MODE_VALUES.includes(S.settings.studyMode) ? S.settings.studyMode : STUDY_MODE_DEFAULT;
+  }
+  function syncStudyTools(){
+    $$("#studyTools [data-study-proxy]").forEach(button => {
+      const original = $("#" + button.dataset.studyProxy);
+      button.hidden = !original || !!original.hidden;
+      button.disabled = !original || !!original.disabled;
+      if (original && !["btnTheme", "btnHelp"].includes(original.id)) button.textContent = original.textContent;
+    });
+  }
+  function applyStudyMode(){
+    const mode = currentStudyMode();
+    const view = $(".view.on")?.id?.replace("v-", "") || "study";
+    document.documentElement.dataset.studyMode = mode;
+    document.documentElement.dataset.studyView = view;
+    $$("button[data-study-mode]").forEach(button => {
+      button.setAttribute?.("aria-pressed", String(button.dataset.studyMode === mode));
+      button.onclick = () => setStudyMode(button.dataset.studyMode);
+    });
+    const progress = $("#studyModeProgress");
+    if (progress) progress.textContent = (restMode ? "已保存 " : drillMode ? "特训 "
+      : focusedPlanKind() === "reviewOnly" ? "纯复习 " : inSubgroup() ? "子组 " : "本组 ")
+      + Math.min(answered, groupTotal) + " / " + groupTotal;
+    const tools = $("#studyTools");
+    if (tools) {
+      tools.ontoggle = () => { if (tools.open) syncStudyTools(); };
+      tools.querySelectorAll?.("[data-study-proxy]").forEach(button => {
+        button.onclick = () => {
+          const original = $("#" + button.dataset.studyProxy);
+          if (!original || original.hidden || original.disabled || activeSheet) return;
+          tools.open = false;
+          // 先将焦点留在可见入口，原动作若打开浮层，关闭后可归还这里。
+          tools.querySelector?.("summary")?.focus?.({preventScroll: true});
+          original.click?.();
+        };
+      });
+      tools.querySelectorAll?.("[data-study-view]").forEach(button => {
+        button.onclick = () => { if (!activeSheet) show(button.dataset.studyView); };
+      });
+    }
+    syncStudyTools();
+  }
+  function setStudyMode(mode){
+    if (!STUDY_MODE_VALUES.includes(mode)) return {ok: false, error: "请选择沉浸、简洁或标准模式"};
+    if (currentStudyMode() === mode) { applyStudyMode(); return {ok: true, mode}; }
+    const result = applyReadingLayoutPatch({studyMode: mode});
+    applyStudyMode();
+    if (result.ok) {
+      closeTransientMenus();
+      const focused = document.activeElement;
+      if (focused && (focused.closest?.(".top, .drill-bar, #statLine")
+          || focused.closest?.("#card .tagrow, #card .dots, #card .posline, #card .star, #spkSlow"))) {
+        $('#studyModeBar [data-study-mode="' + mode + '"]')?.focus?.({preventScroll: true});
+      }
+      fitVisibleWords();
+    }
+    return Object.assign({}, result, {mode: currentStudyMode()});
+  }
+
   /* ================= 主题 ================= */
   function resolvedDark(){
     const t = S.settings.theme || "auto";
@@ -4670,7 +4819,7 @@
     const dark = resolvedDark();
     document.documentElement.dataset.theme = dark ? "dark" : "light";
     const themeColor = $('meta[name="theme-color"]');
-    themeColor?.setAttribute?.("content", dark ? "#1B1916" : "#F6F3ED");
+    themeColor?.setAttribute?.("content", dark ? "#211E1A" : "#F4F0E7");
     $$("#themeSeg button").forEach(b => {
       b.classList.toggle("on", b.dataset.theme === t);
       b.setAttribute?.("aria-pressed", String(b.dataset.theme === t));
@@ -5151,6 +5300,8 @@
   let sessionSeed = 1;
   /** verdict: null | true(会) | false(不会) */
   let verdict = null, snap = null, stageBefore = 0;
+  /** 本次出卡已发生的改判次数；属于会话现场，不写主学习记录/备份。 */
+  let answerChanges = 0;
   /** phase: "recall" | "revealed" —— 门控核心 */
   let phase = "recall";
   let undoStack = [];
@@ -5169,6 +5320,20 @@
   /** 07 纯新词子组（kind="newOnly"）：积压保护/暂停时只学今日计划内新词，同样保留原组现场。 */
   let newOnlySubgroup = false;
   let newOnlySnap = null;
+  /* ---- R03 保存并休息：只影响本页呈现，不写主记录/settings/备份 v3 ---- */
+  // restMode=true 时当前卡仍在内存（cur/Q/撤销栈都不动），但学习页改为休息页；
+  // 刷新后由 15 会话快照恢复到同一张卡（本页休息态本身不持久化）。
+  let restMode = false;
+  // 保存成功后引导用户休息的一次性提示（供休息页/测试读取，不参与任何校验）。
+  let restState = null;
+  // R03 保存失败重试要回到原动作：saveAndRest 或完成页「今天先到这里」。
+  let restFailureRetryKind = null;
+  /* ---- R04 本组临时停靠目标：只记本页内存，刷新后需重新设定（属于「临时」承诺） ----
+   * {bookId, goal, seen:Set<单词文本>, reachedAt}；只统计设定目标之后首次有效作答的不同单词，
+   * 改判/重考不额外计数，撤销对应判定会回退该词。 */
+  let stopTarget = null;
+  /** R04 完成页「今天先到这里」的本次页面抑制：不写任何键，刷新或显式继续后自然失效。 */
+  let autoResumeRestHeld = false;
   /** 任一受控子组（extra/newOnly）进行中：两者与特训互斥、不嵌套。 */
   function inSubgroup(){ return extraSubgroup || newOnlySubgroup; }
   /* ---- 08 本组范围快照：startSession 时冻结，改设置不追溯当前组 ---- */
@@ -5502,8 +5667,12 @@
    * 注意 onclick 直接绑定会传入事件对象，因此只认字符串 kind，其余都按 main。
    */
   function startSession(kind){
-    kind = kind === "extra" ? "extra" : kind === "newOnly" ? "newOnly" : "main";
+    kind = kind === "extra" ? "extra" : kind === "newOnly" ? "newOnly"
+      : kind === "reviewOnly" ? "reviewOnly" : "main";
     autoResumeEmptyWaitBook = null;
+    autoResumeRestHeld = false;
+    restMode = false;
+    restState = null;
     if (!autoResumeStarting) {
       // 22：手动开新组/继续下一组时，不再保留上一组完成页的「返回上一组结果」。
       autoResumeReturnSnap = null;
@@ -5513,7 +5682,9 @@
     drillMode = false;
     mainSnap = null;
     capGroupEnded = false;
-    if (kind === "main") {
+    // R04 新场景从零开始；受控子组的父目标由调用方的内存快照保留，返回时恢复。
+    stopTarget = null;
+    if (kind === "main" || kind === "reviewOnly") {
       extraSubgroup = false; extraSnap = null;
       newOnlySubgroup = false; newOnlySnap = null;
     } else if (kind === "extra") {
@@ -5535,6 +5706,11 @@
       const slots = Math.max(0, groupSize - dueTake.length);
       const freshTake = queue.fresh.slice(0, Math.min(slots, queue.fresh.length));
       mix = assembleMainMix(dueTake, freshTake);
+    } else if (kind === "reviewOnly") {
+      // R04：只取当前范围的到期词，并按今日剩余复习预算截断；不补新词、不改 dailyNew。
+      const left = reviewCapLeft();
+      const budget = left === Infinity ? REVIEW_ONLY_SIZE : Math.min(REVIEW_ONLY_SIZE, left);
+      mix = queue.due.slice(0, Math.max(0, Math.min(budget, queue.due.length)));
     } else {
       const snapshot = kind === "extra" ? extraSnap : newOnlySnap;
       const pendingMain = snapshot ? new Set(snapshot.Q.slice(snapshot.qi)) : null;
@@ -5570,8 +5746,9 @@
   function captureSessionSnapshot(){
     return {
       Q: Q.slice(), qi, rounds: Object.assign({}, rounds), cur,
-      answered, rightN, groupTotal, verdict, snap, phase, stageBefore,
+      answered, rightN, groupTotal, verdict, snap, phase, stageBefore, answerChanges,
       undoStack: undoStack.slice(), autoSpoken, sessionPlan,
+      stopTarget: copyStopTargetState(stopTarget),
       scopeSet: sessionScopeSet ? Array.from(sessionScopeSet) : null,
       drillBaseline: {
         wrong: Object.fromEntries(Object.entries(S.progress).map(([i, p]) => [i, p[3]])),
@@ -5634,10 +5811,12 @@
     groupTotal = s.groupTotal || Q.length;
     undoStack = s.undoStack;
     verdict = s.verdict;
+    answerChanges = s.answerChanges || 0;
     snap = s.snap;
     phase = s.phase;
     stageBefore = s.stageBefore;
     autoSpoken = s.autoSpoken;
+    stopTarget = copyStopTargetState(s.stopTarget);
     sessionPlan = s.sessionPlan && s.sessionPlan.bookId === currentBookId
       ? s.sessionPlan : createSessionPlan("main");
     sessionScopeSet = Array.isArray(s.scopeSet) ? new Set(s.scopeSet) : buildSessionScopeSet();
@@ -5735,8 +5914,254 @@
     return false;
   }
 
+  /* ================= R03 保存并休息（批次A 2026-10-27） =================
+   * 学习页明确收尾动作：先把学习记录与当前组现场都保存成功，再显示「已保存，先休息」页。
+   * 不把 0/N 或未答组标成完成、不增加学习时长、不消费额度、不改任何长期设置。
+   * 「今天暂停自动续背」只在完成页明确选择时沿用既有独立键；休息本身不偷偷关闭长期设置。
+   * 特训/受控子组先按既有父现场协议返回，再保存主组现场，不把专项现场写成主组快照。
+   */
+  /** 当前正在学习的计划种类（特训/子组期间返回父组计划，避免把专项当主组）。 */
+  function focusedPlanKind(){
+    const plan = activePlan();
+    return plan ? (plan.kind || "main") : null;
+  }
+  /** 保存失败：保留本页现场，提供重试与导出；不得显示「已保存」或进入休息页。 */
+  function showRestSaveFailure(kind){
+    restFailureRetryKind = kind === "stop-target" ? "stop-target" : "rest";
+    showAlert("进度未保存，请先不要离开",
+      "受影响词书：" + currentBook().name + "。本页学习现场仍在内存中，但学习记录尚未保存成功。"
+      + "请检查浏览器存储或空间后重试；也可以先导出备份。",
+      {kind: "save", export: true, retryRest: true});
+  }
+  /**
+   * R03 保存并休息：唯一入口。
+   * 返回 {ok, resting, saved, snapshot, error}；ok=false 时本页学习现场保持不变。
+   */
+  function saveAndRest(options){
+    options = options || {};
+    if (restMode) return {ok: true, resting: true, saved: true,
+      snapshot: !!(restState && restState.snapshotSaved), already: true, error: null};
+    // 特训/受控子组：按既有父现场协议返回（不引入二层嵌套），再由主组保存现场。
+    if (drillMode) exitDrill();
+    else if (inSubgroup()) endActiveSubgroup();
+    const waiting = emptyWaitActive();
+    // 休息是明确的计时边界：结算到此刻的有效学习段，并把不足 30 秒的整秒一同保存。
+    // 不能等下一次定时回调才暂停，否则回调被节流时会把休息前后误合成一段。
+    studyTimeTick();
+    studyTimeFlush();
+    const saved = save();
+    if (!saved) { showRestSaveFailure(); return {ok: false, resting: false, saved: false, snapshot: false, error: "storage"}; }
+    const snapshotSaved = persistSessionSnapshot();
+    stopSpeech();
+    resetAutoResumeRuntime();
+    if (waiting) stopEmptyWait();
+    if (stopTarget) stopTarget = null;   // 休息本身就是停靠目标的兑现
+    if (cur == null) {
+      // 完成页/普通空页：没有进行中的卡，只需保存记录并退出本页等待/倒计时。
+      // 只有这条「无卡可恢复」的收尾才按住本页自动续背；休息页本身已由 restMode 阻断自动开组。
+      autoResumeRestHeld = true;
+      if (waiting) renderCard();
+      restState = {savedAt: Date.now(), answered: answered, groupTotal: groupTotal, snapshotSaved: snapshotSaved, resting: false};
+      renderStopTarget();
+      renderAutoResume();
+      updateBar();
+      toast(snapshotSaved || !waiting
+        ? "学习记录已保存；本页自动续背已停止，需要时可手动继续"
+        : "学习记录已保存；本页等待已退出");
+      return {ok: true, resting: false, saved: true, snapshot: snapshotSaved, error: null};
+    }
+    restMode = true;
+    restState = {
+      savedAt: Date.now(), answered: answered, groupTotal: groupTotal,
+      snapshotSaved: snapshotSaved,
+      fromDrill: !!options.fromDrill
+    };
+    renderDrillEntry();
+    renderCard();
+    updateBar();
+    const left = countDue();
+    toast(snapshotSaved
+      ? "学习记录已保存；本页现场已保留，刷新后可以继续这一组"
+      : "学习记录已保存；本页现场未能写入浏览器，刷新后可能无法回到这一张");
+    return {ok: true, resting: true, saved: true, snapshot: snapshotSaved, remainingDue: left, error: null};
+  }
+  /** 休息页「继续本组」：只恢复本页呈现，不动队列/判定/撤销。 */
+  function resumeFromRest(){
+    if (!restMode) return false;
+    restMode = false;
+    restState = null;
+    autoResumeRestHeld = false;   // 用户已点「继续本组」，不得把本页自动续背静默按住
+    studyTimeRestart();          // 从点击继续的时刻重新采样，绝不补记休息间隔。
+    renderDrillEntry();
+    renderCard();
+    updateBar();
+    $("#card")?.focus?.({preventScroll: true});
+    toast("已回到本组继续学习");
+    return true;
+  }
+  /** 只读调试/测试钩子：休息态与保存结果。 */
+  function getRestState(){
+    return {
+      resting: restMode,
+      restState: restState ? Object.assign({}, restState) : null,
+      cur: cur,
+      answered: answered,
+      groupTotal: groupTotal,
+      snapshot: persistSessionSnapshot ? undefined : undefined
+    };
+  }
+
+  /* ================= R04 5 词微学习：本组停靠目标 + 纯复习小组（批次A 2026-10-27） =================
+   * 停靠目标只属于「普通主组」的本次页面现场：不写 settings/备份/进度，不改 dailyNew、不改到期时间。
+   * 计数只累计设定目标后首次有效作答的不同单词；改判/重考不额外计数，撤销对应判定会回退。
+   * 纯复习小组（kind="reviewOnly"）只在无未完成组/完成页显式开始时建立，只取到期词并受今日复习预算约束。
+   */
+  const STOP_TARGET_CONTINUE_ACTIONS = ["stopTargetRest", "stopTargetContinue", "stopTargetCancel"];
+  /** 仅内存父现场副本：专项的判定不计数，也不能清掉原主组的临时目标。 */
+  function copyStopTargetState(value){
+    return value ? {bookId: value.bookId, goal: value.goal, seen: new Set(value.seen), reachedAt: value.reachedAt} : null;
+  }
+  function stopTargetProgress(){
+    if (!stopTarget) return null;
+    return {
+      goal: stopTarget.goal,
+      done: Math.min(stopTarget.goal, stopTarget.seen.size),
+      reached: stopTarget.seen.size >= stopTarget.goal,
+      bookId: stopTarget.bookId
+    };
+  }
+  /** 当前主组是否处于停靠目标上下文（特训/子组/纯复习/休息态都不计入）。 */
+  function stopTargetActiveForCurrentGroup(){
+    return !!(stopTarget && stopTarget.bookId === currentBookId
+      && !drillMode && !inSubgroup() && !restMode && focusedPlanKind() === "main");
+  }
+  /** 达到停靠目标且尚未兑现：抑制完成页自动续背，必须在安全边界先让用户选择。 */
+  function stopTargetReachedPending(){
+    const progress = stopTargetProgress();
+    return !!(progress && progress.reached && stopTargetActiveForCurrentGroup());
+  }
+  /** 设定「本组再学 5 个不同词就停」；只允许进行中的普通主组。 */
+  function setStopTarget(){
+    if (drillMode || inSubgroup()) return {ok: false, error: "context"};
+    if (restMode) return {ok: false, error: "resting"};
+    if (focusedPlanKind() !== "main") return {ok: false, error: "context"};
+    if (cur == null) return {ok: false, error: "no-card"};
+    if (stopTarget && stopTarget.bookId === currentBookId) {
+      renderStopTarget();
+      return {ok: true, already: true, progress: stopTargetProgress()};
+    }
+    stopTarget = {bookId: currentBookId, goal: STOP_TARGET_SIZE, seen: new Set(), reachedAt: null};
+    renderStopTarget();
+    updateBar();
+    toast("已设定停靠目标：本组再学 " + STOP_TARGET_SIZE + " 个不同词就提醒休息");
+    return {ok: true, progress: stopTargetProgress()};
+  }
+  function clearStopTarget(reason){
+    if (!stopTarget) return false;
+    stopTarget = null;
+    renderStopTarget();
+    renderAutoResume();
+    if (reason === "continue") toast("已继续本组，本次停靠目标结束");
+    else if (reason === "cancel") toast("已取消停靠目标");
+    return true;
+  }
+  /** 首次有效判定后记账；返回 true 表示该词是本次新增计数（撤销时要回退）。 */
+  function noteStopTargetAnswer(i){
+    if (!stopTargetActiveForCurrentGroup()) return false;
+    // 达标即冻结：已兑现的停靠目标不再累计更多不同词，撤销已计数判定仍可回退。
+    if (stopTarget.seen.size >= stopTarget.goal) return false;
+    const w = W[i] && W[i].w;
+    if (!w || stopTarget.seen.has(w)) return false;
+    stopTarget.seen.add(w);
+    if (!stopTarget.reachedAt && stopTarget.seen.size >= stopTarget.goal) {
+      stopTarget.reachedAt = Date.now();
+    }
+    return true;
+  }
+  function removeStopTargetAnswer(w){
+    if (!stopTarget || !w || !stopTarget.seen.has(w)) return false;
+    stopTarget.seen.delete(w);
+    if (stopTarget.seen.size < stopTarget.goal) stopTarget.reachedAt = null;
+    renderStopTarget();
+    return true;
+  }
+  /** 停靠目标「先休息」：进行中→休息页；完成页→明确结束本次（复用独立今日暂停键）。 */
+  function restFromStopTarget(){
+    if (!stopTargetReachedPending()) return {ok: false, error: "context"};
+    if (cur != null) return saveAndRest({fromStopTarget: true});
+    // 完成页同样是明确的保存收尾；只结算此前累计，cur 为空时不补记完成后的等待。
+    studyTimeTick();
+    studyTimeFlush();
+    const saved = save();
+    if (!saved) { showRestSaveFailure("stop-target"); return {ok: false, error: "storage"}; }
+    persistSessionSnapshot();
+    stopTarget = null;
+    autoResumeRestHeld = true;
+    resetAutoResumeRuntime();
+    const ar = currentAutoResume();
+    const pausedAuto = ar.enabled && !autoResumePausedToday();
+    if (pausedAuto) pauseAutoResumeToday();
+    renderCard();
+    updateBar();
+    toast(pausedAuto
+      ? "学习记录已保存，今天可以先到这里；今天自动续背已暂停（可在完成页恢复）"
+      : "学习记录已保存，今天可以先到这里");
+    return {ok: true, resting: false, saved: true, snapshot: true};
+  }
+  /** 纯复习候选：当前范围到期、非熟练、未掌握，并按今日剩余复习预算截断。 */
+  function reviewOnlyCandidates(now){
+    now = now || Date.now();
+    let due = 0;
+    for (let i = 0; i < W.length; i++) {
+      if (!inScope(i) || isProficient(i)) continue;
+      const p = st(i);
+      if (hasMainProgress(p) && p[0] < MASTER && p[1] <= now) due++;
+    }
+    const cap = getReviewCap();
+    const left = reviewCapLeft();
+    const budget = cap === 0 || left === Infinity ? null : left;
+    const count = Math.max(0, Math.min(REVIEW_ONLY_SIZE, due, budget === null ? Infinity : budget));
+    const reason = count > 0 ? "" : due > 0 ? "review-cap" : "no-candidates";
+    return {due: due, cap: cap, budget: budget, count: count, reason: reason};
+  }
+  /** 纯复习入口是否具备页面前提（无未完成卡、非特训/子组、非暂停收尾）。 */
+  function reviewOnlyEntryAvailable(){
+    return cur == null && !drillMode && !inSubgroup() && !capGroupEnded && !restMode;
+  }
+  function reviewOnlyReasonText(stats){
+    if (!stats) stats = reviewOnlyCandidates();
+    if (stats.count > 0) return "";
+    if (stats.reason === "review-cap") {
+      return "今日复习额度已用完，仍有 " + stats.due + " 个到期词；可提高上限或明天再复习";
+    }
+    return "当前范围没有到期词，暂时不能开始纯复习";
+  }
+  /**
+   * 开始纯复习小组：只在无未完成组/完成页显式调用。
+   * 不通过把 dailyNew 改成 0 实现；不消费新词额度；仍正常计入今日复习台账与上限。
+   */
+  function startReviewOnlySession(){
+    if (drillMode || inSubgroup()) return {ok: false, error: "context"};
+    if (restMode) return {ok: false, error: "resting"};
+    if (cur != null) return {ok: false, error: "group-active"};
+    if (capGroupEnded) return {ok: false, error: "cap-ended"};
+    if (activeSheet || ($("#exPop") && !$("#exPop").hidden)) return {ok: false, error: "overlay"};
+    if ($("#appAlert") && !$("#appAlert").hidden) return {ok: false, error: "alert"};
+    if (!refreshSharedBeforeNextGroup()) return {ok: false, error: "storage"};
+    alignReviewLedgerFromStorage();
+    const stats = reviewOnlyCandidates();
+    if (!stats.count) return {ok: false, error: stats.reason, stats: stats};
+    startSession("reviewOnly");
+    if (!Q.length) { renderCard(); return {ok: false, error: "no-candidates", stats: stats}; }
+    renderCard();
+    toast("开始纯复习：本次 " + Q.length + " 张到期词（不学新词、不占新词额度）");
+    return {ok: true, count: Q.length, stats: stats};
+  }
+
   /** 错词特训：独立队列；保存主会话，退出时原样恢复 */
   function startDrill(){
+    // 休息页的当前卡仍是已保存的主现场；特训不能在其后替换队列却继续显示「已保存」。
+    if (restMode) { toast("请先回背诵页点「继续本组」，再进入错词特训"); return false; }
     const list = wrongWordIndices();
     if (!list.length) {
       toast("错词本为空，先在背诵中积累错词吧");
@@ -5745,8 +6170,9 @@
     if (!drillMode) {
       mainSnap = {
         Q: Q.slice(), qi, rounds: Object.assign({}, rounds), cur,
-        answered, rightN, groupTotal, verdict, snap, phase, stageBefore,
+        answered, rightN, groupTotal, verdict, snap, phase, stageBefore, answerChanges,
         undoStack: undoStack.slice(), autoSpoken, sessionPlan,
+        stopTarget: copyStopTargetState(stopTarget),
         scopeSet: sessionScopeSet ? Array.from(sessionScopeSet) : null,
         drillBaseline: {
           wrong: Object.fromEntries(Object.entries(S.progress).map(([i, p]) => [i, p[3]])),
@@ -5755,6 +6181,7 @@
       };
     }
     clearSessionSnapshot(currentBookId);   // 15：进入特训 = 明确退出刷新恢复现场
+    stopTarget = null;
     drillMode = true;
     Q = list; qi = 0; rounds = {}; answered = 0; rightN = 0;
     groupTotal = Q.length;
@@ -5824,10 +6251,12 @@
       groupTotal = s.groupTotal || Q.length;
       undoStack = s.undoStack;
       verdict = s.verdict;
+      answerChanges = s.answerChanges || 0;
       snap = s.snap;
       phase = s.phase;
       stageBefore = s.stageBefore;
       autoSpoken = s.autoSpoken;
+      stopTarget = copyStopTargetState(s.stopTarget);
       cur = s.cur;
       if (Array.isArray(s.scopeSet)) sessionScopeSet = new Set(s.scopeSet);
       // 特训期间若把主队列当前词标为熟练，返回时对齐队列
@@ -6010,6 +6439,7 @@
   /** 结果页「再来一组」：留在 sheet 内换一组，不重复记账上一组。 */
   function restartSpellingDrill(){
     if (!spellingSession) return startSpellingDrill();
+    stopSpeech();
     spellingSession = null;
     if (!beginSpellingSession()) return false;
     focusSpellInput(true);
@@ -6143,6 +6573,7 @@
     if (s.index + 1 >= s.queue.length) return finishSpellingSession();
     s.index++;
     s.phase = "input";
+    stopSpeechIfSceneChanged();   // 拼写题面换词后旧单词朗读失效
     renderSpellingSession();
     focusSpellInput(true);
     return true;
@@ -6158,6 +6589,8 @@
       correct: s.correct, skipped: s.skipped, mixed: s.mixed, at: at
     };
     s.phase = "done";
+    // 结果页不再展示当前拼写词；spellingSession 仍存在时场景键不变，必须直接停止旧朗读。
+    stopSpeech();
     S.spelling = {
       sessions: prev.sessions + 1,
       attempts: prev.attempts + s.attempts,
@@ -6227,6 +6660,7 @@
 
   function nextCard(){
     autoSpoken = false;
+    answerChanges = 0;
     while (qi < Q.length) {
       const i = Q[qi];
       if (isProficient(i)) { Q.splice(qi, 1); continue; }
@@ -6241,7 +6675,10 @@
       break;
     }
     if (qi >= Q.length) {
-      cur = null; verdict = null; snap = null; phase = "recall";
+      cur = null; verdict = null; snap = null; phase = "recall"; answerChanges = 0;
+      // 休息时仍可从词表把词标熟练。最后一张移出后已无休息卡，不能留下会拦住
+      // 手动继续的 restMode；同时保留本页休息意图，避免直接自动续开下一组。
+      if (restMode) { restMode = false; restState = null; autoResumeRestHeld = true; }
       renderCard();
       return;
     }
@@ -6304,7 +6741,7 @@
 
   /** 判定：首次判定或改判；完成后 phase → revealed */
   function judge(known){
-    if (cur == null || isProficient(cur)) return;
+    if (cur == null || isProficient(cur) || restMode) return;
     // storage 事件可能尚未送达：先对齐台账，再做首次复习判定的预算门控。
     // 若等到 applySRS 之后才对齐，别标签刚用完的最后一次额度会被再次消费。
     if (!drillMode && verdict === null && hasMainProgress(st(cur))) alignReviewLedgerFromStorage();
@@ -6322,6 +6759,7 @@
       // 抽样独立保存；恢复早期备份后再次遇到同一新词，也不能覆盖首次作答。
       const firstSample = !hasMainProgress(snap.prog) && snap.survey === null;
       stageBefore = snap.prog ? snap.prog[0] : 0;
+      answerChanges = 0;
       verdict = known;
       answered++;
       if (known) rightN++;
@@ -6331,9 +6769,16 @@
       phase = "revealed";
       // 22：自动开出的新组已产生首个有效判定，「返回上一组结果」与完成页撤销现场到此不可再用。
       if (autoResumeReturnArmed) { autoResumeReturnArmed = false; autoResumeReturnSnap = null; }
+      // R04：停靠目标只统计设定后首次有效作答的不同单词；撤销对应判定时回退（见 undo）。
+      if (noteStopTargetAnswer(i)) {
+        const entry = undoStack[undoStack.length - 1];
+        if (entry) entry.stopTargetWord = W[i].w;
+      }
     } else if (verdict !== known) {
       const before = snapshot(i, Object.keys(snap.days));
-      undoStack.push({ type: "rejudge", i, snap: before, originalSnap: snap, prevVerdict: verdict, answeredBefore: answered, rightBefore: rightN });
+      undoStack.push({ type: "rejudge", i, snap: before, originalSnap: snap, prevVerdict: verdict, answeredBefore: answered, rightBefore: rightN,
+        answerChangesBefore: answerChanges });
+      answerChanges++;
       // 后台标签跨午夜时，轮询可能尚未刷新。将新日期的作答前记录补入
       // 原始基线，让后续改判只保留一次作答，撤销也能完整还原中间日期。
       for (const [date, record] of Object.entries(before.days)) {
@@ -6386,6 +6831,7 @@
       answeredBefore: answered,
       rightBefore: rightN,
       verdict: verdict,
+      answerChanges: answerChanges,
       snap: snap,
       stageBefore
     });
@@ -6420,16 +6866,21 @@
         verdict = u.prevVerdict;
         phase = "revealed";
         snap = u.originalSnap;
+        // 撤销改判本身是明确操作，但不能重新打开普通判定键的反复切换。
+        answerChanges = Math.max(answerChanges, (u.answerChangesBefore || 0) + 1);
       } else {
         restore(u.i, u.snap);
         verdict = null;
         snap = null;
         phase = "recall";
         stageBefore = 0;
+        answerChanges = 0;
       }
       answered = u.answeredBefore;
       rightN = u.rightBefore;
       cur = u.i;
+      // R04：撤销首次判定时同步回退停靠目标里这个不同词的计数。
+      if (u.type === "judge" && u.stopTargetWord) removeStopTargetAnswer(u.stopTargetWord);
       save();
       renderCard();
       updateBar();
@@ -6442,6 +6893,7 @@
       rightN = u.rightBefore;
       cur = Q[qi];
       stageBefore = u.stageBefore;
+      answerChanges = u.answerChanges || 0;
       if (u.verdict !== undefined && u.verdict !== null) {
         verdict = u.verdict;
         phase = "revealed";
@@ -6495,6 +6947,101 @@
   let speechVoiceList = [];      // 当前设备可用英语语音
   let speechVoicesReady = false; // 已拿到一次非空语音列表（区分「尚未加载」与「设备没有英语语音」）
   const SPEECH_HINT_BASE = "朗读使用设备系统语音（不是词典原声）；能否离线发音取决于系统已安装的英语语音。";
+  // R05 播放状态只在内存；声音不是学习判定，不写进度、台账、设置或备份。
+  let speechPlayback = {id: 0, status: "idle", text: "", kind: "word", slow: false, key: "", context: null};
+  function speechScene(){
+    return {book: currentBookId, word: cur, phase: phase, plan: sessionPlan,
+      view: $(".view.on")?.id || "", sheet: activeSheet?.id || "",
+      detail: activeSheet?.id === "wordSheet" ? detailWord : null,
+      spelling: activeSheet?.id === "spellingSheet" ? (currentSpellingWord()?.w || "") : "",
+      popup: $("#exPop") && !$("#exPop").hidden ? $("#exPop").getAttribute?.("aria-label") || "lookup" : ""};
+  }
+  /**
+   * 朗读场景是否仍属于同一处：换词/切书/切页/开浮层后迟到回调必须失效。
+   * 单词朗读跨「判定前/判定后」继续（还是同一个词，不应在读词时被判定打断）；
+   * 例句朗读只在已揭示阶段存在，阶段回退（撤销）时停止。
+   */
+  function sameSpeechScene(a, b, kind){
+    if (!a || !b || document.visibilityState === "hidden") return false;
+    const common = ["book", "word", "plan", "view", "sheet", "detail", "spelling", "popup"];
+    if (!common.every(k => a[k] === b[k])) return false;
+    return (kind || "word") === "word" ? true : a.phase === b.phase;
+  }
+  function speechTextKey(text, kind, source){
+    return kind + ":" + sessionHash(String(text)) + (source ? ":" + source : "");
+  }
+  function speechBusy(){ return speechPlayback.status === "loading" || speechPlayback.status === "playing"; }
+  function speechStatusLabel(){
+    return ({idle: "", loading: "准备中", playing: "朗读中", ended: "已结束", stopped: "已停止", error: "朗读失败"})[speechPlayback.status] || "";
+  }
+  function renderSpeechPlayback(){
+    const busy = speechBusy(), label = speechStatusLabel();
+    const scene = speechScene();
+    const inScene = sameSpeechScene(speechPlayback.context || speechPlayback.lastContext, scene, speechPlayback.kind);
+    $$("[data-audio-text]").forEach(group => {
+      const sheet = group.closest?.(".sheet"), view = group.closest?.(".view");
+      const surface = !scene.popup && (sheet ? scene.sheet === sheet.id : !scene.sheet && view?.id === scene.view);
+      const match = inScene && surface && group.dataset.audioKey === speechPlayback.key;
+      const status = group.querySelector?.(".audio-status");
+      if (status) status.textContent = match ? label : "";
+      group.querySelectorAll?.("[data-audio-play]").forEach(button => button.setAttribute?.("aria-pressed",
+        String(match && busy && (button.dataset.audioPlay === "slow") === speechPlayback.slow)));
+      const stop = group.querySelector?.("[data-audio-stop]");
+      if (stop) stop.disabled = !busy;
+    });
+    const wordMatch = inScene && scene.view === "v-study" && !scene.sheet && !scene.popup
+      && cur != null && speechPlayback.key === speechTextKey(W[cur]?.w || "", "word");
+    const wordStatus = $("#wordAudioStatus");
+    if (wordStatus) wordStatus.textContent = wordMatch ? label : "";
+    const normal = $("#spk"), slow = $("#spkSlow"), stop = $("#spkStop");
+    normal?.setAttribute?.("aria-pressed", String(wordMatch && busy && !speechPlayback.slow));
+    slow?.setAttribute?.("aria-pressed", String(wordMatch && busy && speechPlayback.slow));
+    if (stop) stop.disabled = !busy;
+  }
+  function stopSpeech(){
+    const wasBusy = speechBusy();
+    // 先使旧回调失效，再cancel（有的设备会同步发interrupted/canceled）。
+    speechPlayback = Object.assign({}, speechPlayback, {id: speechPlayback.id + 1,
+      status: wasBusy ? "stopped" : speechPlayback.status,
+      lastContext: speechPlayback.context || speechPlayback.lastContext, context: null});
+    try { speechApi()?.cancel?.(); } catch (e) { /* 取消失败不影响学习 */ }
+    renderSpeechPlayback();
+    return wasBusy;
+  }
+  function stopSpeechIfSceneChanged(){
+    if (speechBusy() && !sameSpeechScene(speechPlayback.context, speechScene(), speechPlayback.kind)) stopSpeech();
+    else renderSpeechPlayback();
+  }
+  // 后台可能暂停或丢弃语音回调：进入后台即明确停止，回来时状态位不自称仍在朗读。
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") stopSpeechIfSceneChanged();
+  });
+  function audioControlsHtml(text, kind = "sentence", source = ""){
+    if (typeof text !== "string" || !text.trim()) return "";
+    const label = kind === "word" ? "单词" : "例句";
+    return '<div class="audio-controls" lang="zh-CN" data-audio-kind="' + kind + '" data-audio-key="'
+      + speechTextKey(text, kind, source) + '" data-audio-source="' + esc(source) + '" data-audio-text="' + esc(text) + '">'
+      + '<button type="button" class="btn ghost sm" data-audio-play="normal" aria-label="朗读' + label + '" aria-pressed="false">朗读' + label + '</button>'
+      + '<button type="button" class="btn ghost sm" data-audio-play="slow" aria-label="慢速朗读' + label + '" aria-pressed="false">慢速</button>'
+      + '<button type="button" class="btn ghost sm" data-audio-stop disabled aria-label="停止朗读">停止</button>'
+      + '<span class="audio-status" role="status" aria-live="polite"></span></div>';
+  }
+  function bindAudioControls(root){
+    root?.querySelectorAll?.("[data-audio-text]").forEach(group => {
+      group.querySelectorAll?.("[data-audio-play]").forEach(button => {
+        button.onclick = e => { e.stopPropagation?.();
+          if (document.visibilityState === "hidden") return;
+          if (root === $("#card") && (activeSheet || verdict === null || $("#exPop") && !$("#exPop").hidden)) return;
+          if (root === $("#wordDetail") && activeSheet?.id !== "wordSheet") return;
+          speak(group.dataset.audioText, {kind: group.dataset.audioKind, source: group.dataset.audioSource,
+            slow: button.dataset.audioPlay === "slow"});
+        };
+      });
+      const stop = group.querySelector?.("[data-audio-stop]");
+      if (stop) stop.onclick = e => { e.stopPropagation?.(); stopSpeech(); };
+    });
+    renderSpeechPlayback();
+  }
 
   function speechApi(){
     try { if (window && window.speechSynthesis) return window.speechSynthesis; } catch (e) { /* ignore */ }
@@ -6586,18 +7133,37 @@
    * 连续点击先取消上一段；语音缺失时明确提示且不假装发声。
    * 返回 true 表示已交给 speechSynthesis。
    */
-  function speak(text){
+  function speak(text, options){
+    options = options || {};
+    if (typeof text !== "string" || !text.trim() || document.visibilityState === "hidden") return false;
+    const kind = options.kind === "sentence" ? "sentence" : "word";
+    /**
+     * 明确失败：保留本次朗读的 key/场景，让卡片或例句控制组的 aria-live 状态位
+     * 显示「朗读失败」（不只依赖短暂 toast），同时不假装已发声。
+     */
+    const failSpeech = (message) => {
+      const id = speechPlayback.id + 1;
+      speechPlayback = {id: id, status: "error", text: text, kind: kind,
+        slow: !!options.slow, key: speechTextKey(text, kind, options.source), context: speechScene()};
+      // 新请求虽不能发声，仍必须终止旧段，避免界面禁用停止时旧声音还在继续。
+      try { api?.cancel?.(); } catch (e) { /* 保留明确失败状态，旧回调已由id失效 */ }
+      renderSpeechPlayback();
+      toast(message);
+      return false;
+    };
     const api = speechApi();
     const Ctor = utteranceCtor();
     if (!api || typeof api.speak !== "function" || !Ctor) {
-      toast("当前浏览器不支持语音朗读，请使用系统浏览器或开启系统语音");
-      return false;
+      return failSpeech("当前浏览器不支持语音朗读，请使用系统浏览器或开启系统语音");
     }
     // 尚未拿到语音列表（可能仍在加载）时不阻塞默认朗读；已确认没有英语语音才明确拒绝。
     if (speechVoicesReady && !speechVoiceList.length) {
-      toast("当前设备没有可用的英语语音，暂时无法发音；可在系统设置中安装英语语音后重试");
-      return false;
+      return failSpeech("当前设备没有可用的英语语音，暂时无法发音；可在系统设置中安装英语语音后重试");
     }
+    const id = speechPlayback.id + 1;
+    speechPlayback = {id: id, status: "loading", text: text, kind: kind, slow: !!options.slow,
+      key: speechTextKey(text, kind, options.source), context: speechScene()};
+    const current = () => speechPlayback.id === id && sameSpeechScene(speechPlayback.context, speechScene(), kind);
     try {
       api.cancel();   // 连续点击只保留最后一段
       const u = new Ctor(text);
@@ -6608,14 +7174,23 @@
       } else {
         u.lang = "en-US";
       }
-      u.rate = normalizeSpeechRate(S.settings.speechRate);
+      const rate = normalizeSpeechRate(S.settings.speechRate);
+      u.rate = options.slow ? Math.max(SPEECH_RATE_MIN, Math.min(rate, rate * 0.75)) : rate;
+      u.onstart = () => { if (current()) { speechPlayback.status = "playing"; renderSpeechPlayback(); } };
+      u.onend = () => { if (current()) { speechPlayback.status = "ended"; renderSpeechPlayback(); } };
       u.onerror = (e) => {
-        if (e && (e.error === "canceled" || e.error === "interrupted" || e.error === "aborted")) return;
+        if (!current()) return;
+        if (e && (e.error === "canceled" || e.error === "interrupted" || e.error === "aborted")) {
+          speechPlayback.status = "stopped"; renderSpeechPlayback(); return;
+        }
+        speechPlayback.status = "error"; renderSpeechPlayback();
         toast("发音失败，请检查系统语音或网络设置");
       };
+      renderSpeechPlayback();
       api.speak(u);
       return true;
     } catch (e) {
+      if (speechPlayback.id === id) { speechPlayback.status = "error"; renderSpeechPlayback(); }
       toast("发音失败，请检查系统语音设置");
       return false;
     }
@@ -6688,8 +7263,8 @@
   function renderCapPausePanel(){
     const box = $("#capPause");
     const paused = isCapPaused();
-    // 受控子组内不显示暂停/加量嵌套入口：子组暂停由卡片提示 + 「返回原组」处理。
-    const visible = paused && !inSubgroup();
+    // 受控子组内不显示暂停/加量嵌套入口；R03 休息页也不叠加暂停面板。
+    const visible = paused && !inSubgroup() && !restMode;
     if (box) box.hidden = !visible;
     if (!paused) { renderExtraPausedEntries(false); return; }
     if (!visible || !box) { renderExtraPausedEntries(false); return; }
@@ -6726,7 +7301,7 @@
     if (!computeCapPaused()) { renderCard(); return; }
     capPaused = false;
     capGroupEnded = true;
-    cur = null; verdict = null; snap = null; phase = "recall"; stageBefore = 0;
+    cur = null; verdict = null; snap = null; phase = "recall"; answerChanges = 0; stageBefore = 0;
     clearSessionSnapshot(currentBookId);   // 15：用户主动结束本组 → 不作为未完成组恢复
     renderCard();
     updateBar();
@@ -6939,8 +7514,10 @@
           + "</b>/<b>" + effectiveNewTarget() + "</b>";
       } else if (mainTail) {
         const capStopped = capGroupEnded && reviewCapLeft() <= 0;
-        text.innerHTML = "本组完成 <b>" + info.done + "</b>/<b>" + info.groupTotal
+        const reviewOnlyDone = focusedPlanKind() === "reviewOnly";
+        text.innerHTML = (reviewOnlyDone ? "纯复习完成 " : "本组完成 ") + "<b>" + info.done + "</b>/<b>" + info.groupTotal
           + "</b> · 剩余到期 <b>" + info.remainingDue + "</b> 个"
+          + (reviewOnlyDone ? " · <b>不学新词、不占新词额度</b>" : "")
           + (capStopped ? " · <b>今日复习额度已用完，本组已暂停</b>"
             : (info.hasMore ? "" : " · 本组已完成，明天继续"));
       } else {
@@ -6964,7 +7541,8 @@
   }
   /** 背诵页/统计页积压保护提示（只填 #backlogNoticeText，按钮静态）。 */
   function renderBacklogNotice(){
-    const guarded = !drillMode && !inSubgroup() && isBacklogGuarded();
+    // R03 休息页不叠加积压提示；正常学习页保持原行为。
+    const guarded = !drillMode && !inSubgroup() && !restMode && isBacklogGuarded();
     const quotaLeft = Math.max(0, effectiveNewTarget() - day().n);
     const candidates = extraCandidatesAvailable();
     const notice = $("#backlogNotice");
@@ -6997,6 +7575,92 @@
   function renderGroupSurfaces(){
     renderGroupFooter();
     renderBacklogNotice();
+    renderStopTarget();
+    renderSaveRestButton();
+  }
+
+  /** R03 学习上下文条的「保存并休息」入口：有进行中的卡或本页等待时可用，休息页隐藏。 */
+  function renderSaveRestButton(){
+    const btn = $("#btnSaveRest");
+    if (!btn) return;
+    const waiting = emptyWaitActive();
+    const show = !restMode && (cur != null || waiting);
+    btn.hidden = !show;
+    btn.disabled = !show;
+    btn.onclick = () => {
+      const r = saveAndRest();
+      if (!r.ok && r.error !== "storage") toast("暂时不能保存休息，请稍后再试");
+    };
+  }
+
+  /* ================= R04 停靠目标 UI（本页临时；不占 #acts 行高） =================
+   * 入口是学习上下文条里的「学 5 词就停」；状态区只在 #groupStatus 内新增一块自然流面板，
+   * 不改 #acts 151/156/146px 契约。达到目标后在已揭示的安全翻页边界给出「先休息 / 继续」。
+   */
+  function stopTargetTextHtml(progress){
+    const finished = Math.max(0, groupTotal - Math.min(answered, groupTotal));
+    const pending = pendingReinforce();
+    if (!progress.reached) {
+      return "停靠目标：本组再学 <b>" + progress.goal + "</b> 个不同词就停 · 已完成 <b>"
+        + progress.done + "</b>/" + progress.goal + "。只计设定目标后的首次作答，改判/重考不重复计数。";
+    }
+    return "已学满这 <b>" + progress.goal + "</b> 个不同词。"
+      + (cur != null
+        ? "本组还剩 <b>" + finished + "</b> 张卡片" + (pending ? "、待巩固 <b>" + pending + "</b> 次" : "")
+          + "，都已保留。"
+        : "本组已结束。")
+      + "可以先休息；学习记录会先保存再离开。";
+  }
+  function renderStopTarget(){
+    const box = $("#stopTarget"), text = $("#stopTargetText");
+    const restBtn = $("#stopTargetRest"), contBtn = $("#stopTargetContinue"), cancelBtn = $("#stopTargetCancel");
+    const entryBtn = $("#btnStopTarget");
+    const progress = stopTargetProgress();
+    const context = stopTargetActiveForCurrentGroup();
+    // 完成页未达标时静默清除：没有可兑现的停靠，不应留下误导状态。
+    if (context && cur == null && !(progress && progress.reached)) stopTarget = null;
+    const show = context && !!progress && !restMode;
+    if (entryBtn) {
+      const canOffer = !stopTarget && !drillMode && !inSubgroup() && !restMode && cur != null
+        && focusedPlanKind() === "main" && $("#v-study")?.classList.contains("on");
+      entryBtn.hidden = !canOffer;
+      entryBtn.disabled = !canOffer;
+      entryBtn.onclick = () => { setStopTarget(); };
+    }
+    if (box) box.hidden = !show;
+    if (!show) return;
+    if (text) text.innerHTML = stopTargetTextHtml(progress);
+    if (restBtn) {
+      restBtn.hidden = !progress.reached;
+      restBtn.textContent = cur != null ? "先休息，保存现场" : "今天先到这里";
+      restBtn.onclick = () => {
+        const r = restFromStopTarget();
+        if (!r.ok && r.error === "storage") renderStopTarget();
+      };
+    }
+    if (contBtn) {
+      contBtn.hidden = !progress.reached;
+      contBtn.textContent = cur != null ? "继续本组" : "继续学习";
+      contBtn.onclick = () => {
+        if (cur != null) { clearStopTarget("continue"); return; }
+        // 完成页的「继续学习」就是显式继续：清掉目标后走统一动作守卫（浮层/持续错误/候选复核）。
+        stopTarget = null;
+        renderStopTarget();
+        renderAutoResume();
+        const result = runStudyAction("continue");
+        if (result.ok) return;
+        const errors = {
+          alert: "请先处理页面中的记录错误，再继续下一组",
+          sheet: "请先关闭当前浮层", lookup: "请先关闭查词浮层",
+          hidden: "回到当前页面后再试"
+        };
+        toast(errors[result.error] || "停靠目标已结束；现在没有可继续的候选词，自动续背资格已恢复");
+      };
+    }
+    if (cancelBtn) {
+      cancelBtn.hidden = progress.reached;
+      cancelBtn.onclick = () => clearStopTarget("cancel");
+    }
   }
 
   /** 设置页「单日复习上限」控件同步：预设 aria-pressed、自定义值/禁用态；节点缺失时静默。 */
@@ -7213,9 +7877,82 @@
     return '<button type="button" class="btn ghost sm" id="returnPrevResult" title="' + title + '">' + label + '</button>';
   }
 
+  /** P09：完成页下一步只解释既有只读模型，不计算另一套候选或预算。 */
+  function completionNextText(view){
+    const candidates = view.candidates, reason = view.actions.find(action => action.id === "continue")?.reason;
+    if (reason === "alert") return "学习记录尚未保存，请先处理保存提示；当前组结果已保留。";
+    if (view.reason === "cap-ended") return reason === "" && candidates.available > 0
+      ? "复习额度已恢复；本组保留暂停结果，现可重新开组。下一组可背 " + candidates.available + " 张：复习 " + candidates.dueActive + " 张 · 新词 " + candidates.freshActive + " 张。"
+      : "本组因复习额度暂停，未答位置与待巩固已保留；可提高上限或明天继续。";
+    if (candidates.available > 0) {
+      let text = "下一组可背 " + candidates.available + " 张：复习 " + candidates.dueActive + " 张 · 新词 " + candidates.freshActive + " 张。";
+      if (view.reason === "auto-paused") text += "今天已暂停自动续背，可手动继续。";
+      else if (view.state === "wait") text += "本页正在等待，可手动继续或退出等待。";
+      return text;
+    }
+    const messages = {
+      "review-cap": "今日复习额度已用完，仍有 " + candidates.due + " 个词到期；可提高上限或明天继续。",
+      backlog: "今天优先复习：到期词超出剩余复习额度，已暂停自动补新词；仍可选择今日计划内新词。",
+      "new-quota": "今日新词目标已完成；到期复习可继续，新词额度明天更新。",
+      "no-candidates": "当前范围没有可入组的词；可调整学习范围或在词表管理熟练词。"
+    };
+    let text = messages[reason] || "当前暂时无法开始下一组，请查看学习与存储状态。";
+    if (view.reason === "auto-paused") text += "今天已暂停自动续背，原方案仍保留。";
+    else if (view.state === "wait") text += "本页正在等待，可随时退出。";
+    if (view.state === "empty" && ["wait", "enableWait", "restoreAuto"].includes(view.primaryAction)) {
+      const primary = view.actions.find(action => action.id === view.primaryAction);
+      if (primary) text += "可选择「" + primary.label + "」。";
+    }
+    return text;
+  }
+  /** 复用自动续背原有刷新链；仅更新文字与同一个按钮，不重绘结果或夺取焦点。 */
+  function renderCompletionNext(){
+    if (cur != null || drillMode || inSubgroup()) return;
+    const next = $("#doneNext");
+    const again = $("#again");
+    const view = deriveStudyPresentation();
+    const action = view.actions.find(item => item.id === "continue");
+    // 浮层/后台等临时守卫不把按钮长期禁用（关闭浮层后必须能立即继续，P09 契约）；
+    // 持续错误（alert）等真实不可用状态才禁用，避免「可点但无效」。
+    const transientGuard = !!view.blockedBy && view.blockedBy !== "alert";
+    const actionEnabled = !!action && (transientGuard ? true : action.enabled);
+    if (again) {
+      const primary = actionEnabled && view.primaryAction === "continue" && !transientGuard;
+      again.disabled = !actionEnabled;
+      again.classList.toggle("primary", primary);
+      again.classList.toggle("ghost", !primary);
+    }
+    const plan = activePlan();
+    if (plan && plan.kind === "reviewOnly" && !capGroupEnded) {
+      if (!next) return;
+      const stats = reviewOnlyCandidates();
+      const text = "纯复习组只使用到期词，不学新词、不占新词额度，也不会自动续背。"
+        + (stats.count > 0
+          ? "当前还有 " + stats.count + " 个到期词可再复习，或手动开始普通学习。"
+          : reviewOnlyReasonText(stats) + "；可手动开始普通学习。");
+      if (next.textContent !== text) next.textContent = text;
+      return;
+    }
+    if (!next) return;
+    const text = completionNextText(view);
+    if (next.textContent !== text) next.textContent = text;
+    // 浮层/后台的临时守卫由命令处理；文字已更新，按钮状态已按统一模型刷新。
+    if (view.blockedBy) return;
+    const autoActions = {stopWait:"#stopEmptyWait", wait:"#startEmptyWait", enableWait:"#autoResumeQuick", restoreAuto:"#autoResumeRestore"};
+    for (const [id, selector] of Object.entries(autoActions)) {
+      const button = $(selector);
+      if (!button) continue;
+      const primary = view.primaryAction === id && !!view.actions.find(item => item.id === id)?.enabled;
+      button.classList.toggle("primary", primary);
+      button.classList.toggle("ghost", !primary);
+    }
+  }
+
   function renderCard(){
     sharedCardRefreshPending = false;
     renderSurvey();
+    // R05：换卡/换场景时先让旧朗读失效，迟到回调不能串到下一词。
+    stopSpeechIfSceneChanged();
     hideExPop();
     const c = $("#card"), a = $("#acts");
     const cardWord = currentBookId + ":" + cur;
@@ -7234,10 +7971,13 @@
       applyActionLayout();
       applyActionBindingHints();
       fitVisibleWords();
-      const message = cur == null ? (emptyWaitActive() ? "本页正在等待可背词，可随时退出等待。" : groupTotal ? "本组学习结束。" : "当前暂无待背单词。") : W[cur].w + (verdict === null
+      const message = restMode
+        ? "已保存，先休息。本组进度 " + Math.min(answered, groupTotal) + "/" + groupTotal + "。"
+        : cur == null ? (emptyWaitActive() ? "本页正在等待可背词，可随时退出等待。" : groupTotal ? "本组学习结束。" : "当前暂无待背单词。") : W[cur].w + (verdict === null
         ? "，请先回忆，再选择会或不会。"
         : (verdict ? "，已记为会。" : "，已记为不会。") + W[cur].m);
-      c.setAttribute?.("aria-label", cur == null ? (emptyMainPage() ? "等待到期与学习范围" : "本组学习结果") : "当前单词：" + W[cur].w);
+      c.setAttribute?.("aria-label", restMode ? "已保存，先休息"
+        : cur == null ? (emptyMainPage() ? "等待到期与学习范围" : "本组学习结果") : "当前单词：" + W[cur].w);
       const announcement = $("#studyAnnouncement");
       if (announcement && announcement.textContent !== message) announcement.textContent = message;
       // 重绘会移除原按钮；键盘操作后把焦点留在学习区，空格仍可继续。
@@ -7249,6 +7989,9 @@
       renderPlanPendingNotice();
       renderAutoResume();
       renderResumeNotice();
+      renderStopTarget();
+      renderSpeechPlayback();
+      applyStudyMode();
       // U3：整页统一滚动后，换词从词头继续；同卡改判/呈现调整保留阅读位置。
       // 只在词头已被卷出学习主区时上移，不因首次渲染把统计条卷走。
       const studyMain = $("#main");
@@ -7263,7 +8006,9 @@
     $("#s-new").textContent = d.n;
     $("#s-rev").textContent = Math.max(0, d.r - d.n);
     const progLabel = $("#s-proglabel");
-    if (progLabel) progLabel.textContent = drillMode ? "错词特训" : extraSubgroup ? "临时加量" : newOnlySubgroup ? "纯新词子组" : "本次进度";
+    if (progLabel) progLabel.textContent = restMode ? "已保存"
+      : drillMode ? "错词特训" : extraSubgroup ? "临时加量" : newOnlySubgroup ? "纯新词子组"
+        : focusedPlanKind() === "reviewOnly" ? "纯复习" : "本次进度";
     $("#s-prog").textContent = Math.min(answered, groupTotal) + "/" + groupTotal;
     const pendingEl = $("#s-pending");
     if (pendingEl) {
@@ -7273,22 +8018,57 @@
     }
     $("#s-acc").textContent = (d.ok + d.no) ? Math.round(d.ok / (d.ok + d.no) * 100) + "%" : "—";
 
-    if (cur == null) {
+    // R03：保存并休息。当前卡仍在内存（Q/cur/撤销栈都不动），只把本页呈现换成休息页；
+    // 刷新后由 15 快照恢复到同一张卡。切书/开新组/退出本页都会自然离开休息态。
+    if (restMode && cur != null) {
+      const snapshotSaved = !!(restState && restState.snapshotSaved);
+      const done = Math.min(answered, groupTotal);
+      const pending = pendingReinforce();
       const due = countDue();
-      const freshLeft = orderedPool().some(i => !hasMainProgress(st(i)));
-      const quotaLeft = Math.max(0, effectiveNewTarget() - d.n);
+      c.innerHTML =
+        '<div class="done done-rest">' +
+          '<div class="done-summary"><h2>已保存，先休息</h2>' +
+            '<p class="done-progress">本组进度 <b>' + done + '</b>/<b>' + groupTotal + '</b></p>' +
+            '<p class="done-attempts">本次判定 ' + answered + ' 次 · 记为会 ' + rightN + ' 次</p></div>' +
+          (snapshotSaved
+            ? '<p class="done-next">学习记录已保存，当前组现场也已写入本页浏览器：刷新页面或回到背诵页时可以继续这一张。</p>'
+            : '<p class="done-reason">学习记录已保存，但本页现场未能写入浏览器：刷新后可能无法回到这一张。建议先导出进度备份。</p>') +
+          '<p class="done-context">当前仍有 <b>' + due + '</b> 个到期词'
+            + (pending ? '，待巩固 <b>' + pending + '</b> 次' : '')
+            + '；下次继续时按原组现场进行。</p>' +
+          '<details class="done-details"><summary>保存与恢复说明</summary>' +
+            '<p>休息不会消耗新词额度或复习次数，也不会改变学习计划、熟练或到期时间。</p>' +
+            '<p>刷新前的撤销记录不可恢复；跨天或换浏览器后按普通开组处理，已保存的学习记录不丢失。</p>' +
+          '</details>' +
+        '</div>';
+      a.innerHTML =
+        '<button type="button" class="btn primary" id="restResume">继续本组</button>' +
+        '<button type="button" class="btn ghost" id="goStats">查看统计</button>';
+      $("#restResume").onclick = resumeFromRest;
+      $("#goStats").onclick = () => show("stats");
+      $("#hint").textContent = snapshotSaved
+        ? "学习记录已保存。点「继续本组」回到当前卡，或刷新页面后按同一现场继续。"
+        : "学习记录已保存；本页现场未写入浏览器，刷新后可能回到新的一组。";
+      finishRender();
+      $("#restResume")?.focus?.({preventScroll: true});
+      return;
+    }
+
+    if (cur == null) {
       const completed = answered > 0;
       const drillListN = drillMode ? 0 : wrongWordIndices().length;
       if (drillMode) {
         c.innerHTML =
-          '<div class="done">' +
-            "<h2>错词特训完成</h2>" +
-            "<p>本次共 " + answered + " 张，正确 " + rightN + " 张</p>" +
-            "<p>「会」会减少错次，「不会」会增加错次；学习档位与复习计划不受影响</p>" +
+          '<div class="done done-drill">' +
+            '<div class="done-summary"><h2>错词特训完成</h2>' +
+            '<p class="done-progress">本组完成 <b>' + Math.min(answered, groupTotal) + '</b>/<b>' + groupTotal + '</b></p>' +
+            '<p class="done-attempts">本次判定 ' + answered + ' 次 · 记为会 ' + rightN + ' 次</p></div>' +
+            '<p class="done-next">可退出特训返回原学习现场，也可再练一组。</p>' +
+            '<details class="done-details"><summary>特训说明</summary><p>「会」会减少错次，「不会」会增加错次；学习档位与复习计划不受影响</p></details>' +
           "</div>";
         a.innerHTML =
-          '<button type="button" class="btn primary" id="again">再练一组</button>' +
-          '<button type="button" class="btn ghost" id="exitDrillBtn">退出特训</button>' +
+          '<button type="button" class="btn primary" id="exitDrillBtn">退出特训</button>' +
+          '<button type="button" class="btn ghost" id="again">再练一组</button>' +
           (undoStack.length ? '<button type="button" class="btn ghost sm" id="undoBtn">撤销上一步</button>' : "");
         $("#again").onclick = () => startDrill();
         $("#exitDrillBtn").onclick = exitDrill;
@@ -7302,15 +8082,14 @@
         // 受控子组（23 临时加量 / 07 纯新词子组）完成页：回原主组现场，不把原组伪装完成
         const capBlockedNow = reviewCapLeft() <= 0;
         const subTitle = extraSubgroup ? "临时加量完成" : "纯新词子组完成";
-        const subLead = extraSubgroup
-          ? "<p>本次临时加量 " + groupTotal + " 张，正确 " + rightN + " 张</p>"
-          : "<p>本次纯新词子组 " + groupTotal + " 张，正确 " + rightN + " 张</p>";
         c.innerHTML =
-          '<div class="done">' +
-            "<h2>" + subTitle + "</h2>" +
-            subLead +
-            "<p>今日已学新词 <b>" + d.n + "</b> / <b>" + effectiveNewTarget() + "</b>；子组结束会回到原组现场</p>" +
-            (capBlockedNow ? "<p>原组仍暂停：今日复习额度已用完，可提高上限或明天继续</p>" : "") +
+          '<div class="done done-subgroup">' +
+            '<div class="done-summary"><h2>' + subTitle + '</h2>' +
+            '<p class="done-progress">本组完成 <b>' + Math.min(answered, groupTotal) + '</b>/<b>' + groupTotal + '</b></p>' +
+            '<p class="done-attempts">本次判定 ' + answered + ' 次 · 记为会 ' + rightN + ' 次</p></div>' +
+            '<p class="done-next">子组结束，返回原组继续；原组现场已保留。</p>' +
+            (capBlockedNow ? '<p class="done-reason">原组仍暂停：今日复习额度已用完，可提高上限或明天继续</p>' : "") +
+            '<p class="done-context">今日已学新词 <b>' + d.n + '</b> / <b>' + effectiveNewTarget() + '</b></p>' +
           "</div>";
         a.innerHTML =
           '<button type="button" class="btn primary" id="extraBack">' +
@@ -7325,51 +8104,69 @@
         finishRender();
         return;
       }
-      const capDone = capGroupEnded && reviewCapLeft() <= 0;   // 用户主动结束被额度暂停的本组
+      const capDone = capGroupEnded;   // 主动结束后的结果仍是暂停；提高上限只恢复重新开组资格。
       const gInfo = groupInfo();
+      const donePlan = activePlan();
+      const reviewPlanDone = !!donePlan && donePlan.kind === "reviewOnly";
+      const reviewDone = !capDone && reviewPlanDone;
+      const reviewEntry = reviewOnlyEntryAvailable() ? reviewOnlyCandidates() : null;
       // 16：拼写专项入口与批次 D 的 #resumeNotice、自动续背完成页状态区共存——只加一个按钮，
       // 不改 #card/#acts 顺序与几何（完成页 #card 无 .word-face，不受固定高度规则影响）。
       const spellStats = spellingCandidateStats(), spellN = spellStats.size;
       c.innerHTML =
-        '<div class="done">' +
-          "<h2>" + (capDone ? "本组已暂停" : completed ? "本组完成" : emptyWaitActive() ? "本页等待到期" : "暂无待背单词") + "</h2>" +
-          "<p>本次共 " + answered + " 张，正确 " + rightN + " 张</p>" +
-          (completed
-            ? "<p>本组完成 <b>" + gInfo.done + "</b>/<b>" + gInfo.groupTotal + "</b> · 剩余到期 <b>"
-              + gInfo.remainingDue + "</b> 个</p>"
-            : "") +
-          '<div class="big">' + scopedMasteredCount() + "<span>/ " + inScopeCount() + " 已掌握</span></div>" +
-          (capDone
-            ? "<p>今日复习额度已用完，仍有 <b>" + due + "</b> 个词到期；明天自动重置，也可在设置页提高上限后继续。未答位置与待巩固已保留</p>"
-            : due
-              ? "<p>另有 <b>" + due + "</b> 个词已到复习时间</p>"
-              : freshLeft && quotaLeft ? (isBacklogGuarded()
-                  ? "<p>今天优先复习：到期词超出今日剩余复习额度，已暂停自动补新词；如需继续学新词，可点「仍学今日计划内新词」</p>"
-                  : "<p>还有新词可学，可继续下一组</p>")
-              : freshLeft ? "<p>今日新词目标已完成；到期复习可继续，新词明天更新</p>"
-              : "<p>当前范围没有新词或到期复习；可调整筛选或管理熟练词</p>") +
+        '<div class="done' + (reviewDone ? " done-review-only" : "") + '">' +
+          '<div class="done-summary"><h2>' + (capDone ? "本组已暂停" : reviewDone ? "纯复习完成" : completed ? "本组完成" : emptyWaitActive() ? "本页等待到期" : "暂无待背单词") + '</h2>' +
+          (completed || capDone
+            ? '<p class="done-progress">' + (capDone ? "本组进度 " : reviewDone ? "纯复习 " : "本组完成 ") + '<b>' + gInfo.done + '</b>/<b>' + gInfo.groupTotal + '</b></p>' +
+              '<p class="done-attempts">本次判定 ' + answered + ' 次 · 记为会 ' + rightN + ' 次</p>'
+            : '<p class="done-attempts">当前没有进行中的组</p>') + '</div>' +
+          '<p class="done-next" id="doneNext"></p>' +
           (hasPendingScopeSettings()
-            ? "<p>设置已更改：下一组将按新设置开始（匹配 <b>" + inScopeCount()
+            ? '<p class="done-reason">设置已更改：下一组将按新设置开始（匹配 <b>' + inScopeCount()
               + "</b> 词）；上一组仍按开始时的范围与固定分母统计。</p>"
             : "") +
-          (drillListN ? "<p>错词本有 <b>" + drillListN + "</b> 个词，可开始错词特训</p>" : "") +
-          (proficientCount() ? "<p>已排除 " + proficientCount() + " 个熟练词，可在词表中取消</p>" : "") +
+          (reviewDone
+            ? '<p class="done-context">纯复习只使用当前范围的到期词，不学新词、不占新词额度；每日新词计划与普通学习相同。</p>'
+            : '<p class="done-context">当前范围已掌握 <b>' + scopedMasteredCount() + '</b> / ' + inScopeCount() + ' 词</p>') +
+          (drillListN ? '<p class="done-tools-note">错词本有 <b>' + drillListN + '</b> 个词，可直接开始错词特训</p>' : "") +
           (!spellN && spellStats.skippedNoHint
-            ? "<p>当前范围有 " + spellStats.skippedNoHint + " 个词缺少有效中文提示，已跳过拼写专项。</p>" : "") +
+            ? '<p class="done-reason">当前范围有 ' + spellStats.skippedNoHint + ' 个词缺少有效中文提示，已跳过拼写专项。</p>' : "") +
+          '<details class="done-details"><summary>结果与范围说明</summary>' +
+            '<p>本次判定包含组内重考；判定次数、记为会的次数与本组词数分别统计。</p>' +
+            (proficientCount() ? '<p>已排除 ' + proficientCount() + ' 个熟练词，可在词表中取消</p>' : "") +
+          '</details>' +
         "</div>";
       a.innerHTML =
-        '<button type="button" class="btn primary" id="again">' + (capDone ? "重新开始本组" : "继续下一组") + "</button>" +
+        '<button type="button" class="btn ghost" id="again">'
+          + (capDone && !reviewPlanDone ? "重新开始本组" : reviewPlanDone ? "开始普通学习" : "继续下一组") + "</button>" +
+        (reviewEntry && reviewEntry.count > 0
+          ? '<button type="button" class="btn ghost" id="startReviewOnly" title="只取当前范围的到期词，受今日复习预算约束；不学新词、不改每日计划">'
+            + (reviewDone ? "再复习 " : "纯复习 ") + reviewEntry.count + " 词（到期）</button>"
+          : "") +
         (drillListN ? '<button type="button" class="btn ghost" id="startDrillBtn">错词特训</button>' : "") +
         (spellN ? '<button type="button" class="btn ghost" id="startSpellingBtn" title="用当前范围的词练拼写：不占新词额度、不记为学习进度">拼写专项（' + spellN + " 词）</button>" : "") +
         '<button type="button" class="btn ghost" id="goStats">查看统计</button>' +
         (undoStack.length ? '<button type="button" class="btn ghost sm" id="undoBtn">撤销上一步</button>' : "");
       $("#again").onclick = e => runStudyAction("continue",{event:e});
-      $("#again").disabled = candidateStatsNow().available < 1;
+      if (reviewEntry && reviewEntry.count > 0) $("#startReviewOnly").onclick = () => {
+        const r = startReviewOnlySession();
+        if (r.ok) return;
+        const errors = {
+          storage: "无法安全读取或保存记录，请先处理保存提示后再试",
+          overlay: "请先关闭当前浮层",
+          alert: "请先处理页面中的记录错误",
+          "group-active": "当前组还未结束，完成后再开始纯复习",
+          "cap-ended": "本组暂停现场已保留，请先处理当前组"
+        };
+        toast(errors[r.error] || reviewOnlyReasonText(r.stats || reviewOnlyCandidates()));
+      };
       if (drillListN) $("#startDrillBtn").onclick = () => startDrill();
       if (spellN) $("#startSpellingBtn").onclick = () => startSpellingDrill();
       $("#goStats").onclick = () => show("stats");
       if (undoStack.length) $("#undoBtn").onclick = undo;
-      $("#hint").textContent = groupTotal > 0 && candidateStatsNow().available > 0 ? completionShortcutHint("continue") : "";
+      $("#hint").textContent = reviewDone
+        ? "纯复习组不会自动混入新词：可再复习到期词，或开始普通学习。"
+        : groupTotal > 0 && deriveStudyPresentation().actions.find(action => action.id === "continue")?.enabled ? completionShortcutHint("continue") : "";
       renderDrillEntry();
       finishRender();
       return;
@@ -7389,7 +8186,14 @@
     if (S.settings.showPh) { const pron = pronHtml(x); if (pron) h += '<div class="ph">' + pron + "</div>"; }
     h += cardPosHtml(x);
     h += cardStageHtml(stage);
-    h += '<button type="button" class="spk" id="spk" aria-label="发音" title="发音（' + keyName(K.speak) + '）"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/></svg></button>';
+    // R05：单词朗读统一为一组控制（正常/慢速/停止 + 明确状态）。
+    // 只读英文词头，判定前不放释义/例句声音；声音不写学习记录。
+    h += '<div class="word-audio" role="group" aria-label="单词朗读">'
+      + '<button type="button" class="spk" id="spk" aria-label="朗读单词（正常语速）" aria-pressed="false" title="朗读单词（' + keyName(K.speak) + '）"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/></svg></button>'
+      + '<button type="button" class="spk-aux" id="spkSlow" aria-label="慢速朗读单词" aria-pressed="false" title="慢速重播">慢速</button>'
+      + '<button type="button" class="spk-aux spk-stop" id="spkStop" aria-label="停止朗读" title="停止朗读" disabled>停止</button>'
+      + '<span class="audio-status" id="wordAudioStatus" role="status" aria-live="polite"></span>'
+      + "</div>";
     h += "</div>";
 
     if (verdict !== null) {
@@ -7413,8 +8217,20 @@
       setTimeout(() => c.classList.remove("enter"), 200);   // 动画 .16s，留 40ms 余量
     }
     bindExLookup(c);
+    // R05：判定后才渲染例句朗读控制；绑定只读，不改学习状态。
+    bindAudioControls(c);
 
     $("#spk").onclick = (e) => { e.stopPropagation(); runStudyAction("speak",{event:e,source:"button"}); };
+    const spkSlowEl = $("#spkSlow");
+    if (spkSlowEl) spkSlowEl.onclick = (e) => {
+      e.stopPropagation();
+      // 与普通发音共用同一动作守卫（浮层/隐藏/特训等场景一致），慢速只改语速不改内容。
+      const blocked = studyActionBlockedBy(e, "speak", "button");
+      if (blocked) return;
+      speak(W[cur].w, {kind: "word", slow: true});
+    };
+    const spkStopEl = $("#spkStop");
+    if (spkStopEl) spkStopEl.onclick = (e) => { e.stopPropagation(); stopSpeech(); };
     $("#star").onclick = (e) => {
       e.stopPropagation();
       runStudyAction("star",{event:e,source:"button"});
@@ -7449,6 +8265,9 @@
       const wasOK = verdict === true;
       const otherKey = wasOK ? K.dont : K.know;
       const otherTxt = wasOK ? "不会" : "会";
+      const correctionHint = answerChanges > 0
+        ? "已改判 " + answerChanges + " 次；继续修改请点按钮"
+        : "可按 " + keyName(otherKey) + " 改判一次";
       a.innerHTML =
         '<span class="verdict ' + (wasOK ? "ok" : "no") + '">' +
           '<span class="seal" aria-hidden="true">' + (wasOK ? "✓" : "✗") + "</span>" +
@@ -7456,7 +8275,7 @@
           "<kbd>" + keyName(wasOK ? K.know : K.dont) + "</kbd>" +
         "</span>" +
         '<button type="button" class="btn ghost" id="fix">记错了，其实' + otherTxt +
-          "<kbd>" + keyName(otherKey) + "</kbd></button>" +
+          (answerChanges > 0 ? "" : "<kbd>" + keyName(otherKey) + "</kbd>") + "</button>" +
         '<button type="button" class="btn primary sm" id="nx">下一个<kbd>' + keyName(K.next) + "</kbd></button>" +
         // F1：第三行固定次级动作 + 未固定撤销/熟练的「更多操作」（始终占原第三行槽位）。
         secondaryActionsRowHtml() +
@@ -7472,15 +8291,15 @@
       if (drillMode) {
         $("#exitDrillBtn").onclick = exitDrill;
         $("#hint").textContent = (wasOK ? "「会」→ 错次 -1" : "「不会」→ 错次 +1，留在错词本")
-          + "　·　记错了按 " + keyName(otherKey) + " 改判　·　Ctrl+Z 撤销";
+          + "　·　" + correctionHint + "　·　Ctrl+Z 撤销";
       } else if (wasOK && stageBefore + 1 >= MASTER) {
-        $("#hint").textContent = "「会」→ 已掌握，不再安排复习　·　记错了按 " + keyName(otherKey) + " 改判　·　Ctrl+Z 撤销";
+        $("#hint").textContent = "「会」→ 已掌握，不再安排复习　·　" + correctionHint + "　·　Ctrl+Z 撤销";
       } else if (wasOK) {
         const active = activeStagesMs();
         const idx = Math.min(stageBefore, active.length - 1);
-        $("#hint").textContent = "「会」→ " + formatStagesMs(active[idx]) + "后复习　·　记错了按 " + keyName(otherKey) + " 改判　·　Ctrl+Z 撤销";
+        $("#hint").textContent = "「会」→ " + formatStagesMs(active[idx]) + "后复习　·　" + correctionHint + "　·　Ctrl+Z 撤销";
       } else {
-        $("#hint").textContent = "「不会」→ 本组稍后重考，" + formatStagesMs(activeRelearnMs()) + "后重新学习　·　Ctrl+Z 撤销";
+        $("#hint").textContent = "「不会」→ 本组稍后重考，" + formatStagesMs(activeRelearnMs()) + "后重新学习　·　" + correctionHint + "　·　Ctrl+Z 撤销";
       }
     }
     const profEl = $("#markProficient");
@@ -8863,13 +9682,13 @@
     const n = wrongWordIndices().length;
     const btn = $("#btnDrill");
     // 09：没有错词（且不在特训中）时折叠特训入口；上下文条本身常驻，左侧范围摘要始终可点。
-    const showDrill = drillMode || n > 0;
+    const showDrill = !restMode && (drillMode || n > 0);
     if (btn) {
       btn.hidden = !showDrill;
       btn.textContent = drillMode ? "退出特训" : "错词特训";
       btn.setAttribute?.("aria-label", drillMode ? "退出错词特训，回到普通背诵" : "进入错词特训");
       btn.onclick = () => { if (drillMode) exitDrill(); else startDrill(); };
-      if ("disabled" in btn) btn.disabled = !drillMode && n === 0;
+      if ("disabled" in btn) btn.disabled = restMode || (!drillMode && n === 0);
     }
     const hint = $("#drillHint");
     if (hint) {
@@ -8891,7 +9710,7 @@
     if (listBtn) {
       listBtn.hidden = !showList;
       if (showList) {
-        listBtn.disabled = n === 0;
+        listBtn.disabled = restMode || n === 0;
         listBtn.textContent = n ? "特训全部错词（" + n + "）" : "暂无错词可特训";
         listBtn.setAttribute?.("aria-label", n
           ? "开始错词特训：训练当前词书全部 " + n + " 个错词，不受当前搜索和范围筛选影响"
@@ -8903,7 +9722,8 @@
     }
     if (listHint) {
       listHint.textContent = showList
-        ? (n ? "错词本 " + n + " 词 · 训练整个错词本，不受当前搜索/范围筛选影响"
+        ? (n ? restMode ? "本组已休息；先回背诵页点「继续本组」，再进入错词特训"
+            : "错词本 " + n + " 词 · 训练整个错词本，不受当前搜索/范围筛选影响"
              : "当前词书还没有错词；先在背诵中积累错词后再来特训")
         : "";
     }
@@ -9223,7 +10043,12 @@
     const plan = mainSessionPlan();
     const diff = {scope: false, stageCount: 0, relearn: false};
     if (!plan || plan.bookId !== currentBookId) return diff;
-    diff.scope = typeof plan.scopeSig === "string" && plan.scopeSig !== currentScopeSignature();
+    // 纯复习组的 scopeSig 冻结了自己的固定张数（5），不能用普通组的当前签名直接比较。
+    const expectedSig = scopeSignatureForKind(plan.kind === "reviewOnly" ? "reviewOnly" : "main");
+    diff.scope = typeof plan.scopeSig === "string" && plan.scopeSig !== expectedSig;
+    // reviewOnly 的冻结张数是功能上限 5，不是 settings.groupSize；真实设置变化仍需提示下一组生效。
+    if (plan.kind === "reviewOnly" && Number.isInteger(plan.baseGroupSize)
+      && plan.baseGroupSize !== S.settings.groupSize) diff.scope = true;
     const cfg = currentStageConfig();
     if (Array.isArray(plan.stagesMs) && plan.stagesMs.length === cfg.stages.length) {
       diff.stageCount = cfg.stages.reduce((n, minutes, i) => n + (plan.stagesMs[i] !== minutes * MINUTE_MS ? 1 : 0), 0);
@@ -9353,7 +10178,7 @@
       && plan.dailyNewTarget !== S.settings.dailyNew;
     const box = $("#planPendingNotice");
     if (!box) return;
-    const show = !drillMode && !inSubgroup() && active && hasPendingScopeSettings();
+    const show = !drillMode && !inSubgroup() && !restMode && active && hasPendingScopeSettings();
     if (!show) { box.hidden = true; return; }
     box.hidden = false;
     const text = $("#planPendingText");
@@ -9379,8 +10204,15 @@
       toast("当前没有进行中的组；点「继续背诵」即按新设置开始");
       return false;
     }
-    startSession("main");
-    toast("已按当前设置重新开始本组");
+    // 纯复习组显式重开仍必须是纯复习，不能静默换成普通主组（那等于未经选择混入新词）。
+    const restartKind = activePlan()?.kind === "reviewOnly" ? "reviewOnly" : "main";
+    if (restartKind === "reviewOnly" && reviewOnlyCandidates().count <= 0) {
+      toast("当前没有可重建的到期词；纯复习设置已保留，稍后可再复习");
+      renderSettingsLifecycle();
+      return false;
+    }
+    startSession(restartKind);
+    toast(restartKind === "reviewOnly" ? "已按当前设置重新开始纯复习本组" : "已按当前设置重新开始本组");
     renderSettingsLifecycle();
     return true;
   }
@@ -9410,6 +10242,7 @@
       S.settings.autoSpk = d.autoSpk;
       // 12 外观类同时恢复字号与设备语音偏好（同属界面偏好，不是学习计划/范围）。
       S.settings.fontSize = d.fontSize;
+      S.settings.studyMode = d.studyMode;
       S.settings.voiceURI = d.voiceURI;
       S.settings.speechRate = d.speechRate;
       // F1 阅读与布局字段同属外观类；恢复只改呈现，不重建当前组/不清进度。
@@ -9491,6 +10324,7 @@
     ["showCardStage", "显示复习阶段", "appearance", "now", "carry", "#showCardStage", "阶段 点"],
     ["showCardPos", "显示卡片词性", "appearance", "now", "carry", "#showCardPos", "词性 名词 动词"],
     ["secondaryActions", "固定次级动作", "appearance", "now", "carry", "#secondaryActionsControls", "撤销 熟练 发音 收藏"],
+    ["studyMode", "背诵显示模式", "appearance", "now", "carry", "#studyModeSettings", "沉浸 简洁 标准 信息量 专注"],
     ["autoSpk", "自动发音", "speech", "now", "carry", "#autoSpk", "读音 朗读"],
     ["voiceURI", "英语语音", "speech", "now", "carry", "#voiceSelect", "设备 声音 英式 美式"],
     ["speechRate", "朗读语速", "speech", "now", "carry", "#speechRate", "发音 快慢"],
@@ -9535,6 +10369,7 @@
         case "posMode": valid = ["primary", "all"].includes(v); break;
         case "theme": valid = ["light", "dark", "auto"].includes(v); break;
         case "fontSize": valid = ["standard", "large"].includes(v); break;
+        case "studyMode": valid = STUDY_MODE_VALUES.includes(v); break;
         case "voiceURI": valid = typeof v === "string" && v.length <= 200 && v === v.trim(); break;
         case "speechRate": valid = typeof v === "number" && Number.isFinite(v) && v >= 0.5 && v <= 1.5
           && Math.abs(v * 100 - Math.round(v * 100)) < 0.00000001; break;
@@ -9576,7 +10411,7 @@
     return null;
   }
   /** 旧方案兼容解码只补明确新增批次字段；读取旧方案不写回目录，不修原有缺失或坏值。 */
-  const APPEARANCE_COMPAT_FIELDS = F1_PREFERENCE_FIELDS;
+  const APPEARANCE_COMPAT_FIELDS = DISPLAY_COMPAT_PREFERENCE_FIELDS;
   function decodeSettingsProfile(profile){
     const out=cloneSettingsValue(profile);
     if(isRecord(out) && Array.isArray(out.categories) && isRecord(out.settings)) {
@@ -9584,8 +10419,8 @@
         for(const key of ["actionKeys","gestures","actionLayout"])
           if(!Object.prototype.hasOwnProperty.call(out.settings,key))out.settings[key]=cloneSettingsValue(DEF.settings[key]);
       }
-      // F1 批次：v51 外观方案只有 theme/showPh/showEx/showFm/fontSize，缺 F1 六字段；
-      // 只补这六个明确新增字段，原本应有字段缺失或未知字段仍整份拒绝。
+      // F1及显示模式批次：旧外观方案缺新增显示字段时按DEF补齐；
+      // 原本应有字段缺失或未知字段仍整份拒绝，读取本身不回写旧目录。
       if(out.categories.includes("appearance")) {
         for(const key of APPEARANCE_COMPAT_FIELDS)
           if(!Object.prototype.hasOwnProperty.call(out.settings,key))out.settings[key]=cloneSettingsValue(DEF.settings[key]);
@@ -9792,7 +10627,7 @@
       // 切换配置不得抹掉用户今天的暂停，仅重新计时。
       resetAutoResumeRuntime();
     }
-    applyTheme(); applyFontSize();
+    applyTheme(); applyFontSize(); applyStudyMode();
     renderPreferenceOwnershipControls();
     if (typeof refreshSettingsWorkspace === "function") refreshSettingsWorkspace(previous, preview.changes);
   }
@@ -9903,7 +10738,7 @@
     }
     if (key === "actionLayout") return {standard:"标准布局",left:"左手布局",right:"右手布局"}[value] || String(value);
     if (key === "voiceURI") return value || "设备自动选择";
-    const enums = {order:{shuffle:"随机乱序",freq:"按词频",wrong:"错词优先"},theme:{light:"浅色",dark:"深色",auto:"跟随系统"},fontSize:{standard:"标准",large:"大字"},posMode:{primary:"主要词性",all:"全部词性"}};
+    const enums = {order:{shuffle:"随机乱序",freq:"按词频",wrong:"错词优先"},theme:{light:"浅色",dark:"深色",auto:"跟随系统"},fontSize:{standard:"标准",large:"大字"},studyMode:{immersive:"沉浸模式",simple:"简洁模式",standard:"标准模式"},posMode:{primary:"主要词性",all:"全部词性"}};
     return enums[key]?.[value] || String(value);
   }
   function pendingSettingsDetails(){
@@ -9911,6 +10746,8 @@
     if (!p || p.bookId !== currentBookId) return [];
     const before = parseScopeSig(p.scopeSig);
     if (!before) return [];
+    // reviewOnly 的 scopeSig groupSize 是固定 5；比较真实设置时回到开组时的 settings.groupSize。
+    if (p.kind === "reviewOnly" && Number.isInteger(p.baseGroupSize)) before.groupSize = p.baseGroupSize;
     const rows = [];
     for (const key of ["dailyNew","order","fmin","fmax","pmin","kyOnly","pos","posMode","groupSize","backlogGuard"]) {
       if (before[key] !== undefined && JSON.stringify(before[key]) !== JSON.stringify(S.settings[key]))
@@ -10191,7 +11028,7 @@
       if(r.ok){renderSettingsProfiles();renderQuickPending();}
       if(r.ok && deleted){const undoButton=document.createElement("button");undoButton.type="button";undoButton.className="text-action";undoButton.textContent="撤销删除";undoButton.onclick=()=>{const restored=importSettingsProfiles({kind:SETTINGS_PROFILES_KIND,version:1,profiles:[deleted]});workspaceStatus(restored.ok?"已恢复方案。":restored.error,!restored.ok);if(restored.ok){renderSettingsProfiles();const restoredButton=$('#settingsProfilesList [data-profile-id="'+deleted.id+'"] [data-profile-apply]');restoredButton?.scrollIntoView?.({block:"center"});restoredButton?.focus?.({preventScroll:true});}};$("#workspaceStatus").appendChild(undoButton);undoButton.scrollIntoView?.({block:"center"});undoButton.focus?.({preventScroll:true});}
     };
-    $("#exportProfiles").onclick=()=>{const r=exportSettingsProfiles();if(!r.ok){workspaceStatus(r.error,true);return;}downloadWordBookFile("学习配置方案_"+todayStr()+".json",JSON.stringify(r.envelope,null,2),"application/json;charset=utf-8");workspaceStatus("方案下载已发起，请确认文件保存。进度备份请使用统计页入口。");};
+    $("#exportProfiles").onclick=()=>{const r=exportSettingsProfiles();if(!r.ok){workspaceStatus(r.error,true);return;}downloadWordBookFile("学习配置方案_"+todayStr()+".json",JSON.stringify(r.envelope,null,2),"application/json;charset=utf-8");workspaceStatus("方案下载已发起，请确认文件保存。进度备份请使用设置页的「备份与存档」。");};
     $("#importProfiles").onclick=()=>$("#profilesFile").click();
     $("#profilesFile").onchange=()=>{const file=$("#profilesFile").files?.[0];if(file)previewProfilesFile(file);};
     $("#confirmProfilesImport").onclick=()=>{if(workspaceImportRaw===null)return;const r=importSettingsProfiles(workspaceImportRaw);workspaceStatus(r.ok?"方案已导入；点击应用后才更改设置。":r.error,!r.ok);if(r.ok){workspaceImportRaw=null;$("#profilesImportPreview").hidden=true;renderSettingsProfiles();$("#importProfiles").focus?.({preventScroll:true});}};
@@ -10284,7 +11121,9 @@
     if (S.settings.showEx && x.ex) {
       blocks.set("example",
         '<div class="ex" lang="en" data-ex-linked="1" tabindex="0" role="group" aria-expanded="false" aria-label="例句，左右方向键选词，回车查义">'
-        + exHtml(x.ex, x) + '<span class="src" lang="zh-CN">— ' + esc(srcBadge(x.src)) + "</span></div>");
+        + exHtml(x.ex, x) + '<span class="src" lang="zh-CN">— ' + esc(srcBadge(x.src)) + "</span></div>"
+        // R05：例句单独朗读；只读英文原句，不带中文来源标签，也不改判定/进度。
+        + audioControlsHtml(x.ex, "sentence"));
     } else if (S.settings.showEx) {
       blocks.set("example", '<div class="ex ex-empty">暂无例句，可先记住释义与词形。</div>');
     }
@@ -10362,9 +11201,11 @@
       const p = JSON.parse(raw);
       if (!isRecord(p) || p.version !== 1 || !Array.isArray(p.open) || p.open.length > STATS_PANEL_IDS.length
           || new Set(p.open).size !== p.open.length || p.open.some(id => !STATS_PANEL_IDS.includes(id))) throw new Error("bad stats panels");
-      if (p.order !== undefined && (!Array.isArray(p.order) || p.order.length !== STATS_CARD_IDS.length
-          || new Set(p.order).size !== p.order.length || p.order.some(id => !STATS_CARD_IDS.includes(id)))) throw new Error("bad stats order");
-      return {ok: true, open: p.open.slice(), order: p.order ? p.order.slice() : STATS_CARD_IDS.slice()};
+      // 备份移到设置后，旧九卡顺序只移除原备份卡，保留其余卡片的相对顺序；读取不改原文。
+      const ids = p.order?.includes?.("statsStoragePanel") ? [...STATS_CARD_IDS, "statsStoragePanel"] : STATS_CARD_IDS;
+      if (p.order !== undefined && (!Array.isArray(p.order) || p.order.length !== ids.length
+          || new Set(p.order).size !== p.order.length || p.order.some(id => !ids.includes(id)))) throw new Error("bad stats order");
+      return {ok: true, open: p.open.slice(), order: p.order ? p.order.filter(id => id !== "statsStoragePanel") : STATS_CARD_IDS.slice()};
     } catch (e) { return {ok: false, open: STATS_PANEL_IDS.slice(), order: STATS_CARD_IDS.slice()}; }
   }
   function statsLayoutStatus(message){
@@ -10725,7 +11566,9 @@
     if (!$("#v-set")?.classList.contains("on")) return;
     const main = $("#main");
     if (!main?.getBoundingClientRect) return;
-    const boundary = main.getBoundingClientRect().top + (window.innerWidth <= 840 ? 100 : 52);
+    // 桌面在标题进入上方阅读区时切换，避免上一分区仅剩短尾部仍占用高亮。
+    const boundary = main.getBoundingClientRect().top + (window.innerWidth <= 840
+      ? 100 : Math.min(160, Math.max(52, main.clientHeight * 0.18)));
     let current = "settings-plan";
     $$(".settings-section").forEach(el => {
       if (el.getBoundingClientRect?.().top <= boundary) current = el.id;
@@ -11045,8 +11888,11 @@
     syncPresets();
     applyTheme();
     applyFontSize();
+    applyStudyMode();
     renderSpeechControls();
     renderOfflineStatus();
+    renderBackupStatus();
+    renderBackupArchives();
     $("#showPh").checked = s.showPh;
     $("#showEx").checked = s.showEx;
     $("#showFm").checked = s.showFm;
@@ -11258,8 +12104,6 @@
   /** 品牌区、页面标题与词书入口展示当前词书 */
   function applyBrand(){
     const book = currentBook();
-    const mark = $("#brandMark");
-    if (mark) mark.textContent = book.mark;
     const title = $("#brandTitle");
     if (title) title.textContent = book.name + "单词";
     document.title = book.name + "单词背诵";
@@ -11535,7 +12379,7 @@
   }
   // 瞬时操作菜单与阅读用details分开：互斥、外点/离焦收起，Esc归还入口。
   function transientMenuFor(node){
-    return node?.closest?.("#listViewsMenu, #listExportMenu, #actsMore") || null;
+    return node?.closest?.("#listViewsMenu, #listExportMenu, #actsMore, #studyTools") || null;
   }
   function transientMenuForEvent(e){
     // 菜单内动作可能同步替换点击节点；事件路径仍保留最初的菜单上下文。
@@ -11547,7 +12391,7 @@
   }
   function closeTransientMenus({except = null, restoreFocus = false} = {}){
     let closed = false, trigger = null;
-    for (const menu of $$("#listViewsMenu, #listExportMenu, #actsMore")) {
+    for (const menu of $$("#listViewsMenu, #listExportMenu, #actsMore, #studyTools")) {
       if (!menu.open || menu === except) continue;
       if (restoreFocus && menu.contains?.(document.activeElement)) trigger = menu.querySelector?.("summary");
       menu.open = false;
@@ -11566,6 +12410,7 @@
   }
   let activeSheet = null, previousFocus = null, detailWord = null;
   function openSheet(id){
+    dismissToast(false);
     cancelInputGesture();
     if (id !== "#importSheet") cancelBackupImportRead();
     if (rebinding) { rebinding = null; renderKeys(); }
@@ -11574,6 +12419,7 @@
     closeTransientMenus({restoreFocus: true});
     previousFocus = document.activeElement;
     activeSheet = $(id);
+    stopSpeechIfSceneChanged();
     activeSheet.hidden = false;
     $("#main").inert = true;
     $(".top").inert = true;
@@ -11583,6 +12429,7 @@
   }
   function closeSheet(){
     if (!activeSheet) return;
+    dismissToast(false);
     cancelBackupImportRead();
     hideExPop();
     const closedId = activeSheet.id;
@@ -11595,10 +12442,12 @@
     }
     if (closedId === "txtSplitSheet") txtSplitContext = null;
     if (closedId === "importSheet") pendingImport = null;
-    if (closedId === "spellingSheet") onSpellingSheetClosed();
     if (closedId === "wordSheet") resetWordIssueSurface();
     activeSheet.hidden = true;
     activeSheet = null;
+    stopSpeechIfSceneChanged();
+    // 退出专项的确认属于返回后的页面，不能挂到刚关闭的模态里。
+    if (closedId === "spellingSheet") onSpellingSheetClosed();
     $("#main").inert = false;
     $(".top").inert = false;
     if (sharedCardRefreshPending === currentBookId) renderCard();
@@ -11627,6 +12476,8 @@
     previousFocus = null;
     applyActionLayout();
     applyActionBindingHints();
+    // 浮层关闭后完成页按钮状态立即按统一动作模型重算，不等下一次自动续背采样 tick。
+    if ($("#v-study")?.classList.contains("on") && cur == null) renderCompletionNext();
   }
 
   /* ================= H 本词问题本地记录（详情页，独立键） =================
@@ -12014,9 +12865,11 @@
       (pron ? '<div class="ph">' + pron + '</div>' : '') +
       '<div class="mean">' + meaningHtml(x) + '</div>' +
       (x.ex ? '<div class="ex" lang="en" data-ex-linked="1" tabindex="0" role="group" aria-expanded="false" aria-label="例句，左右方向键选词，回车查义">' + exHtml(x.ex, x) + '<span class="src" lang="zh-CN">— ' + esc(srcBadge(x.src)) + '</span></div>'
+        + audioControlsHtml(x.ex, "sentence")
         : '<div class="ex ex-empty">暂无例句，可先记住释义与词形。</div>') +
       (x.fm ? '<div class="fm">词形：' + esc(x.fm) + '</div>' : '');
     bindExLookup($("#wordDetail"));
+    bindAudioControls($("#wordDetail"));
     $("#wordActions").innerHTML =
       '<button type="button" class="btn proficient" id="detailProficient">' + (isProficient(i) ? "取消熟练" : "标为熟练") + '</button>' +
       '<button type="button" class="btn ghost" id="detailStar">' + (isStar(i) ? "取消收藏" : "收藏") + '</button>' +
@@ -12050,6 +12903,7 @@
     if (changingView) { cancelBackupImportRead(); main.scrollTop = 0; }
     $$(".view").forEach(x => x.classList.remove("on"));
     $("#v-" + v).classList.add("on");
+    applyStudyMode();
     $$(".nav button").forEach(b => {
       b.classList.toggle("on", b.dataset.v === v);
       if (b.dataset.v === v) b.setAttribute?.("aria-current", "page");
@@ -12081,6 +12935,8 @@
     }
     if (v === "stats") renderStats();
     if (v === "set") { bindSet(); syncSettingsNav(); }
+    // R05：视图切换后旧朗读场景失效，迟到回调不能在新页面继续播。
+    stopSpeechIfSceneChanged();
     // 11 首屏提示条只在背诵页显示（不占 #v-study 网格行，避免挤压卡片与操作区）。
     renderGuideBanner();
     updateBar();
@@ -12089,6 +12945,7 @@
         && studyReadingScroll.plan === sessionPlan) main.scrollTop = studyReadingScroll.top;
   }
   function updateBar(){
+    applyStudyMode();
     const v = $(".view.on");
     const id = v && v.id ? v.id.replace("v-", "") : "study";
     let pct = 0;
@@ -12103,19 +12960,190 @@
   }
 
   /* ================= Toast / 持续错误提示 ================= */
-  let tt = null;
-  function toast(m){
+  // 普通提示独立于熟练反馈与持续错误。计时只消费可阅读的前台时间；不写学习状态。
+  let toastTimer = null, toastTicket = 0, toastDeadline = 0, toastRemaining = 0;
+  let toastDismissButton = null, toastReturnFocus = null, toastInitialized = false, toastContextPinned = false;
+  const toastPauses = new Set();
+  function stopToastTimer(){
+    clearTimeout(toastTimer);
+    toastTimer = null;
+    toastTicket++;
+  }
+  function scheduleToast(){
+    stopToastTimer();
     const t = $("#toast");
-    t.textContent = m;
+    if (!t?.classList.contains("on") || toastPauses.size) return;
+    const ticket = toastTicket;
+    toastDeadline = Date.now() + toastRemaining;
+    toastTimer = setTimeout(() => {
+      if (ticket !== toastTicket || toastPauses.size) return;
+      dismissToast(false);
+    }, toastRemaining);
+  }
+  function pauseToast(reason){
+    if (!$("#toast")?.classList.contains("on") || toastPauses.has(reason)) return;
+    if (!toastPauses.size) {
+      toastRemaining = Math.max(0, toastDeadline - Date.now());
+      stopToastTimer();
+    }
+    toastPauses.add(reason);
+  }
+  function resumeToast(reason){
+    if (!toastPauses.delete(reason)) return;
+    if (!toastPauses.size) scheduleToast();
+  }
+  function toastFocusTarget(){
+    if (activeSheet) return activeSheet.querySelector?.(".sheet-panel");
+    if ($("#v-study")?.classList.contains("on")) return $("#card");
+    if (toastReturnFocus?.isConnected && !toastReturnFocus.closest?.("[hidden], [inert]")
+      && (!toastReturnFocus.getClientRects || toastReturnFocus.getClientRects().length)) return toastReturnFocus;
+    return $("#main");
+  }
+  function dismissToast(restoreFocus){
+    const t = $("#toast");
+    if (!t) return;
+    const hadFocus = t.contains?.(document.activeElement);
+    const target = restoreFocus && hadFocus ? toastFocusTarget() : null;
+    stopToastTimer();
+    toastPauses.clear();
+    toastContextPinned = false;
+    t.classList.remove("on");
+    t.hidden = true;
+    if (toastDismissButton) toastDismissButton.hidden = true;
+    // 只移动这一份状态节点；关闭模态时不在背景留下可Tab进入的按钮。
+    if (document.body && t.parentNode !== document.body) document.body.appendChild?.(t);
+    t.dataset.placement = "floating";
+    if (target) {
+      if (target === $("#main")) target.tabIndex = -1;
+      target.focus?.({preventScroll: true});
+    }
+    toastReturnFocus = null;
+  }
+  function contextToastReadable(){
+    const r = $("#toast")?.getBoundingClientRect?.(), main = $("#main")?.getBoundingClientRect?.();
+    if (!r || !main) return true;
+    return Math.min(r.bottom, main.bottom, window.innerHeight) - Math.max(r.top, main.top, 0) >= Math.min(44, r.height);
+  }
+  function positionToast(){
+    const t = $("#toast");
+    if (!t?.classList.contains("on")) return;
+    const panel = activeSheet?.querySelector?.(".sheet-panel");
+    if (panel) {
+      t.dataset.placement = "sheet";
+      if (t.parentNode !== panel) {
+        const head = panel.querySelector?.(".sheet-head");
+        if (panel.insertBefore) panel.insertBefore(t, head ? head.nextSibling : panel.firstChild);
+        else panel.appendChild?.(t);
+      }
+      const head = panel.querySelector?.(".sheet-head");
+      if (head) t.style.setProperty?.("--toast-sheet-top", Math.max(0, head.offsetHeight - parseFloat(head.style?.paddingTop || 0)) + "px");
+      t.style.top = "";
+      t.style.bottom = "";
+      t.style.maxHeight = "";
+      return;
+    }
+    // 极短窗口且持续错误占据余高时，普通状态进入主区自然流；本条消息不随滚动来回跳位。
+    if (toastContextPinned) {
+      if (contextToastReadable()) resumeToast("context"); else pauseToast("context");
+      return;
+    }
+    t.dataset.placement = "floating";
+    if (document.body && t.parentNode !== document.body) document.body.appendChild?.(t);
+    const height = window.innerHeight || 800;
+    // 在现有布局之外寻找空余纵向区间；提示自身可滚动，绝不压缩card/acts。
+    const obstacles = [];
+    for (const el of [$(".top"), $("#v-study")?.classList.contains("on") ? $("#acts") : null, $("#profFeedback"), $("#appAlert")]) {
+      if (!el || el.hidden || (el.getClientRects && !el.getClientRects().length)) continue;
+      const r = el.getBoundingClientRect?.();
+      if (r && r.bottom > 0 && r.top < height && r.height > 0) obstacles.push([Math.max(8, r.top - 10), Math.min(height - 8, r.bottom + 10)]);
+    }
+    obstacles.sort((a, b) => a[0] - b[0]);
+    const gaps = [];
+    let start = 12;
+    for (const [top, bottom] of obstacles) { if (top > start) gaps.push([start, top]); start = Math.max(start, bottom); }
+    if (start < height - 12) gaps.push([start, height - 12]);
+    const gap = gaps.sort((a, b) => (b[1] - b[0]) - (a[1] - a[0]))[0] || [12, 12];
+    const minimum = toastDismissButton && !toastDismissButton.hidden ? 60 : 44;
+    const main = $("#main");
+    if (gap[1] - gap[0] < minimum && main?.insertBefore) {
+      toastContextPinned = true;
+      t.dataset.placement = "context";
+      t.style.top = "";
+      t.style.bottom = "";
+      t.style.maxHeight = "";
+      main.insertBefore(t, $(".view.on") || main.firstChild);
+      if (contextToastReadable()) resumeToast("context"); else pauseToast("context");
+      return;
+    }
+    t.style.maxHeight = Math.max(44, gap[1] - gap[0]) + "px";
+    const boxHeight = t.getBoundingClientRect?.().height || 44;
+    t.style.top = Math.max(gap[0], gap[1] - boxHeight) + "px";
+    t.style.bottom = "auto";
+  }
+  function initToast(){
+    if (toastInitialized) return;
+    const t = $("#toast");
+    if (!t) return;
+    toastInitialized = true;
+    toastDismissButton = $("#toastDismiss") || document.createElement("button");
+    toastDismissButton.setAttribute?.("id", "toastDismiss");
+    toastDismissButton.type = "button";
+    toastDismissButton.setAttribute?.("aria-label", "收起提示");
+    toastDismissButton.hidden = true;
+    // 图标由CSS绘制，#toast.textContent始终只有原提示文本（含既有回归/复制读取）。
+    toastDismissButton.textContent = "";
+    toastDismissButton.onclick = () => dismissToast(true);
+    t.addEventListener?.("pointerenter", () => pauseToast("hover"));
+    t.addEventListener?.("pointerleave", () => resumeToast("hover"));
+    t.addEventListener?.("focusin", e => {
+      if (!t.contains?.(e.relatedTarget)) toastReturnFocus = e.relatedTarget;
+      pauseToast("focus");
+    });
+    t.addEventListener?.("focusout", e => { if (!t.contains?.(e.relatedTarget)) resumeToast("focus"); });
+    t.addEventListener?.("keydown", e => {
+      if (e.key !== "Escape" || inputEventIgnored(e) || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      if (!t.contains?.(document.activeElement)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dismissToast(true);
+    });
+    document.addEventListener("visibilitychange", () => document.visibilityState === "hidden" ? pauseToast("hidden") : resumeToast("hidden"));
+    document.addEventListener("scroll", positionToast, true);
+    window.addEventListener?.("resize", positionToast);
+  }
+  function toast(m){
+    initToast();
+    const t = $("#toast");
+    if (!t) return;
+    const message = String(m == null ? "" : m), length = Array.from(message).length;
+    const hadFocus = t.contains?.(document.activeElement);
+    stopToastTimer();
+    toastContextPinned = false;
+    toastRemaining = Math.min(8000, 2200 + Math.max(0, length - 14) * 90);
+    toastDeadline = Date.now() + toastRemaining;
+    t.textContent = message;
+    toastDismissButton.hidden = length <= 14 && !hadFocus;
+    if (t.insertBefore) t.insertBefore(toastDismissButton, t.firstChild);
+    else t.appendChild?.(toastDismissButton);
+    t.hidden = false;
     t.classList.add("on");
-    clearTimeout(tt);
-    tt = setTimeout(() => t.classList.remove("on"), 2200);
+    positionToast();
+    // 消息替换保留用户已经取得的焦点和仍有效的暂停原因，不自动聚焦新提示。
+    if (hadFocus) toastDismissButton.focus?.({preventScroll: true});
+    toastPauses.clear();
+    if (t.matches?.(":hover")) toastPauses.add("hover");
+    if (t.contains?.(document.activeElement)) toastPauses.add("focus");
+    if (document.visibilityState === "hidden") toastPauses.add("hidden");
+    if (toastContextPinned && !contextToastReadable()) toastPauses.add("context");
+    scheduleToast();
   }
   function showAlert(title, body, opts){
     opts = opts || {};
     const el = $("#appAlert");
     if (!el) { toast(title + "：" + body); return; }
     el.dataset.kind = opts.kind || "general";
+    // 可重试的保存失败提示优先级更高：后台计时落盘等后续失败不得把重试入口覆盖成通用错误。
+    el.dataset.retryRest = opts.retryRest ? "1" : "";
     const titleEl = $("#appAlertTitle"), bodyEl = $("#appAlertBody"), actions = $("#appAlertActions");
     if (titleEl) titleEl.textContent = title;
     if (bodyEl) bodyEl.textContent = body;
@@ -12141,7 +13169,15 @@
         toast("已恢复上次偏好归属修改前的状态");
       }, true);
       if (opts.rescue) add("救援导出", exportRescueBackup, true);
-      if (opts.export) add("导出备份", exportBackupFile, !opts.rescue && !opts.recover);
+      // R03：保存失败时本页现场仍在，先给明确重试入口，再谈导出；重试必须回到原动作。
+      if (opts.retryRest) add("重试保存并休息", () => {
+        el.hidden = true;
+        const retryKind = restFailureRetryKind;
+        restFailureRetryKind = null;
+        if (retryKind === "stop-target") restFromStopTarget();
+        else saveAndRest({ retry: true });
+      }, true);
+      if (opts.export) add("导出备份", exportBackupFile, !opts.rescue && !opts.recover && !opts.retryRest);
       add("关闭", () => { el.hidden = true; }, false);
     }
     el.hidden = false;
@@ -12399,7 +13435,7 @@
       if (learned && days >= 30) parts.push("距上次导出已超过 30 天，建议再导出一份进度备份。");
     } else {
       parts.push("尚未导出过进度备份。");
-      if (learned) parts.push("当前已有学习记录，建议在统计页先导出一份进度备份。");
+      if (learned) parts.push("当前已有学习记录，建议在设置页先导出一份进度备份。");
     }
     return parts.join(" ");
   }
@@ -12472,6 +13508,118 @@
     }
   }
 
+  /* 网页内多存档：独立设备键；只读构建v3快照，恢复复用完整校验与导入事务。 */
+  function readBackupArchives(){
+    let raw = null;
+    try {
+      raw = localStorage.getItem(BACKUP_ARCHIVES_KEY);
+      if (raw === null) return {ok: true, raw: null, archives: []};
+      const o = JSON.parse(raw);
+      if (!isRecord(o) || o.kind !== BACKUP_ARCHIVES_KIND || o.version !== 1
+          || !Array.isArray(o.archives) || o.archives.length > BACKUP_ARCHIVES_MAX) throw new Error("目录格式不正确");
+      const ids = new Set();
+      for (const a of o.archives) {
+        if (!isRecord(a) || typeof a.id !== "string" || !/^[a-z0-9-]{1,80}$/.test(a.id) || ids.has(a.id)
+            || typeof a.name !== "string" || !a.name.trim() || a.name.length > 40
+            || typeof a.createdAt !== "string" || !Number.isFinite(Date.parse(a.createdAt))
+            || !isRecord(a.data) || a.data.app !== APP_ID || a.data.version !== 3 || a.data.rescue
+            || !isRecord(a.data.books)) throw new Error("存档格式不正确");
+        ids.add(a.id);
+      }
+      // 存档数据保留原版本；只在恢复选中项时按当前词库全量校验、迁移。
+      return {ok: true, raw: raw, archives: o.archives};
+    } catch (e) {
+      return {ok: false, raw: raw, archives: [], error: raw === null
+        ? "无法读取浏览器存储。请使用进度文件备份。"
+        : "存档目录无法读取，原文已保留。请先下载存档原文以便救援；不会覆盖或删除它。"};
+    }
+  }
+  function archiveStatus(message){
+    const el = $("#archiveStatus");
+    if (el) el.textContent = message;
+  }
+  function renderBackupArchives(){
+    const root = $("#archiveList");
+    if (!root) return;
+    const store = readBackupArchives();
+    const focus = document.activeElement, focusId = focus?.dataset?.archiveId, focusAction = focus?.dataset?.archiveAction;
+    archiveStatus(store.ok ? "已保存 " + store.archives.length + " / " + BACKUP_ARCHIVES_MAX + " 份；每次保存都会新增一份，不会覆盖旧存档。" : store.error);
+    const rescue = $("#archiveRescue");
+    if (rescue) rescue.hidden = store.ok || store.raw === null;
+    if (!store.ok) { root.innerHTML = ""; return; }
+    root.innerHTML = store.archives.length ? store.archives.map(a => {
+      const books = Object.entries(a.data.books).filter(([id]) => BOOKS[id]);
+      const counts = books.map(([id, s]) => BOOKS[id].name + "已学 " + backupLearnedCount(isRecord(s) ? s : {}) + " 词").join(" · ");
+      return '<article class="archive-entry"><div class="archive-entry-info"><h5>' + esc(a.name)
+        + '</h5><p>' + esc(formatBackupTime(a.createdAt)) + '</p><p>' + esc(counts)
+        + '</p></div><div class="archive-entry-actions">' + [["restore", "恢复"], ["export", "下载"], ["delete", "删除"]].map(([action, label]) =>
+          '<button type="button" class="btn ghost sm" data-archive-id="' + a.id + '" data-archive-action="' + action
+          + '" aria-label="' + label + '存档：' + esc(a.name) + '">' + label + '</button>').join("") + '</div></article>';
+    }).join("") : '<p class="archive-empty">还没有网页内存档。输入名称后保存，即可在这里选择恢复。</p>';
+    if (focusId && focusAction) {
+      const next = root.querySelector?.('[data-archive-id="' + focusId + '"][data-archive-action="' + focusAction + '"]');
+      (next || $("#saveArchive"))?.focus?.({preventScroll: true});
+    }
+  }
+  function writeBackupArchives(store, archives){
+    try {
+      if (localStorage.getItem(BACKUP_ARCHIVES_KEY) !== store.raw) throw new Error("存档已在其他页面更新，请重试");
+      localStorage.setItem(BACKUP_ARCHIVES_KEY, JSON.stringify({kind: BACKUP_ARCHIVES_KIND, version: 1, archives: archives}));
+      return {ok: true};
+    } catch (e) {
+      return {ok: false, error: "存档未保存：" + (e.message.includes("其他页面") ? e.message : "浏览器存储空间不足或不可用，请下载进度文件。原存档与学习记录保持不变")};
+    }
+  }
+  function saveBackupArchive(name){
+    const store = readBackupArchives();
+    if (!store.ok) return {ok: false, error: store.error};
+    if (store.archives.length >= BACKUP_ARCHIVES_MAX) return {ok: false, error: "已达到20份存档上限，请先下载并删除不再需要的存档。"};
+    const label = typeof name === "string" ? name.trim() : "";
+    if (label.length > 40) return {ok: false, error: "存档名称不能超过40字。"};
+    let data;
+    try {
+      data = buildExport();
+      prepareImportPlan(data); // 空记录或不可恢复的数据不能保存为可恢复存档。
+      if (data.warnings?.some(w => w.reason === "storage-unavailable")) throw new Error("有词书无法读取，请先导出文件保留可读记录");
+    } catch (e) { return {ok: false, error: e.message}; }
+    const createdAt = new Date().toISOString();
+    const entry = {id: Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 12),
+      name: label || "学习存档 " + formatBackupTime(createdAt), createdAt: createdAt, data: data};
+    const result = writeBackupArchives(store, [entry, ...store.archives]);
+    if (!result.ok) return result;
+    renderBackupArchives();
+    return {ok: true, id: entry.id, warnings: data.warnings || []};
+  }
+  function deleteBackupArchive(id){
+    const store = readBackupArchives();
+    if (!store.ok) return {ok: false, error: store.error};
+    if (!store.archives.some(a => a.id === id)) return {ok: false, error: "这份存档已不存在，请刷新列表。"};
+    const result = writeBackupArchives(store, store.archives.filter(a => a.id !== id));
+    if (result.ok) renderBackupArchives();
+    return result;
+  }
+  function backupArchiveAction(id, action){
+    const store = readBackupArchives();
+    if (!store.ok) { archiveStatus(store.error); return false; }
+    const entry = store.archives.find(a => a.id === id);
+    if (!entry) { renderBackupArchives(); toast("这份存档已不存在"); return false; }
+    if (action === "restore") return openImportConfirm(entry.data, entry.name);
+    if (action === "export") {
+      try {
+        downloadJsonFile("背词存档_" + entry.name.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_") + ".json", entry.data);
+        // 下载历史存档不冒充刚刚导出了当前进度，故不更新LAST_EXPORT_KEY。
+        toast("存档下载已发起，请确认文件已妥善保存"); return true;
+      } catch (e) { archiveStatus("存档下载失败，请重试。原存档已保留。"); return false; }
+    }
+    if (action === "delete" && confirm("删除存档「" + entry.name + "」？只删除这份存档，不改变当前学习记录。")) {
+      const result = deleteBackupArchive(id);
+      if (!result.ok) archiveStatus(result.error);
+      else toast("存档已删除");
+      return result.ok;
+    }
+    return false;
+  }
+
   /* ================= 导入确认 ================= */
   let pendingImport = null, backupImportReadSequence = 0, backupImportReader = null;
   /** 文件选择可重复发生；取消、换页或打开另一浮层后，不再接受旧读取结果。 */
@@ -12507,16 +13655,21 @@
         + (plan.kind === "legacy" ? "旧版备份只恢复考研记录。" : "");
     }
   }
-  function openImportConfirm(o){
+  function openImportConfirm(o, archiveName){
     try {
       const plan = prepareImportPlan(o);
       // openSheet会关闭旧确认并清pendingImport；新请求必须在此后才提交。
       openSheet("#importSheet");
       pendingImport = {data: o, plan: plan};
       renderImportPlan(plan);
+      const title = $("#importTitle"), button = $("#importConfirm");
+      if (title) title.textContent = archiveName ? "恢复存档：" + archiveName : "确认导入进度";
+      if (button) button.textContent = archiveName ? "确认恢复存档" : "确认导入";
+      return true;
     } catch (err) {
       pendingImport = null;
       showAlert("无法导入备份", (err && err.message ? err.message : "文件格式不正确") + "。现有记录未改动。", {kind: "import"});
+      return false;
     }
   }
 
@@ -12578,6 +13731,8 @@
       e.preventDefault();
       return;
     }
+    // 学习工具打开时，按键属于菜单；不得让F/J/方向键或撤销穿透到词卡。
+    if ($("#studyTools")?.open && !activeSheet) return;
     const tag = e.target.tagName;
     if (activeSheet) {
       if (e.key === "Escape" || (activeSheet.id === "helpSheet" && e.key === "?")) {
@@ -12639,7 +13794,7 @@
     const hadCard = cur != null;
     const result=runStudyAction(action,{event:e,source:"keyboard"});
     if (hadCard && cur == null && result.ok) completionKeyRelease = e.code || e.key;
-    if(result.ok || ["recall-gate","review-cap","no-change"].includes(result.error))e.preventDefault();
+    if(result.ok || ["recall-gate","review-cap","no-change","answer-change-limit"].includes(result.error))e.preventDefault();
   });
 
   /* ================= 启动 ================= */
@@ -12997,6 +14152,9 @@
   $("#exp").onclick = () => exportBackupFile();
   const exportBookTxtBtn = $("#btnExportBookTxt");
   if (exportBookTxtBtn) exportBookTxtBtn.onclick = () => exportWordBookTxt("scope");
+  const backupTxtBtn = $("#backupExportTxt"), backupSplitBtn = $("#backupSplitTxt");
+  if (backupTxtBtn) backupTxtBtn.onclick = () => exportWordBookTxt("scope");
+  if (backupSplitBtn) backupSplitBtn.onclick = () => openTxtSplit("scope");
   const exportListTxtBtn = $("#btnExportListTxt");
   if (exportListTxtBtn) exportListTxtBtn.onclick = () => exportWordBookTxt("filter");
   const splitBookTxtBtn = $("#btnSplitBookTxt");
@@ -13030,6 +14188,34 @@
   const doPrintEl = $("#btnDoPrint");
   if (doPrintEl) doPrintEl.onclick = () => { renderPrintBook(); window.print?.(); };
   $$("#printSheet [data-print-close]").forEach(el => { el.onclick = closeSheet; });
+  const saveArchiveBtn = $("#saveArchive");
+  if (saveArchiveBtn) saveArchiveBtn.onclick = () => {
+    const input = $("#archiveName");
+    const result = saveBackupArchive(input?.value || "");
+    if (result.ok) {
+      if (input) input.value = "";
+      if (result.warnings.length) archiveStatus("存档已保存；" + warningIds(result.warnings));
+      toast("新存档已保存到当前浏览器");
+    } else { archiveStatus(result.error); }
+  };
+  const archiveNameInput = $("#archiveName");
+  if (archiveNameInput) archiveNameInput.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !inputEventIgnored(e) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault(); saveArchiveBtn?.click();
+    }
+  });
+  const archiveListEl = $("#archiveList");
+  if (archiveListEl) archiveListEl.addEventListener("click", e => {
+    const button = e.target.closest?.("[data-archive-action]");
+    if (button) backupArchiveAction(button.dataset.archiveId, button.dataset.archiveAction);
+  });
+  const archiveRescueBtn = $("#archiveRescue");
+  if (archiveRescueBtn) archiveRescueBtn.onclick = () => {
+    const store = readBackupArchives();
+    if (store.ok || store.raw === null) return;
+    try { downloadJsonFile("背词存档救援_" + todayStr() + ".json", {kind: "vocab-archives-rescue", raw: store.raw}); }
+    catch (e) { archiveStatus("原文下载失败，请重试。存档目录未改动。"); }
+  };
   $("#imp").onclick = () => {
     cancelBackupImportRead();
     if (activeSheet?.id === "importSheet") closeSheet();
@@ -13181,7 +14367,7 @@
   if (!storageOK || blockedBooks.has(currentBookId)) {
     showAlert("已有记录无法读取", "受影响词书：" + currentBook().name
       + "。原因：" + (loadError || "记录格式无法读取")
-      + "。已暂停写入以避免覆盖原文件；可导入备份恢复、使用救援导出保留原文，或在统计页显式重置当前词书。",
+      + "。已暂停写入以避免覆盖原文件；可导入备份恢复、使用救援导出保留原文，或在设置页「备份与存档」显式重置当前词书。",
       {kind: "save", recover: false, export: true, rescue: true});
   }
   try {
@@ -13366,6 +14552,7 @@
     if (!emptyMainPage() || !currentAutoResume().enabled || autoResumePausedToday()) return false;
     sessionPlan = null; sessionScopeSet = null; // 0张空组没有需要冻结的学习现场；等待使用当前保存范围
     autoResumeEmptyWaitBook = currentBookId;
+    autoResumeRestHeld = false;   // 重新显式进入等待即解除上一次「先休息」的本页抑制
     resetAutoResumeRuntime();
     autoResumeIdleSince = Date.now();
     renderCard();
@@ -13385,11 +14572,15 @@
     if (document.visibilityState === "hidden") return false;
     const waiting = emptyWaitActive();
     if (!mainGroupCompletedForAuto() && !waiting) return false;
+    if (restMode) return false;                      // R03 休息页不自动开组
+    if (autoResumeRestHeld) return false;            // R03/R04 已明确先休息：本次页面不再自动续背
+    if (stopTargetReachedPending()) return false;    // R04 到达停靠目标：先让用户选择休息/继续
     const plan = activePlan();
     if ((!plan && !waiting) || (plan && plan.kind && plan.kind !== "main")) return false;
     if (pendingReinforce() > 0) return false;
     if (computeCapPaused()) return false;
     if (activeSheet) return false;
+    if ($("#studyTools")?.open) return false;
     if ($("#exPop") && $("#exPop").hidden === false) return false;
     // 导入/保存失败的持续错误提示期间不自动开组：状态不确定时交给用户手动继续。
     if ($("#appAlert") && $("#appAlert").hidden === false) return false;
@@ -13414,6 +14605,12 @@
   function autoResumeReasonText(stats, ar){
     if (autoResumePausedToday()) return "今天已暂停自动续背";
     if (autoResumeStorageError) return "浏览器存储不可用，无法安全自动开始；请手动点「继续下一组」";
+    const plan = activePlan();
+    if (plan && plan.kind === "reviewOnly") {
+      return "本组是纯复习：不会自动混入新词继续；可手动「再复习」到期词或开始普通学习";
+    }
+    if (stopTargetReachedPending()) return "已到达本组停靠目标：选择「先休息」或「继续本组」后再自动续背";
+    if (autoResumeRestHeld) return "本次已选择先休息；手动点「继续下一组」可恢复自动续背";
     const pending = pendingReinforce();
     if (pending > 0) return "本组还有 " + pending + " 张待巩固";
     if (computeCapPaused()) return "今日复习额度已用完（本组暂停）";
@@ -13429,11 +14626,26 @@
     if (stats.available < ar.threshold) return "候选 " + stats.available + " 张未达阈值 " + ar.threshold + " 张";
     return "";
   }
+  /**
+   * R03/R04：本页已明确收尾（休息/停靠目标）时，即使候选足够也不进入倒计时；
+   * 返回说明文案，非空即表示本页“自动续背被有意按住”，状态区必须如实显示。
+   */
+  function autoResumeHeldReason(){
+    const plan = activePlan();
+    if (plan && plan.kind === "reviewOnly") return "本组是纯复习：不会自动混入新词继续。";
+    if (stopTargetReachedPending()) return "已到达停靠目标：请先选择「先休息，保存现场」或「继续本组」。";
+    if (autoResumeRestHeld) return "本次已选择先休息；手动点「继续下一组」可恢复自动续背。";
+    return "";
+  }
   /** 完成页自动续背状态区渲染（静态节点；倒计时每秒更新一次）。 */
   function autoResumePanelRelevant(){
+    const plan = activePlan();
+    if (mainGroupCompletedForAuto() && plan && plan.kind === "reviewOnly") return false;
     return mainGroupCompletedForAuto() || emptyMainPage();
   }
   function renderAutoResume(){
+    // P09：结果摘要也适用于不具备自动资格的暂停收尾；放在可见性/key早退之前。
+    renderCompletionNext();
     const box = $("#autoResume");
     if (!box) return;
     const ar = currentAutoResume();
@@ -13450,8 +14662,9 @@
     let phase = paused ? "paused" : autoResumePhase;
     if (phase === "countdown" && autoResumeDeadline <= Date.now()) phase = "waiting";   // 下一 tick 启动
     const remainSec = phase === "countdown" ? Math.max(0, Math.ceil((autoResumeDeadline - Date.now()) / 1000)) : 0;
-    const reason = paused || autoResumeStorageError || phase === "countdown" || stats.available >= ar.threshold
-      ? "" : (autoResumeLastReason || autoResumeReasonText(stats, ar));
+    const heldReason = autoResumeHeldReason();
+    const reason = heldReason || (paused || autoResumeStorageError || phase === "countdown" || stats.available >= ar.threshold
+      ? "" : (autoResumeLastReason || autoResumeReasonText(stats, ar)));
     const key = [currentBookId, ar.enabled, empty, waiting, phase, remainSec, stats.available, ar.threshold, ar.idleMs, paused,
       autoResumeStorageError, reason].join("|");
     if (key === autoResumeLastRenderKey) return;
@@ -13479,6 +14692,7 @@
           + (next ? "。下次到期：" + esc(formatReviewTime(next)) : "");
       }
       if (waiting) html = "本页已在等待。" + html;
+      if (heldReason) html = counts + "。" + esc(heldReason);
       if (text.innerHTML !== html) text.innerHTML = html;
     }
     const cd = $("#autoResumeCountdown");
@@ -13529,8 +14743,6 @@
     if (stopWait) { stopWait.hidden = !waiting; stopWait.onclick = e => runStudyAction("stopWait",{event:e}); }
     const title = $("#autoResumeTitle");
     if (title) title.textContent = waiting ? "本页等待到期" : empty ? "等待到期" : paused ? "下一组 · 今天暂停自动续背" : "下一组";
-    const again = $("#again");
-    if (again) again.disabled = stats.available < 1;
     applyActionBindingHints();
   }
   function autoResumeConfigConflict(ar){
@@ -13775,7 +14987,10 @@
     try { return localStorage.getItem(sessionSnapshotKey(bookId)); } catch (e) { return null; }
   }
   function clearSessionSnapshot(bookId){
-    try { localStorage.removeItem(sessionSnapshotKey(bookId || currentBookId)); } catch (e) { /* ignore */ }
+    const id = bookId || currentBookId;
+    // 休息后仍可在词表管理熟练词；旧快照失效时，休息页不能继续承诺刷新恢复当前卡。
+    if (id === currentBookId && restMode && restState) restState.snapshotSaved = false;
+    try { localStorage.removeItem(sessionSnapshotKey(id)); } catch (e) { /* ignore */ }
   }
   function clearAllSessionSnapshots(){
     for (const key of sessionSnapshotKeys()) { try { localStorage.removeItem(key); } catch (e) { /* ignore */ } }
@@ -13784,7 +14999,8 @@
   function sessionSnapshotEligible(){
     if (drillMode || inSubgroup()) return false;
     if (cur == null) return false;
-    if (!sessionPlan || (sessionPlan.kind || "main") !== "main") return false;
+    const kind = sessionPlan ? (sessionPlan.kind || "main") : null;
+    if (!kind || (kind !== "main" && kind !== "reviewOnly")) return false;
     if (sessionPlan.bookId !== currentBookId) return false;
     if (!Q.length) return false;
     return true;
@@ -13809,21 +15025,23 @@
       writer: AUTO_RESUME_TAB_ID,
       updatedAt: Date.now(),
       scopeSig: sessionPlan.scopeSig || null,
-      plan: {
+      plan: Object.assign({
         stagesMs: sessionPlan.stagesMs.slice(),
         relearnMs: sessionPlan.relearnMs,
         groupSize: sessionPlan.groupSize,
-        kind: "main",
+        kind: (sessionPlan.kind || "main") === "reviewOnly" ? "reviewOnly" : "main",
         startedAt: sessionPlan.startedAt,
         scopeSig: sessionPlan.scopeSig || null,
         scopeCount: sessionPlan.scopeCount,
         dailyNewTarget: sessionPlan.dailyNewTarget
-      },
+      }, (sessionPlan.kind || "main") === "reviewOnly"
+        ? {baseGroupSize: sessionPlan.baseGroupSize} : {}),
       queue: words,
       qi: qi,
       cur: cur != null && W[cur] ? W[cur].w : null,
       phase: phase,
       verdict: verdict,
+      answerChanges: answerChanges,
       answered: answered,
       rightN: rightN,
       groupTotal: groupTotal,
@@ -13872,12 +15090,16 @@
   }
   /** 只验冻结配置自身，不与当前设置比较（08：设置更改后本组仍可恢复）。 */
   function validSessionFrozenPlan(plan, scopeSig){
-    if (!isRecord(plan) || plan.kind !== "main" || typeof scopeSig !== "string"
+    if (!isRecord(plan) || (plan.kind !== "main" && plan.kind !== "reviewOnly")
+      || typeof scopeSig !== "string"
       || plan.scopeSig !== scopeSig || !Array.isArray(plan.stagesMs)) return false;
     const config = normalizeStageConfig(plan.stagesMs.map(ms => typeof ms === "number" ? ms / MINUTE_MS : null),
       typeof plan.relearnMs === "number" ? plan.relearnMs / MINUTE_MS : null);
     if (!config.ok || !Number.isInteger(plan.groupSize)
       || plan.groupSize < GROUP_SIZE_MIN || plan.groupSize > GROUP_SIZE_MAX
+      || (plan.kind === "reviewOnly" && plan.groupSize !== REVIEW_ONLY_SIZE)
+      || (plan.kind === "reviewOnly" && (!Number.isInteger(plan.baseGroupSize)
+        || plan.baseGroupSize < GROUP_SIZE_MIN || plan.baseGroupSize > GROUP_SIZE_MAX))
       || !Number.isSafeInteger(plan.startedAt) || plan.startedAt < 0
       || Number.isNaN(new Date(plan.startedAt).getTime())
       || !Number.isInteger(plan.scopeCount) || plan.scopeCount < 0 || plan.scopeCount > W.length
@@ -13916,6 +15138,10 @@
       occurrences.set(w, n);
     }
     for (const w of queue) if (typeof w !== "string" || !wordIndex.has(w)) return fail("word-missing");
+    // 纯复习现场不得恢复出新词。已作答词可以已升档/未再到期，但必须始终有主学习记录。
+    if (plan.kind === "reviewOnly" && queue.some(w => !hasMainProgress(st(wordIndex.get(w))))) {
+      return fail("review-word-unlearned");
+    }
     if (!Number.isInteger(data.qi) || data.qi < 0 || data.qi >= queue.length) return fail("bad-qi");
     // 重考会在队尾追加词条：queue 长度可大于本组分母，answered 按队列出现次数计。
     if (!Number.isInteger(data.groupTotal) || data.groupTotal < 1 || data.groupTotal > queue.length
@@ -13923,11 +15149,15 @@
     if (!Number.isInteger(data.answered) || data.answered < 0 || data.answered > queue.length) return fail("bad-answered");
     if (!Number.isInteger(data.rightN) || data.rightN < 0 || data.rightN > data.answered) return fail("bad-right");
     if (!(data.phase === "recall" || data.phase === "revealed")) return fail("bad-phase");
+    // 兼容旧快照缺字段；存在时严格验证，不能让损坏值关闭快捷改判保护。
+    if (data.answerChanges !== undefined && (!Number.isSafeInteger(data.answerChanges)
+      || data.answerChanges < 0 || (data.phase === "recall" && data.answerChanges !== 0))) return fail("bad-answer-changes");
     if (!Number.isInteger(data.stageBefore) || data.stageBefore < 0 || data.stageBefore > MASTER) return fail("bad-stage");
     if (typeof data.cur !== "string" || queue[data.qi] !== data.cur) return fail("bad-cur");
     if (data.phase === "revealed") {
       if (!(data.verdict === true || data.verdict === false)) return fail("bad-verdict");
       if (!validSessionBaseline(data.curBaseline, data.day)) return fail("bad-baseline");
+      if (plan.kind === "reviewOnly" && !hasMainProgress(data.curBaseline.prog)) return fail("review-word-unlearned");
     } else if (data.verdict !== null || data.curBaseline !== null) return fail("bad-verdict");
     if (!isRecord(data.rounds)) return fail("bad-rounds");
     const rounds = data.rounds;
@@ -13951,13 +15181,14 @@
       stagesMs: data.plan.stagesMs.slice(),
       relearnMs: data.plan.relearnMs,
       bookId: currentBookId,
-      kind: "main",
+      kind: data.plan.kind === "reviewOnly" ? "reviewOnly" : "main",
       groupSize: Number.isInteger(data.plan.groupSize) ? data.plan.groupSize : S.settings.groupSize,
       startedAt: Number.isInteger(data.plan.startedAt) ? data.plan.startedAt : Date.now(),
       scopeSig: data.plan.scopeSig,
       scopeCount: Number.isInteger(data.plan.scopeCount) ? data.plan.scopeCount : inScopeCount(),
       dailyNewTarget: Number.isInteger(data.plan.dailyNewTarget) ? data.plan.dailyNewTarget : S.settings.dailyNew
     };
+    if (plan.kind === "reviewOnly") plan.baseGroupSize = data.plan.baseGroupSize;
     sessionPlan = plan;
     // 恢复组沿用快照现场：队列内单词视为本组范围（组内改设置不追溯是 08 契约）。
     sessionScopeSet = new Set(queue);
@@ -13973,6 +15204,7 @@
     }
     cur = queue[data.qi];
     verdict = data.phase === "revealed" ? data.verdict : null;
+    answerChanges = data.phase === "revealed" ? (data.answerChanges || 0) : 0;
     phase = data.phase === "revealed" ? "revealed" : "recall";
     snap = data.phase === "revealed" ? data.curBaseline : null;
     stageBefore = Number.isInteger(data.stageBefore) ? data.stageBefore : 0;
@@ -14014,7 +15246,7 @@
   function renderResumeNotice(){
     const box = $("#resumeNotice");
     if (!box) { resumeNoticePending = null; return; }
-    const show = !!resumeNoticePending && !drillMode && !inSubgroup() && cur != null
+    const show = !!resumeNoticePending && !drillMode && !inSubgroup() && !restMode && cur != null
       && $("#v-study")?.classList.contains("on");
     if (!show) { if (!box.hidden) box.hidden = true; return; }
     box.hidden = false;
@@ -14064,7 +15296,8 @@
     extraSubgroup = false; extraSnap = null;
     newOnlySubgroup = false; newOnlySnap = null;
     capPaused = false; capGroupEnded = false;
-    Q = []; qi = 0; rounds = {}; cur = null; verdict = null; snap = null; phase = "recall"; stageBefore = 0;
+    restMode = false; restState = null; stopTarget = null; autoResumeRestHeld = false;
+    Q = []; qi = 0; rounds = {}; cur = null; verdict = null; snap = null; phase = "recall"; answerChanges = 0; stageBefore = 0;
     answered = 0; rightN = 0; groupTotal = 0; undoStack = []; autoSpoken = false;
     sessionPlan = null; sessionScopeSet = null;
     autoResumeReturnSnap = null; autoResumeReturnArmed = false;
@@ -14186,7 +15419,8 @@
   let studyLastFingerprint = studyStateFingerprint();
 
   function studyPageActive(){
-    return cur != null && $("#v-study").classList.contains("on");
+    // R03：休息页明确收尾，不再累计学习时长（当前卡仍在内存，但用户没有在学）。
+    return cur != null && !restMode && $("#v-study").classList.contains("on");
   }
   /** 学习状态指纹：判定/改判/撤销/翻页/熟练/收藏等程序化调用也算有效活动。 */
   function studyStateFingerprint(){
@@ -14200,6 +15434,8 @@
       days: state.days, stars: state.stars, proficient: state.proficient, timeSec: 0});
   }
   function noteStudyActivity(){
+    // 新活动只从此刻延长宽限。先按旧活动时间结算，防止延迟采样时把此前闲置尾段补记。
+    studyTimeTick();
     studyLastActivityAt = Date.now();
   }
   /** 把待记的整秒时长并入主记录；多标签以存储为准合并，绝不覆盖别人的判定。 */
@@ -14246,20 +15482,23 @@
     }
     // 程序化判定/翻页不产生 DOM 事件，用状态指纹兜底算一次有效活动。
     const fingerprint = studyStateFingerprint();
+    const inferredActivity = fingerprint !== studyLastFingerprint
+      && studyPageActive() && document.visibilityState !== "hidden";
     if (fingerprint !== studyLastFingerprint) {
       studyLastFingerprint = fingerprint;
-      if (studyPageActive() && document.visibilityState !== "hidden") noteStudyActivity();
     }
     const onStudy = studyPageActive();
     if (studyWasOnStudy && !onStudy) studyTimeFlush();   // 离开学习页/本组结束：把已满整秒落盘
     studyWasOnStudy = onStudy;
-    if (!onStudy || document.visibilityState === "hidden") return;
-    if (!(elapsed > 0) || elapsed > STUDY_SUSPEND_GAP_MS) return;  // 休眠/长跳变：整段不补记
-    if (!studyLastActivityAt) return;                              // 还没有任何有效活动
-    const startedAt = now - elapsed;
-    const activeUntil = studyLastActivityAt + STUDY_IDLE_MS;
-    studyPendingMs += Math.max(0, Math.min(elapsed, activeUntil - startedAt));
-    if (studyPendingMs >= STUDY_PERSIST_MS) studyTimeFlush();
+    const active = onStudy && document.visibilityState !== "hidden";
+    if (active && elapsed > 0 && elapsed <= STUDY_SUSPEND_GAP_MS && studyLastActivityAt) {
+      const startedAt = now - elapsed;
+      const activeUntil = studyLastActivityAt + STUDY_IDLE_MS;
+      studyPendingMs += Math.max(0, Math.min(elapsed, activeUntil - startedAt));
+    }
+    // 指纹兜底也只能影响后续时段；直接更新时间，不能回调 noteStudyActivity() 造成递归采样。
+    if (inferredActivity) studyLastActivityAt = now;
+    if (active && studyPendingMs >= STUDY_PERSIST_MS) studyTimeFlush();
   }
   /** 恢复（可见/页面恢复/聚焦）：从当前时刻重新开始计，绝不补记后台或休眠间隔。 */
   function studyTimeRestart(){
@@ -14358,6 +15597,10 @@
     renderBookPageUi();
   }
   window.addEventListener?.("storage", (e) => {
+    if (e.key === BACKUP_ARCHIVES_KEY || e.key === LAST_EXPORT_KEY || e.key === null) {
+      renderBackupArchives(); renderBackupStatus();
+      if (e.key !== null) return;
+    }
     if (e.key === ACTIVE_KEY) { followActiveBook(); return; }
     if (e.key === DEVICE_PREFS_KEY) { handleDevicePreferencesStorageEvent(); return; }
     if (e.key === DEFAULT_BOOK_KEY || e.key === PAGE_BOOK_KEY) { renderBookPageUi(); return; }
@@ -14451,9 +15694,13 @@
       blockedBooks.delete(currentBookId);
       if (activeSheet) closeSheet();
       bindSet(); applyFilter(); renderStats();
+      const wasResting = restMode;
       resumeAfterSharedChange(wasEmptyPage, replaced);
       applyBrand(); renderBookList();
-      toast("另一窗口的进度已同步");
+      // R03：休息页不是可恢复权限，跨标签学习内容更新会按既有语义重建现场；如实说明而不是只报“已同步”。
+      toast(wasResting
+        ? "另一窗口已更新学习记录：休息现场已按最新记录重新整理，请检查当前学习页"
+        : "另一窗口的进度已同步");
     } catch (err) { toast("另一窗口的记录无法读取，当前进度已保留"); }
   });
 
@@ -14464,6 +15711,7 @@
   window.__vocab = {
     get phase() { return phase; },
     get verdict() { return verdict; },
+    get answerChanges() { return answerChanges; },
     get cur() { return cur; },
     get qi() { return qi; },
     get Q() { return Q; },
@@ -14612,9 +15860,29 @@
     // —— 13 离线与更新 / 备份状态（retryOffline 为显式重试入口，其余只读） ——
     getOfflineStatus, retryOffline: retryOfflineStatus,
     getBackupStatus, lastExportKey: LAST_EXPORT_KEY, renderBackupStatus,
+    backupArchivesKey: BACKUP_ARCHIVES_KEY, readBackupArchives, saveBackupArchive,
+    deleteBackupArchive, backupArchiveAction, renderBackupArchives,
     // —— 12 阅读字号 / 语言标记 / 设备发音（setFontSize/speak 为合法入口，其余只读） ——
     getFontSize, setFontSize, applyFontSize, getMinWordFontPx: () => minWordFontPx(), fitWord, fitVisibleWords,
+    getStudyMode: currentStudyMode, setStudyMode, applyStudyMode,
     speak, getSpeechPrefs, refreshSpeechVoices, setSpeechRate, setVoiceURI,
+    // —— 批次A（2026-10-27）R03 保存并休息 / R04 停靠目标与纯复习 / R05 朗读控制（写入口仅显式函数） ——
+    saveAndRest, resumeFromRest, getRestState, isResting: () => restMode,
+    setStopTarget, clearStopTarget, restFromStopTarget,
+    getStopTarget: () => {
+      const p = stopTargetProgress();
+      return p ? Object.assign({}, p, {words: stopTarget ? Array.from(stopTarget.seen) : []}) : null;
+    },
+    stopTargetSize: STOP_TARGET_SIZE,
+    getReviewOnlyCandidates: () => reviewOnlyCandidates(),
+    startReviewOnly: startReviewOnlySession,
+    reviewOnlyEntryAvailable: () => reviewOnlyEntryAvailable(),
+    reviewOnlySize: REVIEW_ONLY_SIZE,
+    getSpeechPlayback: () => Object.assign({}, speechPlayback),
+    getSpeechScene: () => speechScene(),
+    stopSpeech,
+    audioControlsHtml, bindAudioControls,
+    speechStatusLabel,
     // —— 16 拼写专项（start/exit/submit/skip/next/again 为界面入口；其余只读） ——
     startSpellingDrill,
     exitSpellingDrill: () => {

@@ -1,12 +1,12 @@
 /* 背单词网页 — 离线缓存（应用壳 + 考研/四级/六级/综合词库）
    整组发布：新版本在自己的缓存里完整下载后才等待启用；旧页面继续读旧缓存，
    不会出现 HTML/CSS/JS 来自不同版本的混用。 */
-const CACHE = "kaoyan-vocab-v62";
+const CACHE = "kaoyan-vocab-v73";
 const ASSETS = [
   "./",
   "./index.html",
-  "./css/app.css?v=20261025-r57",
-  "./js/app.js?v=20261025-r57",
+  "./css/app.css?v=20261028-r68",
+  "./js/app.js?v=20261028-r68",
   "./js/words-data.js",
   "./js/cet-words-data.js",
   "./js/combined-words-data.js",

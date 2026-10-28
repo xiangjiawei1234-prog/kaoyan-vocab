@@ -820,9 +820,9 @@ console.log("== 19. 批次 C：首屏结构 · 范围摘要 · 统计页展开 =
   ck(idxHtml.includes('id="statsForecastPanel"') && idxHtml.includes('id="statsHeatmapPanel"'),
     "统计 details 面板 id 稳定，便于 QA/测试定位");
   const statsHtml = idxHtml.slice(idxHtml.indexOf('<section class="view" id="v-stats"'), idxHtml.indexOf('<!-- ============ 设置'));
-  const statsOrder = ['stats-analysis-heading', 'statsPlanPanel', 'statsOverviewPanel', 'statsForecastPanel', 'surveyPanel', 'statsFreqPanel', 'statsStagesPanel', 'statsDaysPanel', 'statsHeatmapPanel', 'statsStoragePanel'];
+  const statsOrder = ['stats-analysis-heading', 'statsPlanPanel', 'statsOverviewPanel', 'statsForecastPanel', 'surveyPanel', 'statsFreqPanel', 'statsStagesPanel', 'statsDaysPanel', 'statsHeatmapPanel'];
   ck(statsOrder.every((key, i) => statsHtml.indexOf(key) >= 0 && (i === 0 || statsHtml.indexOf(key) > statsHtml.indexOf(statsOrder[i - 1]))),
-    "统计默认 DOM 顺序为今日计划、学习总览、六项分析、备份；九张卡有稳定排序id");
+    "统计默认 DOM 顺序为今日计划、学习总览、六项分析；八张卡有稳定排序id");
   const statsDetails = [...statsHtml.matchAll(/<details class="panel stats-details(?: stats-wide)?"[^>]*>/g)];
   ck(statsDetails.length === 6 && statsDetails.every(([tag]) => /\bopen(?:[\s=>]|$)/.test(tag)),
     "六个分析面板默认展开，收起偏好由原生 details 与独立设备键管理");
