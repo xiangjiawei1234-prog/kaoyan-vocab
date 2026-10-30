@@ -1139,10 +1139,12 @@
   function flushInheritedPreferenceEdits(){
     if (!preferenceDeviceUsable()) return true;
     const fields = localInheritedPreferenceEdits();
-    if (!fields.length) return true;
     let latestRaw = null;
     try { latestRaw = localStorage.getItem(DEVICE_PREFS_KEY); }
     catch (e) { markPreferenceWriteFailure("浏览器存储不可用"); return false; }
+    // 即使本次只保存学习进度，也不能把尚未收到通知的旧偏好快照写进主记录。
+    // 否则另一页收到该主记录后，会把旧快照当作新偏好反写到设备键。
+    if (!fields.length && latestRaw === devicePrefsRaw) return true;
     let base = devicePrefs;
     if (latestRaw !== devicePrefsRaw) {
       const decoded = decodeDevicePreferences(latestRaw);
@@ -4515,7 +4517,7 @@
     return entry;
   }
   /** 真题语境义与词典补充分别显示；无有效证据文件时完整降级到原释义。 */
-  function meaningHtml(x, compact = false){
+  function meaningHtml(x, compact = false, options = null){
     const entry = wordSenseEntry(x);
     if (!entry) {
       return '<div class="sense-dictionary">' + esc(x.m || "（暂无词典释义，请参考例句）") + '</div>'
@@ -4525,22 +4527,30 @@
       return '<div class="sense-popup">' + entry.preferred.map(s => esc(s.meaning)).join("；") + '</div>'
         + '<p class="sense-note">本书真题已核对义项优先；原句与其他释义见详情。</p>';
     }
-    const preferred = entry.preferred.map((sense, senseIndex) =>
-      '<li class="sense-item"><div class="sense-meaning">' + esc(sense.meaning) + '</div>'
-      + '<details class="sense-evidence"><summary>查看原句与出处</summary>'
-      + sense.examples.map((example, exampleIndex) => '<div class="sense-example" data-ex-linked="1">'
+    const normalized = value => String(value || "").replace(/\s+/g, " ").trim();
+    const sharedExample = example => !!(options && options.dedupeExample && x.ex)
+      && normalized(example.quote) === normalized(x.ex) && normalized(example.source) === normalized(x.src);
+    const preferred = entry.preferred.map((sense, senseIndex) => {
+      const shared = sense.examples.filter(sharedExample);
+      const evidence = sense.examples.filter(example => !sharedExample(example));
+      const examples = evidence.map((example, exampleIndex) => '<div class="sense-example" data-ex-linked="1">'
         + '<p class="sense-quote" lang="en" data-ex-linked="1" tabindex="0" role="group" aria-expanded="false" aria-label="例句，左右方向键选词，回车查义">' + exHtml(example.quote, x) + '</p>'
         + '<p class="sense-source">' + esc(example.label || example.source) + '</p>'
-        + audioControlsHtml(example.quote, "sentence", "sense-" + senseIndex + "-" + exampleIndex) + '</div>').join("")
-      + '</details></li>'
-    ).join("");
+        + audioControlsHtml(example.quote, "sentence", "sense-" + senseIndex + "-" + exampleIndex) + '</div>').join("");
+      const sharedNote = shared.length ? '<p class="sense-shared">已核对原句与出处同例句区，不重复展示。</p>' : "";
+      const evidenceHtml = evidence.length
+        ? '<details class="sense-evidence"><summary>真题原句与出处</summary>' + examples + sharedNote + '</details>'
+        : (shared.length ? '<p class="sense-shared">已核对原句见例句区（同一出处）。</p>' : "");
+      return '<li class="sense-item"><div class="sense-meaning">' + esc(sense.meaning) + '</div>' + evidenceHtml + '</li>';
+    }).join("");
+    const verificationNote = '<p class="sense-note">按已核对原句前置，仅覆盖所列语境；尚未穷尽历年全部用法。</p>';
     const additional = entry.additional.trim()
-      ? '<details class="sense-additional"><summary>其他词典释义</summary>'
+      ? '<details class="sense-additional"><summary>其他释义与核验说明</summary>'
         + '<div class="sense-additional-meaning">' + esc(entry.additional) + '</div>'
-        + '<p class="sense-note">这些释义尚未逐义核验，不代表历年真题未考。</p></details>' : "";
-    return '<div class="sense-block"><p class="sense-label">本书真题已核对义项</p>'
-      + '<ol class="sense-preferred">' + preferred + '</ol>' + additional
-      + '<p class="sense-note">按已核对原句前置，仅覆盖所列语境；尚未穷尽历年全部用法。</p></div>';
+        + '<p class="sense-note">这些释义尚未逐义核验，不代表历年真题未考。</p>' + verificationNote + '</details>'
+      : '<details class="sense-verification"><summary>义项核验说明</summary>' + verificationNote + '</details>';
+    return '<div class="sense-block"><p class="sense-label sr-only">本书真题已核对义项</p>'
+      + '<ol class="sense-preferred">' + preferred + '</ol>' + additional + '</div>';
   }
   /** 轻量屈折还原后在当前词书找词，找不到返回 -1；歧义时取候选第一位。 */
   function lookupExWord(token){
@@ -4756,8 +4766,23 @@
       const original = $("#" + button.dataset.studyProxy);
       button.hidden = !original || !!original.hidden;
       button.disabled = !original || !!original.disabled;
-      if (original && !["btnTheme", "btnHelp"].includes(original.id)) button.textContent = original.textContent;
+      if (original && original.id === "btnFullscreen") button.textContent = original.getAttribute("aria-label");
+      else if (original && !["btnTheme", "btnHelp"].includes(original.id)) button.textContent = original.textContent;
     });
+  }
+  /** 菜单只使用锚点上下的实际空间，短窗口也能滚到最后一个入口。 */
+  function positionStudyTools(){
+    const tools = $("#studyTools"), menu = tools?.querySelector?.(".study-tools-menu");
+    const trigger = tools?.querySelector?.("summary");
+    if (!tools?.open || !menu || !trigger?.getBoundingClientRect) return;
+    const rect = trigger.getBoundingClientRect(), mainRect = $("#main")?.getBoundingClientRect?.();
+    const viewport = window.visualViewport;
+    const top = Math.max((viewport?.offsetTop || 0) + 8, (mainRect?.top || 0) + 8);
+    const bottom = Math.min((viewport?.offsetTop || 0) + (viewport?.height || window.innerHeight), mainRect?.bottom || window.innerHeight) - 8;
+    const below = bottom - rect.bottom - 8, above = rect.top - top - 8;
+    const upward = below < 220 && above > below;
+    menu.dataset.side = upward ? "above" : "below";
+    menu.style.setProperty("--study-tools-available", Math.max(44, Math.floor(upward ? above : below)) + "px");
   }
   function applyStudyMode(){
     const mode = currentStudyMode();
@@ -4774,7 +4799,7 @@
       + Math.min(answered, groupTotal) + " / " + groupTotal;
     const tools = $("#studyTools");
     if (tools) {
-      tools.ontoggle = () => { if (tools.open) syncStudyTools(); };
+      tools.ontoggle = () => { if (tools.open) { syncStudyTools(); positionStudyTools(); } };
       tools.querySelectorAll?.("[data-study-proxy]").forEach(button => {
         button.onclick = () => {
           const original = $("#" + button.dataset.studyProxy);
@@ -4840,6 +4865,38 @@
     save();
     applyTheme();
     toast(S.settings.theme === "dark" ? "已切换到深色模式" : "已切换到浅色模式");
+  }
+  function syncFullscreenButton(){
+    const supported = document.fullscreenEnabled !== false && typeof document.documentElement.requestFullscreen === "function";
+    const active = !!document.fullscreenElement;
+    const label = active ? "退出全屏显示" : "进入全屏显示";
+    $$("[data-fullscreen-toggle]").forEach(button => {
+      button.hidden = !supported;
+      button.setAttribute?.("aria-label", label);
+      button.setAttribute?.("aria-pressed", String(active));
+      button.setAttribute?.("title", label);
+      const text = button.querySelector?.("[data-fullscreen-label]");
+      if (text) text.textContent = active ? "退出" : "全屏";
+    });
+    syncStudyTools();
+  }
+  async function toggleFullscreen(){
+    try {
+      if (document.fullscreenElement) {
+        if (typeof document.exitFullscreen !== "function") throw new Error("fullscreen-exit-unsupported");
+        await document.exitFullscreen();
+      } else {
+        if (document.fullscreenEnabled === false || typeof document.documentElement.requestFullscreen !== "function") {
+          toast("当前浏览器不支持网页全屏显示");
+          return;
+        }
+        await document.documentElement.requestFullscreen();
+      }
+      syncFullscreenButton();
+    } catch (e) {
+      syncFullscreenButton();
+      toast("未能切换全屏显示，请检查浏览器权限或使用浏览器自带全屏");
+    }
   }
   try {
     if (window.matchMedia) {
@@ -8117,21 +8174,21 @@
         '<div class="done' + (reviewDone ? " done-review-only" : "") + '">' +
           '<div class="done-summary"><h2>' + (capDone ? "本组已暂停" : reviewDone ? "纯复习完成" : completed ? "本组完成" : emptyWaitActive() ? "本页等待到期" : "暂无待背单词") + '</h2>' +
           (completed || capDone
-            ? '<p class="done-progress">' + (capDone ? "本组进度 " : reviewDone ? "纯复习 " : "本组完成 ") + '<b>' + gInfo.done + '</b>/<b>' + gInfo.groupTotal + '</b></p>' +
-              '<p class="done-attempts">本次判定 ' + answered + ' 次 · 记为会 ' + rightN + ' 次</p>'
+            ? '<p class="done-progress">' + (capDone ? "本组进度 " : reviewDone ? "纯复习 " : "完成 ") + '<b>' + gInfo.done + '</b>/<b>' + gInfo.groupTotal + '</b> 词</p>'
             : '<p class="done-attempts">当前没有进行中的组</p>') + '</div>' +
           '<p class="done-next" id="doneNext"></p>' +
           (hasPendingScopeSettings()
             ? '<p class="done-reason">设置已更改：下一组将按新设置开始（匹配 <b>' + inScopeCount()
               + "</b> 词）；上一组仍按开始时的范围与固定分母统计。</p>"
             : "") +
-          (reviewDone
-            ? '<p class="done-context">纯复习只使用当前范围的到期词，不学新词、不占新词额度；每日新词计划与普通学习相同。</p>'
-            : '<p class="done-context">当前范围已掌握 <b>' + scopedMasteredCount() + '</b> / ' + inScopeCount() + ' 词</p>') +
           (drillListN ? '<p class="done-tools-note">错词本有 <b>' + drillListN + '</b> 个词，可直接开始错词特训</p>' : "") +
           (!spellN && spellStats.skippedNoHint
             ? '<p class="done-reason">当前范围有 ' + spellStats.skippedNoHint + ' 个词缺少有效中文提示，已跳过拼写专项。</p>' : "") +
-          '<details class="done-details"><summary>结果与范围说明</summary>' +
+          '<details class="done-details"><summary>判定与范围说明</summary>' +
+            (completed || capDone ? '<p class="done-attempts">本次判定 ' + answered + ' 次 · 记为会 ' + rightN + ' 次</p>' : "") +
+            (reviewDone
+              ? '<p class="done-context">纯复习只使用当前范围的到期词，不学新词、不占新词额度；每日新词计划与普通学习相同。</p>'
+              : '<p class="done-context">当前范围已掌握 <b>' + scopedMasteredCount() + '</b> / ' + inScopeCount() + ' 词</p>') +
             '<p>本次判定包含组内重考；判定次数、记为会的次数与本组词数分别统计。</p>' +
             (proficientCount() ? '<p>已排除 ' + proficientCount() + ' 个熟练词，可在词表中取消</p>' : "") +
           '</details>' +
@@ -8715,7 +8772,7 @@
         '<span class="c-ph">' + esc(x.ph || "") + "</span>" +
         '<span class="c-mean">' + esc(x.m || "—") + "</span>" +
         '<span class="c-st ' + cls + '">' + txt + '</span>' +
-        '<div class="c-actions row-actions"><button type="button" data-proficient="' + i + '" tabindex="' + profTab + '" aria-label="' + (proficient ? "取消" : "标为") + '熟练：' + esc(x.w) + '">' + (proficient ? "取消熟练" : "标为熟练") + '</button></div></div>';
+        '<div class="c-actions row-actions"><button type="button" data-proficient="' + i + '" tabindex="' + profTab + '" aria-label="' + (proficient ? "取消" : "标为") + '熟练：' + esc(x.w) + '" title="' + (proficient ? "取消熟练，重新加入学习队列" : "标为熟练并移出学习队列") + '">' + (proficient ? "取消熟练" : "熟练") + '</button></div></div>';
     }
     if (inner.innerHTML === html) return;
     inner.innerHTML = html;
@@ -11116,7 +11173,7 @@
   /** 判定后主体：按 readingOrder 全排列渲染；缺内容自然跳过，回忆阶段不调用。 */
   function cardAnswerBodyHtml(x){
     const blocks = new Map();
-    const mean = meaningHtml(x);
+    const mean = meaningHtml(x, false, {dedupeExample: !!(S.settings.showEx && x.ex)});
     if (mean) blocks.set("meaning", '<div class="mean">' + mean + "</div>");
     if (S.settings.showEx && x.ex) {
       blocks.set("example",
@@ -11590,6 +11647,8 @@
         else if (nav && a.offsetLeft + a.offsetWidth > nav.scrollLeft + nav.clientWidth) nav.scrollLeft = a.offsetLeft + a.offsetWidth - nav.clientWidth;
       }
     });
+    const picker = $("#settingsCategory");
+    if (picker && picker.value !== current) picker.value = current;
   }
   /* ================= 复习节奏设置页（预设 / 十档编辑 / 跨组重学） =================
    * index.html 静态提供容器：节点缺失时各渲染函数容错跳过。
@@ -12632,6 +12691,10 @@
     el.textContent = text || "";
     if (isError) el.setAttribute("data-error", "true");
     else el.removeAttribute("data-error");
+    if (text) {
+      const block = $("#wordIssueBlock");
+      if (block) block.open = true;
+    }
   }
   /**
    * 渲染详情页问题区：已有记录（来源/时间）、条数、按钮可见性；
@@ -12642,14 +12705,23 @@
     const noteEl = $("#wordIssueNote");
     if (!ctx) return null;
     const key = issueKey(ctx.bookId, ctx.word);
-    if (wordIssueContext !== key) {
+    const contextChanged = wordIssueContext !== key;
+    const block = $("#wordIssueBlock");
+    if (contextChanged) {
       wordIssueContext = key;
       wordIssueDirty = false;
       if (noteEl) noteEl.value = "";
+      if (block) block.open = false;
       setWordIssueStatus("");
     }
     const state = readWordIssues();
     const entry = state.ok ? currentIssueEntry(state.entries, ctx.bookId, ctx.word) : null;
+    if (block && ((contextChanged && entry) || !state.ok)) block.open = true;
+    const summary = $("#wordIssueSummary");
+    if (summary) summary.textContent = !state.ok ? "存储问题需处理"
+      : wordIssueDirty ? "有未保存草稿"
+      : entry ? "已有记录 · 查看或修改"
+      : "记录释义、音标、例句或来源问题";
     const known = $("#wordIssueKnown");
     if (known) {
       if (entry) {
@@ -12837,6 +12909,8 @@
     wordIssueDirty = false;
     const noteEl = $("#wordIssueNote");
     if (noteEl) noteEl.value = "";
+    const block = $("#wordIssueBlock");
+    if (block) block.open = false;
     setWordIssueStatus("");
   }
 
@@ -13839,6 +13913,7 @@
   window.addEventListener?.("resize", hideExPop);
   window.addEventListener?.("resize", fitVisibleWords);
   window.addEventListener?.("resize", refreshFreqPresentation);
+  window.addEventListener?.("resize", positionStudyTools);
   // 主窗口侧栏变化也会改变可用宽度；字体就绪后重新测量，离线系统字体同样适用。
   if (typeof window.ResizeObserver === "function") {
     let lastWidth = 0;
@@ -13851,6 +13926,7 @@
   document.fonts?.ready?.then(fitVisibleWords);
   document.fonts?.addEventListener?.("loadingdone", fitVisibleWords);
   window.visualViewport?.addEventListener("resize", hideExPop);
+  window.visualViewport?.addEventListener("resize", positionStudyTools);
   window.visualViewport?.addEventListener("scroll", hideExPop);
 
   $("#q").addEventListener("input", () => onListFilterControlChanged("q"));
@@ -14102,6 +14178,11 @@
       syncSettingsNav();
     };
   });
+  const settingsCategory = $("#settingsCategory");
+  if (settingsCategory) settingsCategory.onchange = () => {
+    const link = $('.settings-nav a[href="#' + settingsCategory.value + '"]');
+    link?.click();
+  };
   let settingsNavFrame = false;
   // 09：页头副标题与学习页上下文条的范围摘要都进入设置页「词库范围」。
   ["#scopeLabel", "#studyScope"].forEach(sel => {
@@ -14115,6 +14196,7 @@
     d.addEventListener("toggle", () => { syncStatsChartHints(); persistStatsPanels(); });
   });
   $("#main").addEventListener("scroll", () => {
+    positionStudyTools();
     if (settingsNavFrame || !$("#v-set")?.classList.contains("on")) return;
     settingsNavFrame = true;
     const schedule = window.requestAnimationFrame || ((fn) => fn());
@@ -14309,6 +14391,9 @@
 
   const themeBtnEl = $("#btnTheme");
   if (themeBtnEl) themeBtnEl.onclick = toggleTheme;
+  $$("[data-fullscreen-toggle]").forEach(button => { button.onclick = toggleFullscreen; });
+  document.addEventListener("fullscreenchange", syncFullscreenButton);
+  syncFullscreenButton();
   $("#btnHelp").onclick = openHelp;
   $$("#helpSheet [data-close]").forEach(el => {
     el.onclick = closeHelp;
@@ -14340,7 +14425,11 @@
   const wordIssueExportAllBtn = $("#wordIssueExportAll");
   if (wordIssueExportAllBtn) wordIssueExportAllBtn.onclick = () => { exportWordIssuesFile("all"); };
   const wordIssueNoteEl = $("#wordIssueNote");
-  if (wordIssueNoteEl) wordIssueNoteEl.addEventListener("input", () => { wordIssueDirty = true; });
+  if (wordIssueNoteEl) wordIssueNoteEl.addEventListener("input", () => {
+    wordIssueDirty = true;
+    const summary = $("#wordIssueSummary");
+    if (summary) summary.textContent = "有未保存草稿";
+  });
   bindSpellingSheet();
 
   // 词书入口与选择浮层

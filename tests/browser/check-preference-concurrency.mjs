@@ -31,6 +31,29 @@ try{
     check('两页各自保持词书',(await p.a.eval('window.__vocab.getBook()'))==='kaoyan'&&(await p.b.eval('window.__vocab.getBook()'))==='cet4');
   }finally{await close(p);}
   p=await pair();
+  let observer=null;
+  try{
+    await p.a.eval('window.__holdPreferenceEvents=true');
+    await click(p.b,'[data-theme="dark"]');
+    check('普通学习保存前置：设备主题已改，本页通知仍未送达',(await raw(p.a)).shared.theme==='dark'
+      &&await p.a.eval(`window.__vocab.getS().settings.theme==='light'`));
+    observer=await Page.open(conn,{url:server.url()});await ready(observer);
+    check('第三页已采用新的设备主题',await observer.eval(`window.__vocab.getS().settings.theme==='dark'`));
+    await click(p.a,'[data-v="study"]');
+    await p.a.key('keyF');await sleep(160);
+    const saved=await p.a.eval(`({theme:window.__vocab.getS().settings.theme,
+      stored:JSON.parse(localStorage.getItem('kaoyan_vocab_v1')),
+      phase:window.__vocab.phase,verdict:window.__vocab.verdict})`);
+    check('无偏好编辑的学习保存也先采纳设备最新值，判定保持生效',saved.theme==='dark'
+      &&saved.stored.settings.theme==='dark'&&saved.phase==='revealed'&&saved.verdict===true
+      &&Object.keys(saved.stored.progress).length>0,{theme:saved.theme,storedTheme:saved.stored.settings.theme,phase:saved.phase});
+    check('第三页收到学习主记录后不再把旧主题反写回设备',(await raw(p.a)).shared.theme==='dark'
+      &&await observer.eval(`window.__vocab.getS().settings.theme==='dark'`));
+  }finally{
+    if(observer){report.errors.push(...observer.errors());await observer.close();}
+    await close(p);
+  }
+  p=await pair();
   try{
     const before=await scene(p.a);await p.a.eval('window.__holdPreferenceEvents=true');
     await click(p.b,'[data-font-size="large"]');

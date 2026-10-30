@@ -50,7 +50,11 @@ function browser(opts = {}) {
   class Node {
     constructor(tag = 'div', text = '') {
       this.tagName = tag.toUpperCase(); this.parentNode = null; this.children = [];
-      this.attrs = {}; this.dataset = {}; this.style = {}; this.events = new Map();
+      this.attrs = {}; this.dataset = {}; this.style = {
+        setProperty(name, value) { this[name] = String(value); },
+        getPropertyValue(name) { return this[name] || ''; },
+        removeProperty(name) { const value = this[name] || ''; delete this[name]; return value; }
+      }; this.events = new Map();
       this._html = ''; this._text = text; this.scrollTop = 0; this.clientHeight = 260;
       this.clientWidth = 320; this.scrollWidth = 320; this.value = ''; this.checked = false;
       this.hidden = false; this.disabled = false; this.files = []; this.placeholder = '';
@@ -161,6 +165,22 @@ function browser(opts = {}) {
   doc.activeElement = doc.body; doc.visibilityState = 'visible';
   doc.createElement = tag => new Node(tag);
   doc.createTextNode = text => new Node('#text', text);
+  const fullscreen = { entered: 0, exited: 0 };
+  if (opts.fullscreen) {
+    doc.fullscreenEnabled = true;
+    doc.fullscreenElement = null;
+    doc.documentElement.requestFullscreen = async () => {
+      fullscreen.entered++;
+      if (opts.fullscreenReject) throw new Error('fullscreen permission denied');
+      doc.fullscreenElement = doc.documentElement;
+      doc.dispatch('fullscreenchange');
+    };
+    doc.exitFullscreen = async () => {
+      fullscreen.exited++;
+      doc.fullscreenElement = null;
+      doc.dispatch('fullscreenchange');
+    };
+  }
 
   const storage = opts.storage || new Map();
   const session = opts.session || new Map();
@@ -214,7 +234,7 @@ function browser(opts = {}) {
   const T = window.__vocab;
   assert.ok(T, 'app.js 应提供 window.__vocab');
   return {
-    T, window, doc, storage, session, failWrite, failRead, failRemove, intervals, blobs,
+    T, window, doc, storage, session, failWrite, failRead, failRemove, intervals, blobs, fullscreen,
     query: s => doc.querySelector(s), all: s => doc.querySelectorAll(s),
     text: s => (doc.querySelector(s)?.textContent || '').replace(/\s+/g, ' ').trim(),
     device() { const raw = storage.get(DEVICE_KEY); return raw ? JSON.parse(raw) : null; },
@@ -242,6 +262,10 @@ const DEFAULT_MODE = 'standard';
 let passed = 0, failed = 0;
 function test(name, fn) {
   try { fn(); passed++; console.log('PASS  ' + name); }
+  catch (error) { failed++; console.error('FAIL  ' + name + ': ' + (error.stack || error)); }
+}
+async function asyncTest(name, fn) {
+  try { await fn(); passed++; console.log('PASS  ' + name); }
   catch (error) { failed++; console.error('FAIL  ' + name + ': ' + (error.stack || error)); }
 }
 function setup(b, {due = 0, cap = 100, groupSize = 4} = {}) {
@@ -447,6 +471,45 @@ test('模式切换不取消同词正在请求的朗读，不重建词卡DOM', ()
     assert.equal(JSON.stringify(T.getSpeechPlayback()), speech);
     assert.equal(b.query('#card .word'), word, '只改变显示方式，不重新插入词卡');
   }
+});
+
+await asyncTest('先沉浸后直接全屏、外部退出及反向顺序均同步全部入口且不改现场', async () => {
+  const b = browser({fullscreen: true}), T = setup(b);
+  T.setStudyMode('immersive');
+  const before = scene(T), disk = [...b.storage], card = b.query('#card .word');
+  const direct = b.query('#studyFullscreen'), top = b.query('#btnFullscreen');
+  assert.ok(direct && !direct.hidden, '沉浸模式旁直接提供全屏按钮');
+  await direct.onclick();
+  assert.equal(b.fullscreen.entered, 1); assert.equal(b.doc.fullscreenElement, b.doc.documentElement);
+  for (const button of [direct, top]) {
+    assert.equal(button.getAttribute('aria-pressed'), 'true');
+    assert.equal(button.getAttribute('aria-label'), '退出全屏显示');
+  }
+  assert.equal(direct.querySelector('[data-fullscreen-label]').textContent, '退出');
+  assert.equal(b.text('#studyTools [data-study-proxy="btnFullscreen"]'), '退出全屏显示');
+  b.doc.fullscreenElement = null; b.doc.dispatch('fullscreenchange');
+  assert.equal(direct.getAttribute('aria-pressed'), 'false', '浏览器Esc等外部退出也同步');
+  assert.equal(direct.querySelector('[data-fullscreen-label]').textContent, '全屏');
+  await direct.onclick(); await top.onclick();
+  assert.equal(b.fullscreen.exited, 1); assert.equal(b.doc.fullscreenElement, null);
+  assert.equal(scene(T), before); assert.deepEqual([...b.storage], disk); assert.equal(b.query('#card .word'), card);
+  T.setStudyMode('standard'); await top.onclick(); T.setStudyMode('immersive');
+  assert.equal(b.doc.fullscreenElement, b.doc.documentElement, '全屏后切沉浸保留全屏');
+  assert.equal(direct.getAttribute('aria-pressed'), 'true');
+  await direct.onclick(); assert.equal(b.doc.fullscreenElement, null);
+});
+
+await asyncTest('全屏能力缺失时三个入口隐藏，拒绝时提示并保留沉浸现场', async () => {
+  const unsupported = browser();
+  for (const selector of ['#btnFullscreen', '#studyFullscreen', '#studyTools [data-study-proxy="btnFullscreen"]']) {
+    assert.equal(unsupported.query(selector).hidden, true, selector);
+  }
+  const b = browser({fullscreen: true, fullscreenReject: true}), T = setup(b);
+  T.setStudyMode('immersive'); const before = scene(T), disk = [...b.storage];
+  await b.query('#studyFullscreen').onclick();
+  assert.equal(b.doc.fullscreenElement, null); assert.equal(b.query('#studyFullscreen').getAttribute('aria-pressed'), 'false');
+  assert.ok(b.text('#toast').includes('未能切换全屏显示'));
+  assert.equal(scene(T), before); assert.deepEqual([...b.storage], disk); assertMode(b, 'immersive');
 });
 
 console.log(`\n背诵模式：${passed} 通过 / ${failed} 失败`);

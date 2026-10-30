@@ -16,7 +16,16 @@ let p,acceptDialog=false;
 async function click(selector){await p.scrollIntoView(selector);if(!await p.isClickable(selector))throw Error('控件无法真实命中：'+selector);await p.clickSelector(selector);}
 async function keyboardClick(selector){await p.scrollIntoView(selector);await p.eval(`document.querySelector(${JSON.stringify(selector)}).focus({preventScroll:true})`);await p.key('Enter');}
 async function fill(selector,value){await click(selector);await p.eval(`document.querySelector(${JSON.stringify(selector)}).select()`);await p.insertText(value);await p.key('Tab');}
-async function settings(){await click('[data-v="set"]');await click('a[href="#settings-backup"]');}
+async function settings(){
+  await click('[data-v="set"]');
+  if(await p.eval('document.querySelector("#settingsCategory").getClientRects().length>0')){
+    await p.scrollIntoView('#settingsCategory');
+    // macOS CDP 原生 select 无法靠方向键可靠提交；只设置表单值并触发真实 change 路径。
+    await p.eval(`{const picker=document.querySelector('#settingsCategory');picker.value='settings-backup';picker.dispatchEvent(new Event('change',{bubbles:true}));}`);
+    await p.waitFor(`document.activeElement.id==='settings-backup'&&document.querySelector('#settingsCategory').value==='settings-backup'`);
+    check('手机分类选择到备份区并同步原锚点与焦点',await p.eval(`document.querySelector('.settings-nav a[aria-current="location"]')?.getAttribute('href')==='#settings-backup'&&document.activeElement.id==='settings-backup'`));
+  }else await click('a[href="#settings-backup"]');
+}
 async function study(){await click('[data-v="study"]');await p.eval('document.querySelector("#card").focus({preventScroll:true})');}
 async function save(name){await fill('#archiveName',name);await click('#saveArchive');await p.waitFor(`window.__vocab.readBackupArchives().archives.some(a=>a.name===${JSON.stringify(name)})`);return (await p.eval(store)).archives.find(a=>a.name===name);}
 const action=(id,name)=>`[data-archive-id="${id}"][data-archive-action="${name}"]`;

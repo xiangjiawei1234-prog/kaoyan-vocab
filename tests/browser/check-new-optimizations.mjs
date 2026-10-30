@@ -225,19 +225,20 @@ async function sectionH() {
     await p.waitFor("!document.querySelector('#wordSheet').hidden", { label: "详情浮层打开" });
 
     const structure = await p.eval(`(() => {const b=document.querySelector('#wordIssueBlock'),n=document.querySelector('#wordIssueNote'),st=document.querySelector('#wordIssueStatus');
-      return {insideSheet:!!(b&&b.closest('#wordSheet')),hasNote:!!n,noteMax:n&&n.getAttribute('maxlength'),noteMaxProp:n&&n.maxLength,knownHidden:document.querySelector('#wordIssueKnown').hidden,
+      return {insideSheet:!!(b&&b.closest('#wordSheet')),tag:b&&b.tagName,open:b&&b.open,hasNote:!!n,noteMax:n&&n.getAttribute('maxlength'),noteMaxProp:n&&n.maxLength,knownHidden:document.querySelector('#wordIssueKnown').hidden,
         deleteHidden:document.querySelector('#wordIssueDelete').hidden,copyHidden:document.querySelector('#wordIssueCopy').hidden,
         statusRole:st&&st.getAttribute('role'),statusLive:st&&st.getAttribute('aria-live'),statusText:st&&st.textContent,
         panelScrolls:document.querySelector('#wordSheet .sheet-panel').scrollHeight>0};})()`);
-    sectionCheck(S, structure.insideSheet && structure.hasNote && structure.noteMax === '500' && structure.noteMaxProp === 500 && structure.knownHidden
+    sectionCheck(S, structure.insideSheet && structure.tag === "DETAILS" && !structure.open && structure.hasNote && structure.noteMax === '500' && structure.noteMaxProp === 500 && structure.knownHidden
       && structure.deleteHidden && structure.copyHidden && structure.statusRole === "status" && structure.statusLive === "polite",
-      "详情浮层内新增本词问题区（空状态：无删除/复制、状态 role=status、500 字限制）", structure);
+      "详情低频问题区默认收起（空状态无删除/复制，保留500字与状态语义）", structure);
     const ctx = await p.eval("window.__vocab.getWordIssueState().context");
     sectionCheck(S, !!ctx && ctx.bookId === "kaoyan" && ctx.bookName === "考研英语" && ctx.word === "answer"
       && /真题例句|自编例句|例句/.test(ctx.source) && /词频 #\d+/.test(ctx.source) && /套卷/.test(ctx.source),
       "打开详情自动带词书/词头/可读来源（11 元组 src + 词频 + 卷次）", ctx);
 
-    // 键盘可达：输入框之后一个 Tab 到保存
+    // 明确展开后，键盘从输入框一个 Tab 到保存
+    await click(p, "#wordIssueBlock > summary");
     await click(p, "#wordIssueNote");
     await p.key("Tab");
     const tabTo = await p.eval(`({id:document.activeElement.id,tag:document.activeElement.tagName})`);

@@ -6,7 +6,7 @@
 <meta name="description" content="基于真题词频的背单词工具（考研 / 英语四级 / 英语六级 / 综合词书）">
 <meta name="theme-color" content="#F4F0E7">
 <title>考研英语单词背诵</title>
-<link rel="stylesheet" href="css/app.css?v=20261028-r68">
+<link rel="stylesheet" href="css/app.css?v=20261030-r75">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
 </head>
@@ -29,6 +29,10 @@
     <button type="button" class="icon-btn theme-toggle" id="btnTheme" aria-label="切换到深色模式" title="切换到深色模式" aria-pressed="false">
       <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.4v2.2M12 19.4v2.2M2.4 12h2.2M19.4 12h2.2M5.2 5.2l1.6 1.6M17.2 17.2l1.6 1.6M18.8 5.2l-1.6 1.6M6.8 17.2l-1.6 1.6"/></svg>
       <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14.2A8.6 8.6 0 0 1 9.8 3.5a8.6 8.6 0 1 0 10.7 10.7Z"/></svg>
+    </button>
+    <button type="button" class="icon-btn fullscreen-toggle" id="btnFullscreen" data-fullscreen-toggle aria-label="进入全屏显示" title="进入全屏显示" aria-pressed="false">
+      <svg class="theme-icon fullscreen-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 4H4v4.5M15.5 4H20v4.5M20 15.5V20h-4.5M8.5 20H4v-4.5"/></svg>
+      <svg class="theme-icon fullscreen-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5h4.5V4M20 8.5h-4.5V4M15.5 20v-4.5H20M8.5 20v-4.5H4"/></svg>
     </button>
     <button type="button" class="icon-btn book-btn" id="btnBooks" aria-label="切换词书" title="切换词书" aria-haspopup="dialog" aria-controls="bookSheet" aria-expanded="false">词书⌄</button>
     <button type="button" class="icon-btn" id="btnHelp" aria-label="快捷键帮助" title="快捷键（?）">?</button>
@@ -67,6 +71,11 @@
         <button type="button" data-study-mode="simple" aria-pressed="false">简洁</button>
         <button type="button" data-study-mode="standard" aria-pressed="true">标准</button>
       </div>
+      <button type="button" class="study-fullscreen fullscreen-toggle" id="studyFullscreen" data-fullscreen-toggle aria-label="进入全屏显示" title="进入全屏显示" aria-pressed="false">
+        <svg class="theme-icon fullscreen-icon-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 4H4v4.5M15.5 4H20v4.5M20 15.5V20h-4.5M8.5 20H4v-4.5"/></svg>
+        <svg class="theme-icon fullscreen-icon-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5h4.5V4M20 8.5h-4.5V4M15.5 20v-4.5H20M8.5 20v-4.5H4"/></svg>
+        <span data-fullscreen-label>全屏</span>
+      </button>
       <details class="study-tools" id="studyTools">
         <summary aria-label="学习工具与导航">工具<span aria-hidden="true"> ⋯</span></summary>
         <div class="study-tools-menu" role="group" aria-label="学习工具与导航">
@@ -81,6 +90,7 @@
             <button type="button" data-study-view="set">设置</button>
           </div>
           <button type="button" data-study-proxy="btnTheme">切换深浅色</button>
+          <button type="button" data-study-proxy="btnFullscreen">进入全屏显示</button>
           <button type="button" data-study-proxy="btnHelp">使用帮助</button>
         </div>
       </details>
@@ -250,7 +260,7 @@
           <option value="star">收藏</option>
         </select>
         <select id="fsc" aria-label="按词库范围筛选（大纲词对应当前词书）">
-          <option value="scope">当前</option>
+          <option value="scope">学习范围</option>
           <option value="all">全库</option>
           <option value="high">高频</option>
           <option value="cold">冷门</option>
@@ -259,11 +269,11 @@
       </div>
       <button type="button" class="btn ghost sm" id="btnToggleOrganize" aria-pressed="false" aria-describedby="listOrganizeHint">整理</button>
       <details class="list-export-menu" id="listViewsMenu">
-        <summary class="btn ghost sm" title="保存与套用常用筛选视图">视图</summary>
+        <summary class="btn ghost sm" title="保存与套用常用筛选方案">筛选方案</summary>
         <div class="list-export-pop list-views-pop">
-          <p class="list-views-note">只显示本词书的视图；每本独立保存，最多 12 个。保存搜索与状态/范围筛选，不保存滚动位置，不改学习范围、队列或统计条件。</p>
+          <p class="list-views-note">只显示本词书的筛选方案；每本独立保存，最多 12 个。保存搜索与状态/范围筛选，不保存滚动位置，不改学习范围、队列或统计条件。</p>
           <div class="list-view-save">
-            <input id="listViewName" type="text" maxlength="30" placeholder="视图名称（1–30 字）" aria-label="新视图名称">
+            <input id="listViewName" type="text" maxlength="30" placeholder="方案名称（1–30 字）" aria-label="新筛选方案名称">
             <button type="button" class="btn ghost sm" id="btnSaveListView">保存当前筛选</button>
           </div>
           <p class="list-views-status" id="listViewsStatus" role="status" aria-live="polite"></p>
@@ -338,7 +348,7 @@
   <!-- ============ 统计 ============ -->
   <section class="view" id="v-stats" aria-label="统计">
     <div class="view-heading"><div><p class="eyebrow">LEARNING JOURNAL</p><h2>学习足迹</h2></div><p>看见积累，也为下一次复习做好准备。</p></div>
-    <div class="stats-analysis-heading"><h3>你的统计卡片</h3><p>分析默认展开；收起状态与顺序会保留。长按卡片右上角拖动，也可点击排列按钮。</p></div>
+    <details class="stats-analysis-heading stats-layout-help"><summary>排列与统计口径说明</summary><div class="stats-layout-help-body"><p>分析卡片默认展开；收起状态与顺序保存在此设备。长按卡片右上角拖动，或点按后使用上移/下移；手柄支持 Alt+↑/↓。</p><p>掌握类统计看当前背诵范围；学习时长、近 14 天与热力图看当前词书；历史首次自评只看乱序模式的历史样本，不代表当前范围或全书掌握率。</p></div></details>
     <p class="stats-layout-status" id="statsLayoutStatus" role="status" aria-live="polite"></p>
     <div class="panel review-action-panel" id="statsPlanPanel">
       <div class="panel-heading"><h3>今日计划</h3><p class="panel-note">当前背诵范围</p></div>
@@ -432,6 +442,15 @@
       <a href="#settings-backup"><span aria-hidden="true">06</span>备份与存档</a>
       <a href="#settings-offline"><span aria-hidden="true">07</span>离线与帮助</a>
     </nav>
+    <label class="settings-category-picker" for="settingsCategory"><span>设置分类</span><select id="settingsCategory" aria-label="选择设置分类">
+      <option value="settings-plan">01 · 学习计划</option>
+      <option value="settings-scope">02 · 词库范围</option>
+      <option value="settings-appearance">03 · 外观与显示</option>
+      <option value="settings-keys">04 · 按键与手势</option>
+      <option value="settings-rhythm">05 · 复习节奏</option>
+      <option value="settings-backup">06 · 备份与存档</option>
+      <option value="settings-offline">07 · 离线与帮助</option>
+    </select></label>
     <div class="settings-content">
       <section class="panel settings-section" id="settings-plan" aria-labelledby="planTitle">
         <div class="settings-section-head"><span class="section-index" aria-hidden="true">01</span><div><h3 id="planTitle">学习计划</h3><p>设置每天的学习量，以及遇见单词的顺序。</p></div></div>
@@ -780,21 +799,23 @@
       <button type="button" class="icon-btn" id="wordClose" data-word-close aria-label="关闭单词详情">×</button>
     </header>
     <div id="wordDetail"></div>
-    <section aria-labelledby="wordIssueTitle" class="word-issue" id="wordIssueBlock">
-      <h3 class="word-issue-title" id="wordIssueTitle">本词问题 <span class="word-issue-total" id="wordIssueTotal"></span></h3>
-      <p class="sheet-note word-issue-intro">只保存在当前浏览器：不上传、不改动词库、熟练或学习进度。发现释义、音标、例句或来源有问题时可记录在这里。</p>
-      <div class="word-issue-known" id="wordIssueKnown" hidden></div>
-      <label class="word-issue-label" for="wordIssueNote">问题 / 备注（最多 500 字）</label>
-      <textarea class="word-issue-input" id="wordIssueNote" maxlength="500" placeholder="例如：这个义项和例句对不上、音标疑似错误、缺少常见搭配…" rows="3"></textarea>
-      <div class="word-issue-actions">
-        <button class="btn primary sm" id="wordIssueSave" type="button">保存</button>
-        <button class="btn ghost sm" hidden id="wordIssueDelete" type="button">删除</button>
-        <button class="btn ghost sm" hidden id="wordIssueCopy" type="button">复制</button>
-        <button class="btn ghost sm" id="wordIssueExportBook" type="button">导出本书 JSON</button>
-        <button class="btn ghost sm" id="wordIssueExportAll" type="button">导出全部 JSON</button>
+    <details aria-labelledby="wordIssueTitle" class="word-issue" id="wordIssueBlock">
+      <summary class="word-issue-summary"><span class="word-issue-title" id="wordIssueTitle">本词问题 <span class="word-issue-total" id="wordIssueTotal"></span></span><span class="word-issue-summary-note" id="wordIssueSummary">记录释义、音标、例句或来源问题</span></summary>
+      <div class="word-issue-body">
+        <p class="sheet-note word-issue-intro">只保存在当前浏览器：不上传、不改动词库、熟练或学习进度。</p>
+        <div class="word-issue-known" id="wordIssueKnown" hidden></div>
+        <label class="word-issue-label" for="wordIssueNote">问题 / 备注（最多 500 字）</label>
+        <textarea class="word-issue-input" id="wordIssueNote" maxlength="500" placeholder="例如：这个义项和例句对不上、音标疑似错误、缺少常见搭配…" rows="3"></textarea>
+        <div class="word-issue-actions">
+          <button class="btn primary sm" id="wordIssueSave" type="button">保存</button>
+          <button class="btn ghost sm" hidden id="wordIssueDelete" type="button">删除</button>
+          <button class="btn ghost sm" hidden id="wordIssueCopy" type="button">复制</button>
+          <button class="btn ghost sm" id="wordIssueExportBook" type="button">导出本书 JSON</button>
+          <button class="btn ghost sm" id="wordIssueExportAll" type="button">导出全部 JSON</button>
+        </div>
+        <p aria-live="polite" class="word-issue-status" id="wordIssueStatus" role="status"></p>
       </div>
-      <p aria-live="polite" class="word-issue-status" id="wordIssueStatus" role="status"></p>
-    </section>
+    </details>
     <div class="acts start" id="wordActions"></div>
   </div>
 </div>
@@ -984,6 +1005,6 @@
 <script src="js/combined-words-data.js"></script>
 <script src="js/senses-data.js"></script>
 <script src="js/txt-zip.js"></script>
-<script src="js/app.js?v=20261028-r68"></script>
+<script src="js/app.js?v=20261030-r75"></script>
 </body>
 </html>

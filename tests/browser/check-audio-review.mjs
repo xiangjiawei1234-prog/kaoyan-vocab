@@ -22,7 +22,7 @@ async function seed(width){
  await p.eval(`(() => {const v=window.__vocab,s=JSON.parse(JSON.stringify(v.getS())),words=v.getW();
   const target=Object.keys(window.WORD_SENSES.books.kaoyan).find(w=>words.some(x=>x.w===w));
   s.progress={};s.days={};s.stars={};s.timeSec=0;s.proficient=Object.fromEntries(words.filter(x=>x.w!==target).map(x=>[x.w,1]));s.reviewDay={};s.extraDay={};
-  Object.assign(s.settings,{dailyNew:1,groupSize:1,order:'freq',fmin:1,fmax:0,pmin:0,pos:[],kyOnly:false,autoSpk:false,theme:${JSON.stringify(width===375?'dark':'light')},fontSize:${JSON.stringify(width===375?'large':'standard')},singleCharKeys:true});
+  Object.assign(s.settings,{dailyNew:1,groupSize:1,order:'freq',fmin:1,fmax:0,pmin:0,pos:[],kyOnly:false,autoSpk:false,showEx:false,theme:${JSON.stringify(width===375?'dark':'light')},fontSize:${JSON.stringify(width===375?'large':'standard')},singleCharKeys:true});
   localStorage.clear();sessionStorage.clear();localStorage.setItem('kaoyan_vocab_v1',JSON.stringify(s));localStorage.setItem('kaoyan_vocab_proficient_v1',JSON.stringify(s.proficient));localStorage.setItem('vocab_guide_v1',JSON.stringify({version:1,dismissedAt:new Date().toISOString()}));
  })()`);
  try{await p.reload();await p.waitFor('window.__vocab&&window.__vocab.cur!==null');}finally{await p.send('Page.removeScriptToEvaluateOnNewDocument',{identifier});}
@@ -43,6 +43,7 @@ try{
   check(width+' 设置试听状态不串回学习卡',await p.eval('document.querySelector("#wordAudioStatus").textContent===""'));
   check(width+' 回忆态无语境朗读泄题',await p.eval('!document.querySelector("#card [data-audio-play]")'));
   await p.eval('document.querySelector("#card").focus({preventScroll:true})');await p.key('keyF');await p.waitFor('window.__vocab.phase==="revealed"');
+  check(width+' 关闭主例句时仍保留已核义项证据',await p.eval(`!window.__vocab.getS().settings.showEx&&!!document.querySelector('#card .sense-evidence')&&!document.querySelector('#card .sense-shared')`));
   await click('#card .sense-evidence > summary');
   const normal='#card .sense-example [data-audio-play="normal"]', slow='#card .sense-example [data-audio-play="slow"]', stop='#card .sense-example [data-audio-stop]';
   await click(normal);await p.waitFor('window.__vocab.getSpeechPlayback().status==="playing"');
@@ -59,6 +60,16 @@ try{
   await click('[data-v="study"]');await p.scrollIntoView(normal);await p.nextFrame();
   check(width+' 音频控件不引起横向溢出',await p.eval('document.documentElement.scrollWidth<=innerWidth+1'));
   report.shots.push(await p.screenshot('audio-review-'+width+'.png'));
+  // 主例句显示后，同文同源原句共享呈现；在真实设置中切换后继续验证朗读控件。
+  const beforeShared=await p.eval(`JSON.stringify((()=>{const v=window.__vocab,s=v.getS();return {cur:v.cur,phase:v.phase,verdict:v.verdict,answered:v.answered,progress:s.progress,review:s.reviewDay};})())`);
+  await click('[data-v="set"]');await click('label[for="showEx"]');await click('[data-v="study"]');
+  check(width+' 开启主例句后同文同源只显示一次且不改学习现场',await p.eval(`!!document.querySelector('#card .sense-shared')&&!document.querySelector('#card .sense-evidence')&&!document.querySelector('#card .sense-quote')&&document.querySelectorAll('#card [data-audio-text]').length===1&&window.__vocab.getS().settings.showEx`)
+    &&beforeShared===await p.eval(`JSON.stringify((()=>{const v=window.__vocab,s=v.getS();return {cur:v.cur,phase:v.phase,verdict:v.verdict,answered:v.answered,progress:s.progress,review:s.reviewDay};})())`));
+  const sharedNormal='#card [data-audio-text] [data-audio-play="normal"]',sharedSlow='#card [data-audio-text] [data-audio-play="slow"]',sharedStop='#card [data-audio-text] [data-audio-stop]';
+  await click(sharedNormal);await p.waitFor('window.__vocab.getSpeechPlayback().status==="playing"');
+  check(width+' 共享主例句正常朗读只读英文',await p.eval(`window.__reviewSpeech.calls.at(-1).text===document.querySelector('#card [data-audio-text]').dataset.audioText&&document.querySelector('#card [data-audio-text] [data-audio-play="normal"]').getAttribute('aria-pressed')==='true'`));
+  await click(sharedSlow);check(width+' 共享主例句慢速可用',await p.eval(`window.__vocab.getSpeechPlayback().slow&&window.__reviewSpeech.calls.at(-1).rate<window.__vocab.getS().settings.speechRate`));
+  await click(sharedStop);check(width+' 共享主例句停止状态可见',await p.eval(`window.__vocab.getSpeechPlayback().status==='stopped'&&document.querySelector('#card [data-audio-text] .audio-status').textContent==='已停止'`));
  }
 }catch(error){check('旅程完整执行',false,String(error.stack||error));}
 finally{

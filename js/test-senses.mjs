@@ -405,8 +405,8 @@ console.log("== 2. 有效义项渲染：原句、来源、surface 与折叠 ==")
     "渲染包含完整真实原句（去标签后逐词一致，非编造）", norm(example.quote).slice(0, 40));
   ck(rendered.html.includes(example.source), "渲染包含真题出处", example.source);
   ck(/data-exw="[^"]+"/.test(rendered.html) && rendered.html.includes("ex-word"), "原句内单词可点（.ex-word + data-exw）");
-  ck(rendered.html.includes("sense-evidence") && rendered.html.includes("查看原句与出处"),
-    "原句/出处收进可展开 details（默认折叠）");
+  ck(rendered.html.includes("sense-evidence") && rendered.html.includes("真题原句与出处"),
+    "原句/出处收进可展开 details（默认折叠），入口明确写出内容");
   ck(rendered.html.includes("sense-item"), "义项用 sense-item 列表渲染");
   ck(rendered.compact.includes("sense-popup") && rendered.compact.includes("值得，合算"),
     "紧凑模式（例句浮层）用 sense-popup 渲染义项摘要");
@@ -422,8 +422,8 @@ console.log("== 2. 有效义项渲染：原句、来源、surface 与折叠 ==")
   T.switchBook("kaoyan");
 }
 
-/* ================= 3. 附加义折叠 ================= */
-console.log("== 3. 其他常见义折叠，不冒充已核对义项 ==");
+/* ================= 3. 附加义与核验说明折叠 ================= */
+console.log("== 3. 其他常见义与核验说明合并折叠 ==");
 {
   T.switchBook("kaoyan");
   const entry = bookData("kaoyan").state;
@@ -432,8 +432,8 @@ console.log("== 3. 其他常见义折叠，不冒充已核对义项 ==");
   ck(additional.length > 0 && rendered.html.includes(additional), "附加义字符串进入折叠区", additional);
   const addIdx = rendered.html.indexOf("sense-additional");
   const closeListIdx = rendered.html.indexOf("</ol>");
-  ck(addIdx > closeListIdx && rendered.html.includes("其他词典释义"),
-    "附加义位于已核对义项列表之后（<details> 折叠）");
+  ck(addIdx > closeListIdx && rendered.html.includes("其他释义与核验说明"),
+    "附加义与核验说明位于已核对义项列表之后（<details> 折叠）");
   ck(rendered.html.includes("这些释义尚未逐义核验"), "附加义明确标注尚未逐义核验");
   ck(rendered.html.indexOf(additional) > addIdx, "附加义只在折叠区内出现，不混入 preferred 列表");
   ck(rendered.html.includes("本书真题已核对义项") && rendered.html.includes("尚未穷尽历年全部用法"),
@@ -446,6 +446,27 @@ console.log("== 3. 其他常见义折叠，不冒充已核对义项 ==");
   ck(!payHtml.includes("sense-additional") && !payHtml.includes("其他词典释义"),
     "additional 为空时不渲染「其他词典释义」折叠区");
   restoreSenses();
+}
+
+/* ================= 3b. 学习卡同文同源例句共享呈现 ================= */
+console.log("== 3b. 仅同文本且同来源时避免重复原句 ==");
+{
+  T.switchBook("kaoyan");
+  const can = htmlFor("can");
+  const shared = bookData("kaoyan").can.preferred[0].examples[0];
+  ck(norm(can.x.ex) === norm(shared.quote) && norm(can.x.src) === norm(shared.source),
+    "can 夹具的主例句与已核对原句同文同源");
+  const original = T.meaningHtml(can.x);
+  ck(original.includes("sense-quote") && wordTokens(plainOf(original)).join(" ").includes(wordTokens(shared.quote).join(" ")),
+    "未启用共享呈现时仍完整保留义项原句", plainOf(original));
+  const deduped = T.meaningHtml(can.x, false, {dedupeExample: true});
+  ck(!deduped.includes("sense-quote") && deduped.includes("已核对原句见例句区（同一出处）"),
+    "同文同源原句只在主例句区出现，义项区保留明确指引");
+  const differentSource = Object.assign({}, can.x, {src: "另一来源"});
+  const kept = T.meaningHtml(differentSource, false, {dedupeExample: true});
+  ck(kept.includes("sense-quote") && !kept.includes("不重复展示"),
+    "来源不同即使文本相同也不得去重");
+  ck(eq(DATA(), ORIGINAL_SENSES), "共享呈现只改 HTML，不改 WORD_SENSES 原数据");
 }
 
 /* ================= 4. 无效数据完整回退 ================= */

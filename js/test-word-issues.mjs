@@ -702,6 +702,30 @@ await test('收藏/熟练触发详情重渲染时保留未保存草稿；已保�
   assert.ok(b.text('#wordIssueKnown').includes('来源'));
 });
 
+await test('低频表单默认收起；草稿摘要、重绘与已有记录展开状态保持', () => {
+  const b = browser();
+  openWordByText(b, 'answer');
+  const block = b.query('#wordIssueBlock');
+  assert.equal(block.tagName, 'DETAILS');
+  assert.equal(block.open, false, '无记录的新详情默认收起');
+  block.open = true;
+  typeIssue(b, '折叠后也不能丢的草稿');
+  block.open = false;
+  b.query('#detailStar').click();
+  assert.equal(b.query('#wordIssueNote').value, '折叠后也不能丢的草稿');
+  assert.equal(block.open, false, '同词重绘尊重用户收起选择');
+  assert.ok(b.text('#wordIssueSummary').includes('未保存草稿'));
+  block.open = true;
+  b.query('#wordIssueSave').click();
+  assert.equal(block.open, true, '保存结果与状态保持可见');
+  assert.ok(b.text('#wordIssueSummary').includes('已有记录'));
+  b.key('Escape');
+  assert.equal(block.open, false, '关闭详情重置折叠现场');
+  openWordByText(b, 'answer');
+  assert.equal(block.open, true, '已有记录在重开详情时自动展开');
+  assert.equal(b.query('#wordIssueNote').value, '折叠后也不能丢的草稿');
+});
+
 await test('问题区键盘可达：label/type 正确、Tab 可到保存与输入框、浮层焦点陷阱保持', () => {
   const b = browser();
   openWordByText(b, 'answer');

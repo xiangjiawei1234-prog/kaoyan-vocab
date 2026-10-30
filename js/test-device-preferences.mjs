@@ -532,6 +532,25 @@ test("save 不拿本页旧缓存覆盖另一页刚写入的设备键", () => {
   assert.ok(saved && Object.keys(saved.progress).length >= 1, "学习进度仍保存");
 });
 
+test("没有编辑偏好时保存学习进度，也要先采纳尚未通知的最新设备值", () => {
+  const source = browser();
+  source.T.applyPreferencePatch({ theme: "light" }, { target: "device" });
+  const stale = browser({ storage: source.storage, session: new Map() });
+  const observer = browser({ storage: source.storage, session: new Map() });
+  source.T.switchBook("cet4");
+  assert.equal(source.T.applyPreferencePatch({ theme: "dark" }, { target: "device" }).ok, true);
+  observer.storageEvent(DEVICE_KEY);
+  assert.equal(observer.T.getS().settings.theme, "dark");
+  assert.equal(stale.T.getS().settings.theme, "light", "模拟设备通知尚未送达的旧页面");
+  stale.T.judge(true);
+  assert.equal(stale.T.getS().settings.theme, "dark", "无偏好编辑时也重读权威设备值");
+  assert.equal(stale.stateOf("kaoyan").settings.theme, "dark", "学习保存不写回过期物化偏好");
+  observer.storageEvent(BOOK_KEYS.kaoyan);
+  assert.equal(observer.T.getS().settings.theme, "dark", "迟到的主记录通知不把已同步的主题改回去");
+  assert.equal(source.device().shared.theme, "dark");
+  assert.ok(Object.keys(stale.stateOf("kaoyan").progress).length > 0, "这次学习判定仍成功保存");
+});
+
 /* 设备通用与本书覆盖组合后的按键冲突：真实归属事务与保存路径共用校验。 */
 test('设备额外动作不能与另一书保留的六键覆盖冲突，拒绝前不写设备/主键/日志', () => {
   const b=browser(),T=b.T;
